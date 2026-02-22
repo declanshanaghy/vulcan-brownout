@@ -71,17 +71,12 @@ Add ADR-001 integration architecture for the Vulcan Brownout Home Assistant cust
                  ← over 80 characters
 ```
 
-## Post-Commit: Always Push to GitHub
+## Post-Commit: Push to GitHub
 
-After every successful commit, immediately push to the remote:
+> ⚠️ **Git push is disabled in this environment.** Do NOT attempt to run `git push`. The repo owner (Dek) handles all pushes to GitHub manually. Commit locally and stop — do not treat an unpushed commit as a failure or blocker.
 
-```bash
-git push origin <current-branch>
-```
+For reference, the push command when the owner runs it manually:
 
-This is mandatory — no exceptions. Every commit must be pushed. The repo should never have local-only commits sitting unpushed. If the push fails (auth, network, etc.), report it immediately and do not continue with further work until the push succeeds.
-
-If no remote is configured yet, set one up first:
 ```bash
 git remote add origin <repo-url>
 git push -u origin <branch>

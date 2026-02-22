@@ -4,6 +4,8 @@ HA custom integration: real-time battery monitoring panel with notifications, in
 
 **Status**: Sprint 3 code COMPLETE. QA in progress. Sprint 4 not started.
 
+> ⚠️ **Git push is disabled in this environment.** Agents must commit locally only. The repo owner (Dek) handles all pushes to GitHub manually.
+
 ## Team
 
 | Role | Agent | Model | Skill |
