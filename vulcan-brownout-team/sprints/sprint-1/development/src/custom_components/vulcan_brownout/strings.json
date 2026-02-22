@@ -1,0 +1,15 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure Vulcan Brownout",
+        "description": "No configuration needed. Battery devices are auto-discovered from Home Assistant."
+      }
+    },
+    "abort": {
+      "already_configured": "Vulcan Brownout is already configured."
+    }
+  },
+  "options": {},
+  "selector": {}
+}
