@@ -3,7 +3,7 @@ version: '3.8'
 services:
   mock_ha:
     build:
-      context: .github/docker/mock_ha
+      context: docker/mock_ha
       dockerfile: Dockerfile
     ports:
       - "8123:8123"
@@ -20,7 +20,7 @@ services:
 
   component_tests:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       mock_ha:
@@ -32,8 +32,8 @@ services:
       TEST_MODE: "component"
       PYTHONUNBUFFERED: "1"
     volumes:
-      - ./quality/scripts:/app/quality/scripts:ro
-      - ./development/src:/app/development/src:ro
+      - ../quality/scripts:/app/quality/scripts:ro
+      - ../development/src:/app/development/src:ro
     networks:
       - vulcan-test
     command: >
