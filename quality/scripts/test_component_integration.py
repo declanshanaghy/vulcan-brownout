@@ -419,7 +419,8 @@ class TestErrorInjection:
         client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
         # This should timeout during auth
         with pytest.raises(Exception):
-            await client.connect()
+            # Wrap with asyncio timeout to prevent hanging
+            await asyncio.wait_for(client.connect(), timeout=5.0)
         await client.close()
 
     @pytest.mark.asyncio
