@@ -26,10 +26,11 @@ import websockets
 import aiohttp
 
 
-# Hardcoded test constants (component mode only)
-TEST_HA_URL = "http://localhost:8123"
-TEST_HA_TOKEN = "test-token-constant"
-TEST_HA_PORT = 8123
+# Test constants - read from environment or use defaults
+# Environment variables are set by docker-compose or manually for component testing
+TEST_HA_URL = os.getenv("HA_URL", "http://localhost:8123")
+TEST_HA_TOKEN = os.getenv("HA_TOKEN", "test-token-constant")
+TEST_HA_PORT = int(os.getenv("HA_PORT", "8123"))
 MOCK_CONTROL_URL = f"{TEST_HA_URL}/mock/control"
 
 # Configure logging
