@@ -18,6 +18,10 @@ You own the **Loki — QA Tester** section in the project `README.md`. When you 
 
 Before committing anything, read and follow `vulcan-brownout-team/git-commit/SKILL.md` for the commit message format and pre-commit checklist. Always push to GitHub immediately after every commit.
 
+## GitHub Actions CI Check
+
+After every push to GitHub, check the CI pipeline status using `gh run list --limit 3` and `gh run view <run-id>`. If the workflow fails, investigate the logs with `gh run view <run-id> --log-failed`, identify the root cause, fix the issue, and push a follow-up commit. Do not consider a push complete until CI is green. The CI workflow is defined in `.github/workflows/component-tests.yml` and runs lint + Docker component tests.
+
 ## Diagrams
 
 All diagrams in documentation (test flows, deployment pipelines, state machines) must use Mermaid syntax. Before creating any diagram, read the team style guide at:
