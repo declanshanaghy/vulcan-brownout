@@ -5,11 +5,7 @@ import uuid
 from typing import Any, Dict, Optional
 
 from homeassistant.core import HomeAssistant
-from homeassistant.components.websocket_api import (
-    WebSocketError,
-    async_register_command,
-    websocket_command,
-)
+from homeassistant.components import websocket_api
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 import voluptuous as vol
 
@@ -32,45 +28,26 @@ from .subscription_manager import WebSocketSubscriptionManager
 
 _LOGGER = logging.getLogger(__name__)
 
-# WebSocket command schemas
-QUERY_DEVICES_SCHEMA = vol.Schema(
+
+def register_websocket_commands(hass: HomeAssistant) -> None:
+    """Register WebSocket command handlers."""
+    websocket_api.async_register_command(hass, handle_query_devices)
+    websocket_api.async_register_command(hass, handle_subscribe)
+    websocket_api.async_register_command(hass, handle_set_threshold)
+
+
+@websocket_api.websocket_command(
     {
+        vol.Required("type"): COMMAND_QUERY_DEVICES,
         vol.Optional("limit", default=20): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
         vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
         vol.Optional("sort_key", default=SORT_KEY_BATTERY_LEVEL): vol.In(SUPPORTED_SORT_KEYS),
         vol.Optional("sort_order", default=SORT_ORDER_ASC): vol.In(SUPPORTED_SORT_ORDERS),
     }
 )
-
-SUBSCRIBE_SCHEMA = vol.Schema({})
-
-SET_THRESHOLD_SCHEMA = vol.Schema(
-    {
-        vol.Optional("global_threshold"): vol.All(
-            vol.Coerce(int), vol.Range(min=BATTERY_THRESHOLD_MIN, max=BATTERY_THRESHOLD_MAX)
-        ),
-        vol.Optional("device_rules"): vol.Schema(
-            {str: vol.All(vol.Coerce(int), vol.Range(min=BATTERY_THRESHOLD_MIN, max=BATTERY_THRESHOLD_MAX))}
-        ),
-    }
-)
-
-
-def register_websocket_commands(hass: HomeAssistant) -> None:
-    """Register WebSocket command handlers."""
-    async_register_command(hass, handle_query_devices)
-    async_register_command(hass, handle_subscribe)
-    async_register_command(hass, handle_set_threshold)
-
-
-@websocket_command(
-    {
-        "type": COMMAND_QUERY_DEVICES,
-        "data": QUERY_DEVICES_SCHEMA,
-    }
-)
+@websocket_api.async_response
 async def handle_query_devices(
-    hass: HomeAssistant, connection: Any, msg: Dict[str, Any]
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: Dict[str, Any]
 ) -> None:
     """Handle vulcan-brownout/query_devices WebSocket command."""
     try:
@@ -84,12 +61,11 @@ async def handle_query_devices(
             )
             return
 
-        # Extract and validate parameters
-        data = msg.get("data", {})
-        limit = data.get("limit", 20)
-        offset = data.get("offset", 0)
-        sort_key = data.get("sort_key", SORT_KEY_BATTERY_LEVEL)
-        sort_order = data.get("sort_order", SORT_ORDER_ASC)
+        # Extract parameters (validated by schema)
+        limit = msg.get("limit", 20)
+        offset = msg.get("offset", 0)
+        sort_key = msg.get("sort_key", SORT_KEY_BATTERY_LEVEL)
+        sort_order = msg.get("sort_order", SORT_ORDER_ASC)
 
         # Query devices
         result = await battery_monitor.query_devices(
@@ -100,21 +76,12 @@ async def handle_query_devices(
         )
 
         # Send successful response
-        connection.send_json_message(
-            {
-                "type": "result",
-                "id": msg["id"],
-                "success": True,
-                "data": result,
-            }
-        )
+        connection.send_result(msg["id"], result)
 
     except ValueError as e:
-        # Validation error
         _LOGGER.warning(f"Query validation error: {e}")
         connection.send_error(msg["id"], "invalid_request", str(e))
     except Exception as e:
-        # Unexpected error
         _LOGGER.error(f"Error handling query_devices command: {e}")
         connection.send_error(
             msg["id"],
@@ -123,14 +90,14 @@ async def handle_query_devices(
         )
 
 
-@websocket_command(
+@websocket_api.websocket_command(
     {
-        "type": COMMAND_SUBSCRIBE,
-        "data": SUBSCRIBE_SCHEMA,
+        vol.Required("type"): COMMAND_SUBSCRIBE,
     }
 )
+@websocket_api.async_response
 async def handle_subscribe(
-    hass: HomeAssistant, connection: Any, msg: Dict[str, Any]
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: Dict[str, Any]
 ) -> None:
     """Handle vulcan-brownout/subscribe WebSocket command."""
     try:
@@ -169,16 +136,12 @@ async def handle_subscribe(
             return
 
         # Send successful response
-        connection.send_json_message(
+        connection.send_result(
+            msg["id"],
             {
-                "type": "result",
-                "id": msg["id"],
-                "success": True,
-                "data": {
-                    "subscription_id": subscription_id,
-                    "status": "subscribed",
-                },
-            }
+                "subscription_id": subscription_id,
+                "status": "subscribed",
+            },
         )
 
         # Prepare disconnect handler
@@ -186,8 +149,7 @@ async def handle_subscribe(
             """Called when WebSocket disconnects."""
             subscription_manager.unsubscribe(subscription_id)
 
-        connection.subscriptions = connection.subscriptions or []
-        connection.subscriptions.append(on_disconnect)
+        connection.subscriptions[msg["id"]] = on_disconnect
 
     except Exception as e:
         _LOGGER.error(f"Error handling subscribe command: {e}")
@@ -198,14 +160,20 @@ async def handle_subscribe(
         )
 
 
-@websocket_command(
+@websocket_api.websocket_command(
     {
-        "type": COMMAND_SET_THRESHOLD,
-        "data": SET_THRESHOLD_SCHEMA,
+        vol.Required("type"): COMMAND_SET_THRESHOLD,
+        vol.Optional("global_threshold"): vol.All(
+            vol.Coerce(int), vol.Range(min=BATTERY_THRESHOLD_MIN, max=BATTERY_THRESHOLD_MAX)
+        ),
+        vol.Optional("device_rules"): vol.Schema(
+            {str: vol.All(vol.Coerce(int), vol.Range(min=BATTERY_THRESHOLD_MIN, max=BATTERY_THRESHOLD_MAX))}
+        ),
     }
 )
+@websocket_api.async_response
 async def handle_set_threshold(
-    hass: HomeAssistant, connection: Any, msg: Dict[str, Any]
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: Dict[str, Any]
 ) -> None:
     """Handle vulcan-brownout/set_threshold WebSocket command."""
     try:
@@ -231,10 +199,9 @@ async def handle_set_threshold(
             )
             return
 
-        # Extract data
-        data = msg.get("data", {})
-        global_threshold = data.get("global_threshold")
-        device_rules = data.get("device_rules", {})
+        # Extract data (validated by schema)
+        global_threshold = msg.get("global_threshold")
+        device_rules = msg.get("device_rules", {})
 
         # Validate device rules
         if device_rules:
@@ -274,21 +241,16 @@ async def handle_set_threshold(
             # Update battery monitor in memory
             battery_monitor.on_options_updated(new_options)
         else:
-            # No config entry (shouldn't happen in normal operation)
             _LOGGER.warning("No config entry found for threshold update")
 
         # Send response to requester
-        connection.send_json_message(
+        connection.send_result(
+            msg["id"],
             {
-                "type": "result",
-                "id": msg["id"],
-                "success": True,
-                "data": {
-                    "message": "Thresholds updated",
-                    "global_threshold": battery_monitor.global_threshold,
-                    "device_rules": battery_monitor.device_rules,
-                },
-            }
+                "message": "Thresholds updated",
+                "global_threshold": battery_monitor.global_threshold,
+                "device_rules": battery_monitor.device_rules,
+            },
         )
 
         # Broadcast threshold update to all subscribers

@@ -140,7 +140,7 @@ class WebSocketSubscriptionManager:
             subscription = self.subscribers.get(subscription_id)
             if subscription:
                 try:
-                    subscription.connection.send_json_message(message)
+                    subscription.connection.send_message(message)
                 except Exception as e:
                     _LOGGER.warning(
                         f"Failed to send update to subscription {subscription_id}: {e}"
@@ -176,7 +176,7 @@ class WebSocketSubscriptionManager:
         dead_subscriptions = []
         for subscription_id, subscription in self.subscribers.items():
             try:
-                subscription.connection.send_json_message(message)
+                subscription.connection.send_message(message)
             except Exception as e:
                 _LOGGER.warning(
                     f"Failed to send threshold update to subscription {subscription_id}: {e}"
@@ -216,7 +216,7 @@ class WebSocketSubscriptionManager:
         dead_subscriptions = []
         for subscription_id, subscription in self.subscribers.items():
             try:
-                subscription.connection.send_json_message(message)
+                subscription.connection.send_message(message)
             except Exception as e:
                 _LOGGER.warning(
                     f"Failed to send status to subscription {subscription_id}: {e}"

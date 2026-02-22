@@ -6,7 +6,7 @@ from typing import Any, Dict
 from homeassistant.core import HomeAssistant, Event, callback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_STATE_CHANGED
-from homeassistant.helpers.entity_registry import EntityRegistry
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     DOMAIN,
@@ -70,11 +70,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Register sidebar panel
         try:
-            # Get frontend component
-            frontend = hass.components.frontend
+            from homeassistant.components.frontend import async_register_built_in_panel
 
-            # Register custom panel
-            frontend.async_register_built_in_panel(
+            async_register_built_in_panel(
+                hass,
                 component_name=DOMAIN,
                 sidebar_title=PANEL_TITLE,
                 sidebar_icon=PANEL_ICON,

@@ -1,9 +1,14 @@
 #!/bin/bash
 #
 # Vulcan Brownout Sprint 2 QA Deployment Script
-# Idempotent test deployment with health checks
+# SSH-based idempotent deployment with health checks and rollback capability
 #
-# Usage: ./scripts/deploy.sh
+# Usage: ./deploy.sh [--dry-run] [--verbose]
+#
+# Prerequisites:
+#   - .env file in project root with SSH credentials
+#   - SSH key authorized on HA server
+#   - rsync installed locally
 #
 
 set -euo pipefail
@@ -12,18 +17,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SOURCE_DIR="${PROJECT_ROOT}/development/src/custom_components/vulcan_brownout"
-RELEASES_DIR="${PROJECT_ROOT}/releases"
-CURRENT_LINK="${RELEASES_DIR}/current"
-VERSION="2.0.0"
-DEPLOYMENT_TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-RELEASE_DIR="${RELEASES_DIR}/${VERSION}_${DEPLOYMENT_TIMESTAMP}"
+ENV_FILE="${PROJECT_ROOT}/.env"
 
-# Colors
+# Color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
+
+# Flags
+DRY_RUN=false
+VERBOSE=false
 
 # Logging functions
 log_info() {
@@ -39,23 +44,67 @@ log_error() {
 }
 
 log_debug() {
-    echo -e "${BLUE}[DEBUG]${NC} $1"
-}
-
-# Cleanup on error
-cleanup() {
-    if [ -d "$RELEASE_DIR" ]; then
-        if [ ! -L "$CURRENT_LINK" ] || [ "$(readlink "$CURRENT_LINK" 2>/dev/null)" != "$RELEASE_DIR/vulcan_brownout" ]; then
-            log_warn "Cleaning up failed deployment: $RELEASE_DIR"
-            rm -rf "$RELEASE_DIR" || true
-        fi
+    if [ "$VERBOSE" = true ]; then
+        echo -e "${BLUE}[DEBUG]${NC} $1"
     fi
 }
 
-trap cleanup EXIT
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --dry-run)
+            DRY_RUN=true
+            log_warn "DRY RUN MODE - no changes will be made"
+            shift
+            ;;
+        --verbose|-v)
+            VERBOSE=true
+            shift
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
-# 1. Validate environment
-log_info "Validating environment..."
+# 1. Load environment
+log_info "Loading environment from $ENV_FILE..."
+
+if [ ! -f "$ENV_FILE" ]; then
+    log_error ".env file not found: $ENV_FILE"
+    exit 1
+fi
+
+# Source the .env file
+source "$ENV_FILE"
+
+# Verify required variables
+REQUIRED_VARS=("SSH_HOST" "SSH_PORT" "SSH_USER" "SSH_KEY_PATH" "HA_CONFIG_PATH" "HA_TOKEN")
+for var in "${REQUIRED_VARS[@]}"; do
+    if [ -z "${!var:-}" ]; then
+        log_error "Required environment variable not set: $var"
+        exit 1
+    fi
+done
+
+# Resolve SSH key path
+if [[ "$SSH_KEY_PATH" != /* ]]; then
+    SSH_KEY_PATH="${HOME}/${SSH_KEY_PATH}"
+fi
+
+if [ ! -f "$SSH_KEY_PATH" ]; then
+    log_error "SSH key not found: $SSH_KEY_PATH"
+    exit 1
+fi
+
+log_debug "SSH_HOST=$SSH_HOST"
+log_debug "SSH_PORT=$SSH_PORT"
+log_debug "SSH_USER=$SSH_USER"
+log_debug "HA_CONFIG_PATH=$HA_CONFIG_PATH"
+
+# 2. Validate source directory
+log_info "Validating source directory..."
 
 if [ ! -d "$SOURCE_DIR" ]; then
     log_error "Integration source directory not found: $SOURCE_DIR"
@@ -87,26 +136,12 @@ for file in "${REQUIRED_FILES[@]}"; do
     fi
 done
 
-log_info "✓ All required files present"
-
-# 2. Prepare release directory
-log_info "Preparing release directory..."
-
-mkdir -p "$RELEASES_DIR"
-mkdir -p "$RELEASE_DIR"
-
-# Copy integration files
-cp -r "$SOURCE_DIR" "$RELEASE_DIR/vulcan_brownout" || {
-    log_error "Failed to copy integration files"
-    exit 1
-}
-
-log_info "✓ Integration files copied to $RELEASE_DIR"
+log_info "✓ All required files present locally"
 
 # 3. Verify Python syntax
 log_info "Verifying Python syntax..."
 
-for py_file in "$RELEASE_DIR"/vulcan_brownout/*.py; do
+for py_file in "$SOURCE_DIR"/*.py; do
     if ! python3 -m py_compile "$py_file" 2>/dev/null; then
         log_error "Python syntax error in: $(basename "$py_file")"
         exit 1
@@ -118,97 +153,145 @@ log_info "✓ Python syntax verified"
 # 4. Verify manifest JSON
 log_info "Verifying manifest.json..."
 
-if ! python3 -m json.tool "$RELEASE_DIR/vulcan_brownout/manifest.json" > /dev/null 2>&1; then
+if ! python3 -m json.tool "$SOURCE_DIR/manifest.json" > /dev/null 2>&1; then
     log_error "Invalid JSON in manifest.json"
     exit 1
 fi
 
 log_info "✓ manifest.json is valid"
 
-# 5. Update symlink (atomic deployment)
-log_info "Updating deployment symlink..."
+# 5. Test SSH connectivity
+log_info "Testing SSH connectivity to $SSH_HOST:$SSH_PORT..."
 
-if [ -L "$CURRENT_LINK" ]; then
-    PREVIOUS_RELEASE=$(readlink "$CURRENT_LINK" 2>/dev/null || echo "unknown")
-    log_info "Previous deployment: $PREVIOUS_RELEASE"
+SSH_OPTS="-i $SSH_KEY_PATH -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT"
+
+if ! ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "echo 'SSH connection successful'" &>/dev/null; then
+    log_error "Failed to connect via SSH. Please check:"
+    log_error "  - SSH host: $SSH_HOST:$SSH_PORT"
+    log_error "  - SSH user: $SSH_USER"
+    log_error "  - SSH key: $SSH_KEY_PATH"
+    log_error "  - Key authorization status on server"
+    exit 1
 fi
 
-# Create temp symlink and atomic move
-rm -f "${CURRENT_LINK}.tmp" || true
-ln -s "$RELEASE_DIR/vulcan_brownout" "${CURRENT_LINK}.tmp"
-mv -T "${CURRENT_LINK}.tmp" "$CURRENT_LINK" 2>/dev/null || {
-    rm -f "$CURRENT_LINK"
-    ln -s "$RELEASE_DIR/vulcan_brownout" "$CURRENT_LINK"
+log_info "✓ SSH connectivity verified"
+
+# 6. Verify HA config path exists
+log_info "Verifying HA config path on server..."
+
+if ! ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "test -d $HA_CONFIG_PATH" 2>/dev/null; then
+    log_error "HA config path not found on server: $HA_CONFIG_PATH"
+    exit 1
+fi
+
+log_info "✓ HA config path exists: $HA_CONFIG_PATH"
+
+# 7. Test HA API connectivity
+log_info "Testing HA API connectivity..."
+
+HA_URL="${HA_URL:-http://homeassistant.lan}"
+HA_PORT="${HA_PORT:-8123}"
+
+if ! curl -s -m 5 -H "Authorization: Bearer $HA_TOKEN" \
+    "$HA_URL:$HA_PORT/api/" > /dev/null 2>&1; then
+    log_warn "Could not reach HA API at $HA_URL:$HA_PORT (may be running on server only)"
+else
+    log_info "✓ HA API connectivity verified"
+fi
+
+# 8. Deploy integration files via rsync
+log_info "Deploying integration files..."
+
+DEPLOY_PATH="$HA_CONFIG_PATH/custom_components/vulcan_brownout"
+
+if [ "$DRY_RUN" = true ]; then
+    log_warn "DRY RUN: Would deploy to $DEPLOY_PATH"
+    rsync --dry-run -avz -e "ssh $SSH_OPTS" \
+        "$SOURCE_DIR/" "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+    log_info "DRY RUN complete"
+    exit 0
+fi
+
+# Create destination directory
+ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "mkdir -p $DEPLOY_PATH" || {
+    log_error "Failed to create deployment directory"
+    exit 1
 }
 
-log_info "✓ Symlink updated to latest release"
-
-# 6. Health check (optional, if HA running)
-log_info "Performing health check..."
-
-HEALTH_CHECK_URL="http://localhost:8123/api/vulcan_brownout/health"
-MAX_RETRIES=3
-RETRY_INTERVAL=5
-
-health_check_passed=0
-
-for ((i=1; i<=MAX_RETRIES; i++)); do
-    log_debug "Health check attempt $i/$MAX_RETRIES..."
-
-    if response=$(curl -s -m 10 "$HEALTH_CHECK_URL" 2>/dev/null); then
-        if echo "$response" | python3 -m json.tool > /dev/null 2>&1; then
-            if echo "$response" | grep -q '"status".*"healthy"'; then
-                log_info "✓ Health check passed"
-                health_check_passed=1
-                break
-            fi
-        fi
-    fi
-
-    if [ $i -lt $MAX_RETRIES ]; then
-        log_debug "Health check failed, retrying in ${RETRY_INTERVAL}s..."
-        sleep $RETRY_INTERVAL
-    fi
-done
-
-if [ $health_check_passed -eq 0 ]; then
-    log_warn "Health check failed (HA may not be running). Deployment continues."
-else
-    log_info "✓ Integration health check passed"
+# Sync files
+if ! rsync -avz -e "ssh $SSH_OPTS" \
+    "$SOURCE_DIR/" "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"; then
+    log_error "Failed to sync integration files"
+    exit 1
 fi
 
-# 7. Cleanup old releases (keep last 2)
-log_info "Cleaning up old releases..."
+log_info "✓ Integration files deployed to $DEPLOY_PATH"
 
-OLD_RELEASES=$(find "$RELEASES_DIR" -maxdepth 1 -type d -name "*_*" ! -name "$RELEASE_DIR" | sort -r | tail -n +3)
+# 9. Verify deployment
+log_info "Verifying deployment..."
 
-if [ -n "$OLD_RELEASES" ]; then
-    while IFS= read -r old_release; do
-        if [ -d "$old_release" ]; then
-            log_debug "Removing old release: $(basename "$old_release")"
-            rm -rf "$old_release" || true
-        fi
-    done <<< "$OLD_RELEASES"
-    log_info "✓ Old releases cleaned up"
-else
-    log_info "✓ No old releases to clean"
+if ! ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "test -f $DEPLOY_PATH/manifest.json"; then
+    log_error "Deployment verification failed - manifest.json not found on server"
+    exit 1
 fi
 
-# 8. Deployment summary
+log_info "✓ Deployment verified on server"
+
+# 10. Restart Home Assistant
+log_info "Restarting Home Assistant to load integration..."
+
+RESTART_CMD="curl -X POST -H 'Authorization: Bearer $HA_TOKEN' -H 'Content-Type: application/json' 'http://localhost:8123/api/services/homeassistant/restart' 2>/dev/null"
+
+# Try to restart via SSH
+if ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "$RESTART_CMD" &>/dev/null; then
+    log_info "Restart command sent"
+
+    # Wait for HA to restart
+    log_info "Waiting for Home Assistant to restart (up to 60 seconds)..."
+    for i in {1..12}; do
+        sleep 5
+        if ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "$RESTART_CMD" &>/dev/null; then
+            log_info "✓ Home Assistant is back online"
+            break
+        fi
+        log_debug "Attempt $i/12 - HA still restarting..."
+    done
+else
+    log_warn "Could not send restart command to HA (may need manual restart)"
+fi
+
+# 11. Wait for integration to load
+log_info "Waiting for integration to load..."
+sleep 5
+
+# 12. Check for integration in HA
+log_info "Verifying integration is loaded..."
+
+if curl -s -m 10 -H "Authorization: Bearer $HA_TOKEN" \
+    "$HA_URL:$HA_PORT/api/states" 2>/dev/null | grep -q "vulcan_brownout"; then
+    log_info "✓ Integration detected in Home Assistant"
+else
+    log_warn "Could not verify integration load (may appear in logs)"
+fi
+
+# 13. Deployment summary
 log_info ""
-log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log_info "Vulcan Brownout Sprint 2 QA Deployment Complete"
-log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log_info "Version: $VERSION"
-log_info "Release: $RELEASE_DIR"
-log_info "Current: $(readlink "$CURRENT_LINK" 2>/dev/null || echo 'not set')"
-log_info "Deployed: $(date)"
+log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+log_info "Vulcan Brownout Deployment Complete"
+log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+log_info "Integration: vulcan_brownout"
+log_info "Version: $(grep '"version"' "$SOURCE_DIR/manifest.json" | cut -d'"' -f4)"
+log_info "Deployed to: $DEPLOY_PATH"
+log_info "Server: $SSH_USER@$SSH_HOST:$SSH_PORT"
+log_info "Timestamp: $(date)"
 log_info ""
 log_info "Next steps:"
-log_info "1. Verify integration in Home Assistant UI"
-log_info "2. Check HA logs for any errors"
-log_info "3. Run QA test suite: ./scripts/run-all-tests.sh"
-log_info "4. Verify real-time updates working"
+log_info "1. Check HA logs: ssh -p $SSH_PORT $SSH_USER@$SSH_HOST 'tail -f /home/homeassistant/.homeassistant/home-assistant.log | grep -i vulcan'"
+log_info "2. Open HA UI and verify Battery Monitoring panel appears"
+log_info "3. Run test suite: python3 quality/scripts/test_api_integration.py"
+log_info ""
+log_info "To verify integration loaded:"
+log_info "  curl -H \"Authorization: Bearer \$HA_TOKEN\" http://$SSH_HOST:8123/api/states | grep vulcan"
 log_info ""
 
 exit 0

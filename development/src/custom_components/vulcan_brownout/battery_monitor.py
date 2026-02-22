@@ -6,7 +6,7 @@ from datetime import datetime
 
 from homeassistant.core import HomeAssistant, State
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.helpers.entity_registry import EntityRegistry
+from homeassistant.helpers import entity_registry as er, device_registry as dr
 
 from .const import (
     BATTERY_DEVICE_CLASS,
@@ -97,11 +97,14 @@ class BatteryMonitor:
     async def discover_entities(self) -> None:
         """Discover all battery entities from HA registry and cache them."""
         try:
-            registry: EntityRegistry = self.hass.helpers.entity_registry.async_get(self.hass)
+            entity_registry = er.async_get(self.hass)
+            device_registry = dr.async_get(self.hass)
 
             # Get all entities with device_class=battery
-            for entity_entry in registry.entities.values():
-                if entity_entry.device_class != BATTERY_DEVICE_CLASS:
+            for entity_entry in entity_registry.entities.values():
+                # Check device_class from entity entry or original_device_class
+                device_class = entity_entry.device_class or entity_entry.original_device_class
+                if device_class != BATTERY_DEVICE_CLASS:
                     continue
 
                 entity_id = entity_entry.entity_id
@@ -110,11 +113,16 @@ class BatteryMonitor:
                 if state is None:
                     continue
 
+                # Also check device_class from state attributes as fallback
+                if device_class != BATTERY_DEVICE_CLASS:
+                    attr_class = state.attributes.get("device_class")
+                    if attr_class != BATTERY_DEVICE_CLASS:
+                        continue
+
                 # Get device name from device registry if available
                 device_name = None
                 if entity_entry.device_id:
-                    device_registry = self.hass.helpers.device_registry.async_get(self.hass)
-                    device = device_registry.devices.get(entity_entry.device_id)
+                    device = device_registry.async_get(entity_entry.device_id)
                     if device:
                         device_name = device.name
 
@@ -147,13 +155,11 @@ class BatteryMonitor:
                 if entity_id in self.entities:
                     device_name = self.entities[entity_id].device_name
                 else:
-                    registry: EntityRegistry = self.hass.helpers.entity_registry.async_get(
-                        self.hass
-                    )
-                    entity_entry = registry.entities.get(entity_id)
+                    entity_registry = er.async_get(self.hass)
+                    entity_entry = entity_registry.entities.get(entity_id)
                     if entity_entry and entity_entry.device_id:
-                        device_registry = self.hass.helpers.device_registry.async_get(self.hass)
-                        device = device_registry.devices.get(entity_entry.device_id)
+                        device_registry = dr.async_get(self.hass)
+                        device = device_registry.async_get(entity_entry.device_id)
                         if device:
                             device_name = device.name
 
@@ -166,36 +172,30 @@ class BatteryMonitor:
     def _is_battery_entity(self, entity_id: str) -> bool:
         """Check if entity is a battery entity by checking registry."""
         try:
-            registry: EntityRegistry = self.hass.helpers.entity_registry.async_get(self.hass)
-            entity_entry = registry.entities.get(entity_id)
-            return entity_entry and entity_entry.device_class == BATTERY_DEVICE_CLASS
+            # Fast path: already tracked
+            if entity_id in self.entities:
+                return True
+            entity_registry = er.async_get(self.hass)
+            entity_entry = entity_registry.entities.get(entity_id)
+            if entity_entry:
+                device_class = entity_entry.device_class or entity_entry.original_device_class
+                return device_class == BATTERY_DEVICE_CLASS
+            # Fallback: check state attributes
+            state = self.hass.states.get(entity_id)
+            if state:
+                return state.attributes.get("device_class") == BATTERY_DEVICE_CLASS
+            return False
         except Exception:
             return False
 
     def get_threshold_for_device(self, entity_id: str) -> int:
-        """Get effective threshold for a device.
-
-        Returns device-specific rule if exists, otherwise global threshold.
-
-        Args:
-            entity_id: Entity ID to check
-
-        Returns:
-            Threshold value (5-100)
-        """
+        """Get effective threshold for a device."""
         if entity_id in self.device_rules:
             return self.device_rules[entity_id]
         return self.global_threshold
 
     def get_status_for_device(self, device: BatteryEntity) -> str:
-        """Get status classification for a device.
-
-        Args:
-            device: BatteryEntity to classify
-
-        Returns:
-            Status string: critical, warning, healthy, or unavailable
-        """
+        """Get status classification for a device."""
         if not device.available:
             return STATUS_UNAVAILABLE
 
@@ -208,11 +208,7 @@ class BatteryMonitor:
             return STATUS_HEALTHY
 
     def get_device_statuses(self) -> Dict[str, int]:
-        """Get count of devices in each status group.
-
-        Returns:
-            Dictionary with counts: {critical, warning, healthy, unavailable}
-        """
+        """Get count of devices in each status group."""
         counts = {
             STATUS_CRITICAL: 0,
             STATUS_WARNING: 0,
@@ -227,11 +223,7 @@ class BatteryMonitor:
         return counts
 
     def on_options_updated(self, new_options: Dict[str, Any]) -> None:
-        """Called when user changes settings via config flow.
-
-        Args:
-            new_options: New options dictionary from config entry
-        """
+        """Called when user changes settings via config flow."""
         self.global_threshold = new_options.get("global_threshold", BATTERY_THRESHOLD_DEFAULT)
         self.device_rules = new_options.get("device_rules", {})
         _LOGGER.info(
@@ -246,17 +238,7 @@ class BatteryMonitor:
         sort_key: str = SORT_KEY_BATTERY_LEVEL,
         sort_order: str = SORT_ORDER_ASC,
     ) -> Dict[str, Any]:
-        """Query and return paginated, sorted battery devices with status.
-
-        Args:
-            limit: Number of devices to return
-            offset: Starting offset
-            sort_key: Sort field
-            sort_order: Sort direction
-
-        Returns:
-            Dictionary with devices, pagination info, and status counts
-        """
+        """Query and return paginated, sorted battery devices with status."""
         # Validate parameters
         if limit < 1 or limit > 100:
             raise ValueError("Limit must be between 1 and 100")

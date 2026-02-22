@@ -1,18 +1,22 @@
 #!/bin/bash
 #
 # Vulcan Brownout QA Test Environment Setup
-# Creates mock battery entities on test HA instance
+# Creates mock battery entities on test HA instance via REST API
 # Idempotent: Safe to run multiple times
 #
-# Usage: ./scripts/setup-test-env.sh
+# Usage: ./setup-test-env.sh [--create|--cleanup] [--count N]
 #
 
 set -euo pipefail
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HA_URL="${HA_URL:-http://localhost:8123}"
-HA_TOKEN="${HA_TOKEN:-}"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ENV_FILE="${PROJECT_ROOT}/.env"
+
+# Defaults
+ACTION="create"
+ENTITY_COUNT=10
 
 # Colors
 RED='\033[0;31m'
@@ -38,99 +42,156 @@ log_debug() {
     echo -e "${BLUE}[DEBUG]${NC} $1"
 }
 
-# Validate environment
-log_info "Validating test environment..."
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --create)
+            ACTION="create"
+            shift
+            ;;
+        --cleanup)
+            ACTION="cleanup"
+            shift
+            ;;
+        --count)
+            ENTITY_COUNT="$2"
+            shift 2
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
-if [ -z "$HA_TOKEN" ]; then
-    log_error "HA_TOKEN environment variable not set"
-    log_error "Usage: HA_URL=http://localhost:8123 HA_TOKEN=<token> ./setup-test-env.sh"
-    exit 2
+# Load environment
+if [ ! -f "$ENV_FILE" ]; then
+    log_error ".env file not found: $ENV_FILE"
+    exit 1
 fi
 
+source "$ENV_FILE"
+
+# Verify required variables
+if [ -z "${HA_URL:-}" ] || [ -z "${HA_TOKEN:-}" ]; then
+    log_error "Missing required environment variables: HA_URL or HA_TOKEN"
+    exit 1
+fi
+
+HA_BASE_URL="${HA_URL}:${HA_PORT:-8123}"
+API_ENDPOINT="${HA_BASE_URL}/api/states"
+
 # Test connection
-log_debug "Testing connection to $HA_URL..."
-if ! curl -s -H "Authorization: Bearer $HA_TOKEN" "$HA_URL/api/config" > /dev/null 2>&1; then
-    log_error "Cannot connect to Home Assistant at $HA_URL"
-    log_error "Verify HA_URL and HA_TOKEN are correct"
-    exit 2
+log_info "Testing connection to $HA_BASE_URL..."
+if ! curl -s -m 5 -H "Authorization: Bearer $HA_TOKEN" "$HA_BASE_URL/api/" > /dev/null 2>&1; then
+    log_error "Cannot connect to Home Assistant at $HA_BASE_URL"
+    log_error "Verify HA_URL, HA_PORT, and HA_TOKEN are correct"
+    exit 1
 fi
 
 log_info "✓ Connected to Home Assistant"
 
 # Function to create or update battery entity
-create_battery_entity() {
+create_entity() {
     local entity_id=$1
     local friendly_name=$2
     local battery_level=$3
 
-    log_debug "Creating/updating entity: $entity_id ($friendly_name at $battery_level%)"
+    log_debug "Creating entity: $entity_id ($friendly_name at $battery_level%)"
 
-    # Try to set state via REST API
-    local response=$(curl -s -w "\n%{http_code}" -X POST \
+    RESPONSE=$(curl -s -X POST \
         -H "Authorization: Bearer $HA_TOKEN" \
         -H "Content-Type: application/json" \
-        -d "{\"state\": \"$battery_level\", \"attributes\": {\"friendly_name\": \"$friendly_name\", \"unit_of_measurement\": \"%\", \"device_class\": \"battery\"}}" \
-        "$HA_URL/api/states/$entity_id")
+        -d "{
+            \"state\": \"$battery_level\",
+            \"attributes\": {
+                \"friendly_name\": \"$friendly_name\",
+                \"unit_of_measurement\": \"%\",
+                \"device_class\": \"battery\",
+                \"icon\": \"mdi:battery-high\"
+            }
+        }" \
+        "$API_ENDPOINT/$entity_id")
 
-    http_code=$(echo "$response" | tail -n1)
-
-    if [ "$http_code" = "201" ] || [ "$http_code" = "200" ]; then
-        log_info "✓ Created: $entity_id"
+    if echo "$RESPONSE" | grep -q '"state"'; then
+        log_info "✓ Created: $entity_id ($battery_level%)"
         return 0
     else
-        log_warn "⚠ Failed to create $entity_id (HTTP $http_code)"
+        log_warn "Failed to create $entity_id"
         return 1
     fi
 }
 
-# Create test battery entities
-log_info "Creating test battery entities..."
+# Function to create entities
+create_entities() {
+    log_info "Creating $ENTITY_COUNT test battery entities..."
 
-# Critical (5%)
-create_battery_entity "sensor.test_battery_critical" "Test Battery Critical" "5" || true
+    for i in $(seq 1 $ENTITY_COUNT); do
+        ENTITY_ID="sensor.test_battery_$i"
+        BATTERY_LEVEL=$((10 + (i * 7) % 90))  # Vary from 10% to ~95%
 
-# Warning (18%)
-create_battery_entity "sensor.test_battery_warning" "Test Battery Warning" "18" || true
+        create_entity "$ENTITY_ID" "Test Battery $i" "$BATTERY_LEVEL"
+        sleep 0.1
+    done
 
-# Healthy (87%)
-create_battery_entity "sensor.test_battery_healthy" "Test Battery Healthy" "87" || true
+    log_info "✓ Test entities created"
+}
 
-# Edge case: 0%
-create_battery_entity "sensor.test_battery_zero" "Test Battery Zero" "0" || true
+# Function to cleanup entities
+cleanup_entities() {
+    log_info "Cleaning up test battery entities..."
 
-# Edge case: 100%
-create_battery_entity "sensor.test_battery_max" "Test Battery Max" "100" || true
+    ENTITIES=$(curl -s "$API_ENDPOINT" \
+        -H "Authorization: Bearer $HA_TOKEN" | \
+        grep -o '"entity_id":"sensor\.test_battery_[0-9]*"' | \
+        cut -d'"' -f4 | sort -u)
 
-# Unavailable
-log_debug "Creating unavailable entity..."
-curl -s -X POST \
-    -H "Authorization: Bearer $HA_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "{\"state\": \"unavailable\", \"attributes\": {\"friendly_name\": \"Test Battery Unavailable\", \"unit_of_measurement\": \"%\", \"device_class\": \"battery\"}}" \
-    "$HA_URL/api/states/sensor.test_battery_unavailable" > /dev/null 2>&1 || true
+    DELETED=0
+    for ENTITY_ID in $ENTITIES; do
+        log_debug "Deleting $ENTITY_ID..."
 
-log_info "✓ Test entities created"
+        RESPONSE=$(curl -s -X DELETE "$API_ENDPOINT/$ENTITY_ID" \
+            -H "Authorization: Bearer $HA_TOKEN")
 
-# Summary
-log_info ""
-log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log_info "Test Environment Setup Complete"
-log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log_info "Home Assistant URL: $HA_URL"
-log_info ""
-log_info "Created test entities:"
-log_info "  • sensor.test_battery_critical (5%)"
-log_info "  • sensor.test_battery_warning (18%)"
-log_info "  • sensor.test_battery_healthy (87%)"
-log_info "  • sensor.test_battery_zero (0%)"
-log_info "  • sensor.test_battery_max (100%)"
-log_info "  • sensor.test_battery_unavailable"
-log_info ""
-log_info "To change battery levels during testing:"
-log_info "  curl -X POST -H 'Authorization: Bearer $HA_TOKEN' \\"
-log_info "    -H 'Content-Type: application/json' \\"
-log_info "    -d '{\"state\": \"45\"}' \\"
-log_info "    http://localhost:8123/api/states/sensor.test_battery_critical"
-log_info ""
+        if [ -z "$RESPONSE" ] || echo "$RESPONSE" | grep -q '{}'; then
+            log_info "✓ Deleted: $ENTITY_ID"
+            ((DELETED++)) || true
+        else
+            log_warn "Failed to delete: $ENTITY_ID"
+        fi
+
+        sleep 0.1
+    done
+
+    log_info "✓ Cleanup complete ($DELETED entities removed)"
+}
+
+# Main execution
+case "$ACTION" in
+    create)
+        create_entities
+        log_info ""
+        log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_info "Test Environment Setup Complete"
+        log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_info "Home Assistant: $HA_BASE_URL"
+        log_info "Created: $ENTITY_COUNT test battery entities"
+        log_info ""
+        log_info "You can now:"
+        log_info "  1. Run integration tests"
+        log_info "  2. Test state change detection"
+        log_info "  3. Verify battery monitoring UI"
+        log_info ""
+        ;;
+    cleanup)
+        cleanup_entities
+        log_info ""
+        log_info "Test environment cleaned up"
+        ;;
+    *)
+        log_error "Unknown action: $ACTION"
+        exit 1
+        ;;
+esac
 
 exit 0
