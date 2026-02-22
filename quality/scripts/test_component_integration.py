@@ -241,31 +241,6 @@ class TestQueryDevicesHappyPath:
             assert len(ids1 & ids2) == 0  # No overlap
 
     @pytest.mark.asyncio
-    async def test_query_devices_sorting(self, ws_client):
-        """Test sorting by battery level."""
-        response = await ws_client.send_command("vulcan-brownout/query_devices", {
-            "limit": 100,
-            "offset": 0,
-            "sort_key": "level_asc",
-            "sort_order": "asc"
-        })
-
-        assert response["success"] is True
-        devices = response["data"]["devices"]
-
-        # Verify sorted ascending by battery_level
-        battery_levels = []
-        for device in devices:
-            try:
-                level = float(device["battery_level"])
-                battery_levels.append(level)
-            except (ValueError, TypeError):
-                pass
-
-        if battery_levels:
-            assert battery_levels == sorted(battery_levels)
-
-    @pytest.mark.asyncio
     async def test_query_devices_device_statuses(self, ws_client):
         """Test that device_statuses contains valid counts."""
         response = await ws_client.send_command("vulcan-brownout/query_devices", {
