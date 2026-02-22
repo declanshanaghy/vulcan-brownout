@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-02-22T10:21:32.599581+00:00",
+  "timestamp": "2026-02-22T10:37:56.947260+00:00",
   "ha_version": "2026.2.2",
-  "duration": 0.99,
+  "duration": 0.18,
   "summary": {
     "total": 28,
     "passed": 27,
@@ -13,14 +13,14 @@
     {
       "name": "WS Connect + Auth",
       "status": "PASS",
-      "duration": 0.633,
+      "duration": 0.026,
       "details": "Connected to HA 2026.2.2",
       "data": null
     },
     {
       "name": "Device Count < 212 (binary_sensor filtered)",
       "status": "PASS",
-      "duration": 0.068,
+      "duration": 0.008,
       "details": "9 total devices (Sprint 2 had 212, expect < 212)",
       "data": null
     },
@@ -41,14 +41,14 @@
     {
       "name": "Query page 1 (limit=3)",
       "status": "PASS",
-      "duration": 0.006,
+      "duration": 0.005,
       "details": "Got 3 devices, has_more=True, next_cursor exists=True",
       "data": null
     },
     {
       "name": "Query page 2 (cursor-based)",
       "status": "PASS",
-      "duration": 0.01,
+      "duration": 0.006,
       "details": "Got 3 devices",
       "data": null
     },
@@ -62,7 +62,7 @@
     {
       "name": "Cursor traversal completes",
       "status": "PASS",
-      "duration": 0.009,
+      "duration": 0.01,
       "details": "Traversed 1 pages, 9 unique devices",
       "data": null
     },
@@ -76,35 +76,35 @@
     {
       "name": "Response has offset + next_cursor",
       "status": "PASS",
-      "duration": 0.005,
+      "duration": 0.006,
       "details": "offset field=True, next_cursor field=True",
       "data": null
     },
     {
       "name": "GET notification preferences",
       "status": "PASS",
-      "duration": 0.004,
-      "details": "enabled=False, frequency_cap_hours=24, severity_filter=critical_only",
+      "duration": 0.005,
+      "details": "enabled=True, frequency_cap_hours=12, severity_filter=all",
       "data": null
     },
     {
       "name": "SET notification preferences (valid)",
       "status": "PASS",
-      "duration": 0.008,
+      "duration": 0.005,
       "details": "Preferences set: enabled=True, frequency_cap_hours=12, severity_filter=all",
       "data": null
     },
     {
       "name": "GET preferences persisted",
       "status": "PASS",
-      "duration": 0.008,
+      "duration": 0.005,
       "details": "enabled=True, frequency_cap_hours=12, severity_filter=all",
       "data": null
     },
     {
       "name": "SET different notification values",
       "status": "PASS",
-      "duration": 0.007,
+      "duration": 0.004,
       "details": "enabled=False, frequency_cap_hours=24, severity_filter=critical_only",
       "data": null
     },
@@ -118,14 +118,14 @@
     {
       "name": "Reject invalid severity_filter (none)",
       "status": "PASS",
-      "duration": 0.039,
+      "duration": 0.006,
       "details": "Correctly rejected: {'code': 'invalid_format', 'message': \"value must be one of ['all', 'critical_and_warning', 'critical_only'] for dictionary value @ data['severity_filter']. Got 'none'\"}",
       "data": null
     },
     {
       "name": "Sort by priority (critical first)",
       "status": "PASS",
-      "duration": 0.013,
+      "duration": 0.008,
       "details": "Status order: ['healthy', 'healthy', 'healthy', 'healthy', 'healthy']",
       "data": null
     },
@@ -146,63 +146,63 @@
     {
       "name": "Sort by level descending (level_desc)",
       "status": "PASS",
-      "duration": 0.008,
+      "duration": 0.007,
       "details": "First 5 levels: [96.0, 90.0, 89.0, 87.0, 86.0], sorted=True",
       "data": null
     },
     {
       "name": "Legacy sort_key='battery_level' works",
       "status": "PASS",
-      "duration": 0.012,
+      "duration": 0.007,
       "details": "Legacy key maps to asc: True",
       "data": null
     },
     {
       "name": "Legacy offset-based pagination works",
       "status": "PASS",
-      "duration": 0.012,
+      "duration": 0.005,
       "details": "Response received with offset field",
       "data": null
     },
     {
       "name": "Subscribe command works",
       "status": "PASS",
-      "duration": 0.009,
-      "details": "subscription_id=sub_f898ee5f422f",
+      "duration": 0.004,
+      "details": "subscription_id=sub_c21dba29ddb2",
       "data": null
     },
     {
       "name": "Set threshold command works",
       "status": "PASS",
-      "duration": 0.005,
+      "duration": 0.006,
       "details": "global_threshold=15",
       "data": null
     },
     {
       "name": "Invalid cursor reset gracefully",
       "status": "PASS",
-      "duration": 0.01,
+      "duration": 0.005,
       "details": "Got 3 devices (reset to first page)",
       "data": null
     },
     {
       "name": "Query limit=1 with has_more=True",
       "status": "PASS",
-      "duration": 0.013,
+      "duration": 0.004,
       "details": "Got 1 device, has_more=True",
       "data": null
     },
     {
       "name": "Empty cursor string handled",
       "status": "PASS",
-      "duration": 0.009,
+      "duration": 0.005,
       "details": "Got 3 devices",
       "data": null
     },
     {
       "name": "Large limit (1000) handled",
       "status": "WARN",
-      "duration": 0.008,
+      "duration": 0.005,
       "details": "No response",
       "data": null
     }

@@ -1,7 +1,7 @@
 # Vulcan Brownout Sprint 3 - Integration Test Results
 
-**Test Date:** 2026-02-22 10:21:32 UTC
-**Duration:** 0.99s
+**Test Date:** 2026-02-22 10:37:56 UTC
+**Duration:** 0.18s
 **HA Version:** 2026.2.2
 **Tester:** Loki (QA)
 **Sprint:** 3
@@ -18,11 +18,11 @@
 
 ## Results by Phase
 
-### ✅ WS Connect + Auth (0.633s)
+### ✅ WS Connect + Auth (0.026s)
 - **Status:** PASS
 - **Details:** Connected to HA 2026.2.2
 
-### ✅ Device Count < 212 (binary_sensor filtered) (0.068s)
+### ✅ Device Count < 212 (binary_sensor filtered) (0.008s)
 - **Status:** PASS
 - **Details:** 9 total devices (Sprint 2 had 212, expect < 212)
 
@@ -34,11 +34,11 @@
 - **Status:** PASS
 - **Details:** All 9 devices have valid levels
 
-### ✅ Query page 1 (limit=3) (0.006s)
+### ✅ Query page 1 (limit=3) (0.005s)
 - **Status:** PASS
 - **Details:** Got 3 devices, has_more=True, next_cursor exists=True
 
-### ✅ Query page 2 (cursor-based) (0.01s)
+### ✅ Query page 2 (cursor-based) (0.006s)
 - **Status:** PASS
 - **Details:** Got 3 devices
 
@@ -46,7 +46,7 @@
 - **Status:** PASS
 - **Details:** No overlap between pages
 
-### ✅ Cursor traversal completes (0.009s)
+### ✅ Cursor traversal completes (0.01s)
 - **Status:** PASS
 - **Details:** Traversed 1 pages, 9 unique devices
 
@@ -54,23 +54,23 @@
 - **Status:** PASS
 - **Details:** Got 3 devices at offset 3
 
-### ✅ Response has offset + next_cursor (0.005s)
+### ✅ Response has offset + next_cursor (0.006s)
 - **Status:** PASS
 - **Details:** offset field=True, next_cursor field=True
 
-### ✅ GET notification preferences (0.004s)
-- **Status:** PASS
-- **Details:** enabled=False, frequency_cap_hours=24, severity_filter=critical_only
-
-### ✅ SET notification preferences (valid) (0.008s)
-- **Status:** PASS
-- **Details:** Preferences set: enabled=True, frequency_cap_hours=12, severity_filter=all
-
-### ✅ GET preferences persisted (0.008s)
+### ✅ GET notification preferences (0.005s)
 - **Status:** PASS
 - **Details:** enabled=True, frequency_cap_hours=12, severity_filter=all
 
-### ✅ SET different notification values (0.007s)
+### ✅ SET notification preferences (valid) (0.005s)
+- **Status:** PASS
+- **Details:** Preferences set: enabled=True, frequency_cap_hours=12, severity_filter=all
+
+### ✅ GET preferences persisted (0.005s)
+- **Status:** PASS
+- **Details:** enabled=True, frequency_cap_hours=12, severity_filter=all
+
+### ✅ SET different notification values (0.004s)
 - **Status:** PASS
 - **Details:** enabled=False, frequency_cap_hours=24, severity_filter=critical_only
 
@@ -78,11 +78,11 @@
 - **Status:** PASS
 - **Details:** Correctly rejected: {'code': 'invalid_format', 'message': "value must be one of [1, 2, 6, 12, 24] for dictionary value @ data['frequency_cap_hours']. Got 5"}
 
-### ✅ Reject invalid severity_filter (none) (0.039s)
+### ✅ Reject invalid severity_filter (none) (0.006s)
 - **Status:** PASS
 - **Details:** Correctly rejected: {'code': 'invalid_format', 'message': "value must be one of ['all', 'critical_and_warning', 'critical_only'] for dictionary value @ data['severity_filter']. Got 'none'"}
 
-### ✅ Sort by priority (critical first) (0.013s)
+### ✅ Sort by priority (critical first) (0.008s)
 - **Status:** PASS
 - **Details:** Status order: ['healthy', 'healthy', 'healthy', 'healthy', 'healthy']
 
@@ -94,39 +94,39 @@
 - **Status:** PASS
 - **Details:** First 5 levels: [41.0, 74.0, 81.0, 86.0, 86.0], sorted=True
 
-### ✅ Sort by level descending (level_desc) (0.008s)
+### ✅ Sort by level descending (level_desc) (0.007s)
 - **Status:** PASS
 - **Details:** First 5 levels: [96.0, 90.0, 89.0, 87.0, 86.0], sorted=True
 
-### ✅ Legacy sort_key='battery_level' works (0.012s)
+### ✅ Legacy sort_key='battery_level' works (0.007s)
 - **Status:** PASS
 - **Details:** Legacy key maps to asc: True
 
-### ✅ Legacy offset-based pagination works (0.012s)
+### ✅ Legacy offset-based pagination works (0.005s)
 - **Status:** PASS
 - **Details:** Response received with offset field
 
-### ✅ Subscribe command works (0.009s)
+### ✅ Subscribe command works (0.004s)
 - **Status:** PASS
-- **Details:** subscription_id=sub_f898ee5f422f
+- **Details:** subscription_id=sub_c21dba29ddb2
 
-### ✅ Set threshold command works (0.005s)
+### ✅ Set threshold command works (0.006s)
 - **Status:** PASS
 - **Details:** global_threshold=15
 
-### ✅ Invalid cursor reset gracefully (0.01s)
+### ✅ Invalid cursor reset gracefully (0.005s)
 - **Status:** PASS
 - **Details:** Got 3 devices (reset to first page)
 
-### ✅ Query limit=1 with has_more=True (0.013s)
+### ✅ Query limit=1 with has_more=True (0.004s)
 - **Status:** PASS
 - **Details:** Got 1 device, has_more=True
 
-### ✅ Empty cursor string handled (0.009s)
+### ✅ Empty cursor string handled (0.005s)
 - **Status:** PASS
 - **Details:** Got 3 devices
 
-### ⚠️ Large limit (1000) handled (0.008s)
+### ⚠️ Large limit (1000) handled (0.005s)
 - **Status:** WARN
 - **Details:** No response
 
@@ -143,4 +143,4 @@
 - Edge cases handled gracefully
 
 ---
-*Generated by Loki QA Agent on 2026-02-22 10:21:32 UTC*
+*Generated by Loki QA Agent on 2026-02-22 10:37:56 UTC*
