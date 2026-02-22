@@ -81,9 +81,9 @@ Custom commands under `vulcan-brownout/*` namespace. See `architecture/api-contr
 ## Key Conventions
 
 ### Git
-- **Do NOT push** — repo owner handles pushes manually. Commit locally only.
 - Commit format: imperative mood, under 80 chars, then `# Summary of changes` / `## Summary` with bullet list.
 - Branch naming: `sprint-N/story-description`, `fix/short-description`, `chore/short-description`
+- Push to GitHub after every commit.
 
 ### Testing
 - `pytest.ini` sets `asyncio_mode = auto` — all async tests run automatically
@@ -95,4 +95,4 @@ Custom commands under `vulcan-brownout/*` namespace. See `architecture/api-contr
 - Python lint: flake8 with `max-line-length=127`, `max-complexity=10`
 
 ### Team Workflow
-Multi-agent Kanban: Product Owner → UX Designer → Architect → Lead Dev → QA. Max 5 stories/sprint, mandatory deployment story. Architecture decisions documented as ADRs.
+Multi-agent Kanban: Product Owner → Principal Engineer → QA. Max 5 stories/sprint, mandatory deployment story. Architecture decisions documented as ADRs.

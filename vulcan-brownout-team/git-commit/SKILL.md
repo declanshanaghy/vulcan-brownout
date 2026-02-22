@@ -1,6 +1,6 @@
 ---
 name: git-commit
-description: "Git commit convention for all Vulcan Brownout team members. Use this skill whenever committing code, docs, or any artifacts to the repository. Defines the commit message format, .gitignore rules, and pre-commit checklist. Every team member (Freya, FiremanDecko, ArsonWells, Luna, Loki) must follow this convention."
+description: "Git commit convention for all Vulcan Brownout team members. Use this skill whenever committing code, docs, or any artifacts to the repository. Defines the commit message format, .gitignore rules, and pre-commit checklist. Every team member (Freya, FiremanDecko, Loki) must follow this convention."
 ---
 
 # Git Commit Convention
@@ -63,23 +63,20 @@ implement battery entity auto-discovery service
 
 **Bad:**
 ```
-Updated stuff    ← vague, no detail
+Updated stuff    <- vague, no detail
 
-changes          ← useless
+changes          <- useless
 
 Add ADR-001 integration architecture for the Vulcan Brownout Home Assistant custom integration project
-                 ← over 80 characters
+                 <- over 80 characters
 ```
 
 ## Post-Commit: Push to GitHub
 
-> ⚠️ **Git push is disabled in this environment.** Do NOT attempt to run `git push`. The repo owner (Dek) handles all pushes to GitHub manually. Commit locally and stop — do not treat an unpushed commit as a failure or blocker.
-
-For reference, the push command when the owner runs it manually:
+After every commit, push to GitHub immediately:
 
 ```bash
-git remote add origin <repo-url>
-git push -u origin <branch>
+git push
 ```
 
 ## Pre-Commit Checklist

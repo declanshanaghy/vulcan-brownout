@@ -4,21 +4,17 @@ HA custom integration: real-time battery monitoring panel with notifications, in
 
 **Status**: Sprint 3 on HOLD (24/28 tests pass, bugs triaged). Sprint 4 architecture ready.
 
-> ⚠️ **Git push is disabled in this environment.** Agents must commit locally only. The repo owner (Dek) handles all pushes to GitHub manually.
-
 ## Team
 
 | Role | Agent | Model | Skill |
 |------|-------|-------|-------|
-| Product Owner | Freya | Opus | [SKILL](vulcan-brownout-team/product-owner/SKILL.md) |
-| UX Designer | Luna | Sonnet | [SKILL](vulcan-brownout-team/ux-designer/SKILL.md) |
-| Architect | FiremanDecko | Opus | [SKILL](vulcan-brownout-team/architect/SKILL.md) |
-| Lead Developer | ArsonWells | Sonnet | [SKILL](vulcan-brownout-team/lead-dev/SKILL.md) |
-| QA Tester | Loki | Sonnet | [SKILL](vulcan-brownout-team/qa-tester/SKILL.md) |
+| Product Owner | Freya | Sonnet | [SKILL](vulcan-brownout-team/product-owner/SKILL.md) |
+| Principal Engineer | FiremanDecko | Sonnet | [SKILL](vulcan-brownout-team/principal-engineer/SKILL.md) |
+| QA Tester | Loki | Haiku | [SKILL](vulcan-brownout-team/qa-tester/SKILL.md) |
 
 ## Workflow
 
-PO + UX Designer -> Design Brief -> Architect -> System Design + API Contracts -> Lead Dev -> Implementation -> QA Tester -> Acceptance. Kanban method. Max 5 stories/sprint. Deployment story mandatory every sprint.
+PO → Design Brief → Principal Engineer → Architecture + Implementation → QA Tester → Acceptance. Kanban method. Max 5 stories/sprint. Deployment story mandatory every sprint.
 
 ## Key Docs
 
@@ -33,7 +29,7 @@ PO + UX Designer -> Design Brief -> Architect -> System Design + API Contracts -
 - [Source Code](development/src/custom_components/vulcan_brownout/)
 - [Pipeline](vulcan-brownout-team/pipeline/SKILL.md) | [Git Convention](vulcan-brownout-team/git-commit/SKILL.md)
 
-## FiremanDecko — Architect
+## FiremanDecko — Principal Engineer
 
 **Sprint 3 → Sprint 4 Transition**:
 
@@ -41,5 +37,4 @@ PO + UX Designer -> Design Brief -> Architect -> System Design + API Contracts -
 - [Sprint 4 System Design](architecture/system-design.md) — Theme detection via hass.themes.darkMode + UX polish
 - [Sprint 4 API Contracts](architecture/api-contracts.md) — No API changes (frontend-only sprint)
 - [Sprint 4 Sprint Plan](architecture/sprint-plan.md) — 5 stories: theme detection, empty state, scroll perf, notification UX, deployment
-- [Sprint 4 Delegation Brief](architecture/delegation-brief.md) — Full implementation guide for ArsonWells
 - [ADR-014: Theme Detection Strategy](architecture/adrs/ADR-014-theme-detection-strategy.md) — hass.themes.darkMode vs DOM sniffing decision

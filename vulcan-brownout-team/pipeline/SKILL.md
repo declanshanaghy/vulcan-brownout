@@ -1,16 +1,16 @@
 ---
 name: vulcan-brownout-pipeline
-description: "Kanban orchestration pipeline for the Vulcan Brownout team. Runs all 5 agents in the defined workflow: Product Owner + UX Designer collaborate → Architect interprets → Lead Dev implements → QA Tester validates with idempotent scripts. Use this skill to execute a full feature cycle, process a product brief, or run the complete team workflow."
+description: "Kanban orchestration pipeline for the Vulcan Brownout team. Runs all 3 agents in the defined workflow: Product Owner designs → Principal Engineer architects + implements → QA Tester validates with idempotent scripts. Use this skill to execute a full feature cycle, process a product brief, or run the complete team workflow."
 ---
 
 # Vulcan Brownout Team Pipeline — Kanban Workflow
 
-This pipeline orchestrates the five Vulcan Brownout team agents in a Kanban flow. Work moves through the board from left to right, with each stage building on the previous stage's output.
+This pipeline orchestrates the three Vulcan Brownout team agents in a Kanban flow. Work moves through the board from left to right, with each stage building on the previous stage's output.
 
 ## Diagrams
 
 All diagrams produced by any team member must use Mermaid syntax following the style guide at:
-`vulcan-brownout-team/ux-designer/ux-assets/mermaid-style-guide.md`
+`vulcan-brownout-team/ux-assets/mermaid-style-guide.md`
 
 Every agent must read this guide before creating diagrams in any deliverable.
 
@@ -18,33 +18,31 @@ Every agent must read this guide before creating diagrams in any deliverable.
 
 | Agent | Name | Model | Rationale |
 |-------|------|-------|-----------|
-| Product Owner | **Freya** | **Opus** | Strategic thinking, product vision, priority calls |
-| Architect | **FiremanDecko** | **Opus** | Complex technical decisions, system design |
-| Lead Developer | **ArsonWells** | **Sonnet** | Fast, high-quality code implementation |
-| UX Designer | **Luna** | **Sonnet** | Rapid wireframing, interaction design |
-| QA Tester | **Loki** | **Sonnet** | Efficient test script generation, validation |
+| Product Owner | **Freya** | **Sonnet** | Product vision, UX direction, priority calls |
+| Principal Engineer | **FiremanDecko** | **Sonnet** | Architecture + implementation in one pass |
+| QA Tester | **Loki** | **Haiku** | Efficient test script generation, validation |
 
 When spawning agents, use the model specified above for each role.
 
 ## Kanban Board
 
 ```
-┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐
-│  BACKLOG   │→ │  DESIGN    │→ │ ARCHITECT  │→ │   BUILD    │→ │  VALIDATE  │
-│            │  │            │  │            │  │            │  │            │
-│ PO writes  │  │ PO + UX    │  │ Architect  │  │ Lead Dev   │  │ QA Tester  │
-│ stories    │  │ collaborate │  │ interprets │  │ implements │  │ validates  │
-│            │  │            │  │ (asks PO/  │  │ (best      │  │ (devil's   │
-│            │  │            │  │  UX if     │  │  practices)│  │  advocate,  │
-│            │  │            │  │  unclear)  │  │            │  │  idempotent │
-│            │  │            │  │            │  │            │  │  scripts)  │
-└────────────┘  └────────────┘  └────────────┘  └────────────┘  └────────────┘
-                                                                       │
-                                                                       ▼
-                                                                ┌────────────┐
-                                                                │    DONE    │
-                                                                │ Ship / Hold│
-                                                                └────────────┘
+┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐
+│  BACKLOG   │→ │  DESIGN    │→ │   BUILD    │→ │  VALIDATE  │
+│            │  │            │  │            │  │            │
+│ PO writes  │  │ PO produces│  │ Principal  │  │ QA Tester  │
+│ stories    │  │ Product    │  │ Engineer   │  │ validates  │
+│            │  │ Design     │  │ architects │  │ (devil's   │
+│            │  │ Brief      │  │ + implements│  │  advocate,  │
+│            │  │            │  │            │  │  idempotent │
+│            │  │            │  │            │  │  scripts)  │
+└────────────┘  └────────────┘  └────────────┘  └────────────┘
+                                                       │
+                                                       ▼
+                                                ┌────────────┐
+                                                │    DONE    │
+                                                │ Ship / Hold│
+                                                └────────────┘
 ```
 
 ## Pipeline Execution
@@ -55,53 +53,42 @@ The pipeline accepts:
 - A **feature request or story** (for new work)
 - A **change request** (for modifications)
 
-### Stage 1: DESIGN — Product Owner + UX Designer
+### Stage 1: DESIGN — Product Owner
 
-Read both agent skills:
-- `vulcan-brownout-team/product-owner/SKILL.md`
-- `vulcan-brownout-team/ux-designer/SKILL.md`
+Read: `vulcan-brownout-team/product-owner/SKILL.md`
 
-These two agents collaborate together to produce a **Product Design Brief** that covers:
+Freya produces a **Product Design Brief** that covers:
 - Problem statement and target user
 - User interactions and flows
 - Look and feel direction
 - Market fit and differentiation
 - Wireframes (ASCII)
 - Acceptance criteria (testable)
-- Open questions for the Architect
+- Open questions for the Principal Engineer
 
-This is a conversation between two perspectives — the PO brings the business/user context, the UX Designer brings the interaction and visual expertise. They should push back on each other where appropriate.
+Freya carries the UX sensibility from prior sprints — she defines the wireframes, interaction specs, and visual direction as part of the Product Design Brief.
 
-**Output**: Product Design Brief saved to the sprint directory.
+**Output**: Product Design Brief saved to the design directory.
 
-### Stage 2: ARCHITECT — Technical Interpretation
+### Stage 2: BUILD — Principal Engineer
 
-Read: `vulcan-brownout-team/architect/SKILL.md`
+Read: `vulcan-brownout-team/principal-engineer/SKILL.md`
 
-The Architect receives the Product Design Brief and translates it into a technical solution.
+FiremanDecko receives the Product Design Brief and produces both the technical design and the implementation in a single pass.
 
-**Important**: If anything in the brief is ambiguous or technically concerning, the Architect asks the UX Designer or Product Owner directly before proceeding. Frame questions clearly with context, options, and impact.
+**Important**: If anything in the brief is ambiguous or technically concerning, the Principal Engineer asks the Product Owner directly before proceeding. Frame questions clearly with context, options, and impact.
 
 **Output**:
 - Architecture Decision Records (ADRs)
 - System design with component diagrams
 - API contracts (WebSocket messages, data shapes)
 - Sprint stories (max 5) with technical notes
-- Delegation brief for the Lead Developer
-
-### Stage 3: BUILD — Lead Developer Implementation
-
-Read: `vulcan-brownout-team/lead-dev/SKILL.md`
-
-The Lead Developer receives the Architect's delegation and implements using the latest and greatest best practices for the architecture. Does not reinvent the architecture — implements what was specified.
-
-**Output**:
 - Working code files in the project structure
 - Implementation plan documenting what was built
 - Code specifications for each module
 - Handoff notes for QA Tester (how to deploy, what to test)
 
-### Stage 4: VALIDATE — QA Tester
+### Stage 3: VALIDATE — QA Tester
 
 Read: `vulcan-brownout-team/qa-tester/SKILL.md`
 
@@ -132,22 +119,21 @@ All scripts must be idempotent — running them twice produces the same result w
 Each role writes to a single top-level folder. Git tracks history — files are overwritten each sprint with no sprint subdirectories.
 
 ```
-design/                              # Freya + Luna output
+design/                              # Freya output
 ├── product-design-brief.md
 ├── wireframes.md
 ├── interactions.md
 └── components.md
 
-architecture/                        # FiremanDecko output
+architecture/                        # FiremanDecko output (architecture)
 ├── adrs/                            # ADRs accumulate (never overwritten)
 │   ├── ADR-001-*.md
 │   └── ADR-NNN-*.md
 ├── system-design.md
 ├── api-contracts.md
-├── sprint-plan.md
-└── delegation-brief.md
+└── sprint-plan.md
 
-development/                         # ArsonWells output
+development/                         # FiremanDecko output (implementation)
 ├── src/custom_components/vulcan_brownout/
 ├── scripts/deploy.sh
 ├── implementation-plan.md
@@ -167,6 +153,6 @@ quality/                             # Loki output
 
 1. **WIP Limit**: One story moves through the pipeline at a time. Don't start the next story until the current one reaches DONE or is explicitly parked.
 2. **Pull, Don't Push**: Each stage pulls work when ready, doesn't have work pushed onto it.
-3. **Blocker Escalation**: If any stage is blocked, escalate to the previous stage (Architect asks PO/UX, Lead Dev asks Architect, QA asks Lead Dev).
+3. **Blocker Escalation**: If any stage is blocked, escalate to the previous stage (Principal Engineer asks PO, QA asks Principal Engineer).
 4. **Max 5 Stories per Sprint**: From the product brief. The PO enforces this constraint.
 5. **Definition of Done**: A story is DONE when QA signs off with a Ship recommendation and all idempotent test scripts pass.
