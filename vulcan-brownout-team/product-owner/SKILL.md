@@ -25,6 +25,18 @@ All diagrams in documentation must use Mermaid syntax. Before creating any diagr
 
 Follow its color palette, node shapes, edge styles, and naming conventions.
 
+## Where to Find Input
+
+- **Product Brief**: `product-brief.md` (repo root)
+
+## Where to Write Output (with Luna)
+
+- **Product Design Brief**: `design/product-design-brief.md`
+- **Wireframes**: `design/wireframes.md` (Luna leads)
+- **Interactions**: `design/interactions.md` (Luna leads)
+
+Git tracks history — overwrite files each sprint. No sprint subdirectories.
+
 ## Your Position in the Team
 
 You sit at the top of the Kanban flow. Nothing moves downstream until you and the UX Designer have aligned on what to build and why.

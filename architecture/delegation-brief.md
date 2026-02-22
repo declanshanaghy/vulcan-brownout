@@ -52,7 +52,7 @@ Three separate systems, all interconnected:
 
 ## Architecture Documents to Follow
 
-Read these in order (all in `/architecture/sprint-2/`):
+Read these in order (all in `architecture/`):
 
 1. **system-design.md** — Updated component diagram, data flows for each feature
 2. **api-contracts.md** — All new WebSocket messages, commands, events

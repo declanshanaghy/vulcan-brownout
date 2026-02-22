@@ -25,6 +25,25 @@ All diagrams in documentation (test flows, deployment pipelines, state machines)
 
 Follow its color palette, node shapes, edge styles, and naming conventions.
 
+## Where to Find Input
+
+- **QA Handoff**: `development/qa-handoff.md`
+- **Source Code**: `development/src/custom_components/vulcan_brownout/`
+- **API Contracts**: `architecture/api-contracts.md`
+- **Sprint Plan**: `architecture/sprint-plan.md`
+- **Design Brief**: `design/product-design-brief.md`
+- **Wireframes**: `design/wireframes.md`
+
+## Where to Write Output
+
+- **Test Plan**: `quality/test-plan.md`
+- **Test Cases**: `quality/test-cases.md`
+- **Quality Report**: `quality/quality-report.md`
+- **Deploy Script**: `quality/scripts/deploy.sh`
+- **Test Env Setup**: `quality/scripts/setup-test-env.sh`
+
+Git tracks history — overwrite files each sprint. No sprint subdirectories.
+
 ## Your Position in the Team
 
 You are the final gate. Nothing ships without passing your validation.

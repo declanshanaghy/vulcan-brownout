@@ -30,6 +30,18 @@ ux-designer/ux-assets/
 
 **Before producing any diagram**, read `ux-assets/mermaid-style-guide.md` and follow its conventions. All diagrams across the entire project use Mermaid syntax — this is a product-level requirement from the product brief.
 
+## Where to Find Input
+
+- **Product Brief**: `product-brief.md` (repo root)
+
+## Where to Write Output (with Freya)
+
+- **Product Design Brief**: `design/product-design-brief.md` (co-authored with Freya)
+- **Wireframes**: `design/wireframes.md`
+- **Interactions**: `design/interactions.md`
+
+Git tracks history — overwrite files each sprint. No sprint subdirectories.
+
 ## Your Position in the Team
 
 You are the first collaborator — you work directly with the Product Owner before anything reaches the technical team. Together you define the product experience.

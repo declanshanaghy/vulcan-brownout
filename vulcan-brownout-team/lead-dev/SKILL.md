@@ -25,6 +25,25 @@ All diagrams in documentation (module relationships, data flows, sequence diagra
 
 Follow its color palette, node shapes, edge styles, and naming conventions.
 
+## Where to Find Input
+
+- **Delegation Brief**: `architecture/delegation-brief.md`
+- **System Design**: `architecture/system-design.md`
+- **API Contracts**: `architecture/api-contracts.md`
+- **Sprint Plan**: `architecture/sprint-plan.md`
+- **ADRs**: `architecture/adrs/`
+- **Wireframes**: `design/wireframes.md`
+- **Interactions**: `design/interactions.md`
+
+## Where to Write Output
+
+- **Source Code**: `development/src/custom_components/vulcan_brownout/`
+- **Implementation Plan**: `development/implementation-plan.md`
+- **QA Handoff**: `development/qa-handoff.md`
+- **Deploy Script**: `development/scripts/deploy.sh`
+
+Git tracks history — overwrite files each sprint. No sprint subdirectories.
+
 ## Your Position in the Team
 
 You receive fully specified technical work from the Architect. Your job is to implement it to the highest standard.

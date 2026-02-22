@@ -23,7 +23,23 @@ Before committing anything, read and follow `vulcan-brownout-team/git-commit/SKI
 All diagrams (architecture, component, sequence, data flow) must use Mermaid syntax. Before creating any diagram, read the team style guide at:
 `vulcan-brownout-team/ux-designer/ux-assets/mermaid-style-guide.md`
 
-Follow its color palette, node shapes, edge styles, and naming conventions. Architecture diagrams go in `architecture/sprint-N/diagrams/` or inline in markdown.
+Follow its color palette, node shapes, edge styles, and naming conventions. Architecture diagrams go inline in markdown or in `architecture/diagrams/`.
+
+## Where to Find Input
+
+- **Product Design Brief**: `design/product-design-brief.md`
+- **Wireframes**: `design/wireframes.md`
+- **Interactions**: `design/interactions.md`
+
+## Where to Write Output
+
+- **System Design**: `architecture/system-design.md`
+- **API Contracts**: `architecture/api-contracts.md`
+- **Sprint Plan**: `architecture/sprint-plan.md`
+- **Delegation Brief**: `architecture/delegation-brief.md`
+- **ADRs**: `architecture/adrs/ADR-NNN-title.md`
+
+Git tracks history — overwrite files each sprint. No sprint subdirectories.
 
 ## Your Position in the Team
 

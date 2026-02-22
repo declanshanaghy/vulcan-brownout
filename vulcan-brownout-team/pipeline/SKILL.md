@@ -129,32 +129,38 @@ All scripts must be idempotent — running them twice produces the same result w
 
 ## Output Directory Structure
 
+Each role writes to a single top-level folder. Git tracks history — files are overwritten each sprint with no sprint subdirectories.
+
 ```
-vulcan-brownout-team/
-├── design/sprint-{N}/
-│   ├── product-design-brief.md    # PO + UX collaboration output
-│   ├── wireframes.md              # UX wireframes
-│   ├── interactions.md            # UX interaction specs
-│   └── components.md              # UX component specs
-├── architecture/sprint-{N}/
-│   ├── adrs/                      # Architecture Decision Records
-│   ├── system-design.md           # System design doc
-│   └── api-contracts.md           # API contracts
-├── development/sprint-{N}/
-│   ├── implementation-plan.md     # What was built and how
-│   ├── code-specs.md              # Module specifications
-│   └── src/                       # Actual source code
-└── quality/sprint-{N}/
-    ├── test-plan.md               # Test plan
-    ├── test-cases.md              # Detailed test cases
-    ├── quality-report.md          # Final quality report
-    └── scripts/                   # Idempotent test/deploy scripts
-        ├── deploy.sh
-        ├── setup-test-env.sh
-        ├── teardown-test-env.sh
-        ├── run-api-tests.sh
-        ├── run-ui-tests.sh
-        └── run-all-tests.sh
+design/                              # Freya + Luna output
+├── product-design-brief.md
+├── wireframes.md
+├── interactions.md
+└── components.md
+
+architecture/                        # FiremanDecko output
+├── adrs/                            # ADRs accumulate (never overwritten)
+│   ├── ADR-001-*.md
+│   └── ADR-NNN-*.md
+├── system-design.md
+├── api-contracts.md
+├── sprint-plan.md
+└── delegation-brief.md
+
+development/                         # ArsonWells output
+├── src/custom_components/vulcan_brownout/
+├── scripts/deploy.sh
+├── implementation-plan.md
+└── qa-handoff.md
+
+quality/                             # Loki output
+├── test-plan.md
+├── test-cases.md
+├── quality-report.md
+└── scripts/
+    ├── deploy.sh
+    ├── setup-test-env.sh
+    └── run-all-tests.sh
 ```
 
 ## Kanban Rules
