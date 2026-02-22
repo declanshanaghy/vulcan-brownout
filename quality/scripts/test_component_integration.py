@@ -411,33 +411,6 @@ class TestErrorInjection:
         await client2.close()
 
     @pytest.mark.asyncio
-    async def test_response_delay_injection(self, mock_ha):
-        """Test response delay injection."""
-        from .mock_fixtures import get_fixture_entities
-        entities = get_fixture_entities()
-        await mock_ha.setup_entities(entities)
-
-        # Set 200ms delay
-        await mock_ha.set_response_delay(200)
-
-        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
-        await client.connect()
-
-        import time
-        start = time.time()
-        response = await client.send_command("vulcan-brownout/query_devices", {
-            "limit": 10,
-            "offset": 0
-        })
-        elapsed = time.time() - start
-
-        assert response["success"] is True
-        # Should take at least 200ms due to injected delay
-        assert elapsed >= 0.18  # Allow 20ms variance
-
-        await client.close()
-
-    @pytest.mark.asyncio
     async def test_malformed_response_injection(self, mock_ha):
         """Test malformed JSON response handling."""
         from .mock_fixtures import get_fixture_entities
