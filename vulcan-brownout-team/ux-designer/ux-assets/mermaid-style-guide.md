@@ -168,8 +168,8 @@ gantt
 
 All Mermaid diagram files go in the relevant sprint or design directory:
 
-- Architecture diagrams: `sprints/sprint-N/architecture/diagrams/`
-- UX flow diagrams: `sprints/sprint-N/design/diagrams/`
+- Architecture diagrams: `architecture/sprint-N/diagrams/`
+- UX flow diagrams: `design/sprint-N/diagrams/`
 - Inline in markdown: Preferred for most cases using fenced code blocks
 
 When a diagram is referenced from multiple documents, save it as a standalone `.mermaid` file and reference it by path.

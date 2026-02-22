@@ -130,32 +130,31 @@ All scripts must be idempotent — running them twice produces the same result w
 ## Output Directory Structure
 
 ```
-vulcan-brownout-team/sprints/sprint-{N}/
-├── design/
+vulcan-brownout-team/
+├── design/sprint-{N}/
 │   ├── product-design-brief.md    # PO + UX collaboration output
 │   ├── wireframes.md              # UX wireframes
 │   ├── interactions.md            # UX interaction specs
 │   └── components.md              # UX component specs
-├── architecture/
+├── architecture/sprint-{N}/
 │   ├── adrs/                      # Architecture Decision Records
 │   ├── system-design.md           # System design doc
 │   └── api-contracts.md           # API contracts
-├── development/
+├── development/sprint-{N}/
 │   ├── implementation-plan.md     # What was built and how
 │   ├── code-specs.md              # Module specifications
 │   └── src/                       # Actual source code
-├── quality/
-│   ├── test-plan.md               # Test plan
-│   ├── test-cases.md              # Detailed test cases
-│   ├── quality-report.md          # Final quality report
-│   └── scripts/                   # Idempotent test/deploy scripts
-│       ├── deploy.sh
-│       ├── setup-test-env.sh
-│       ├── teardown-test-env.sh
-│       ├── run-api-tests.sh
-│       ├── run-ui-tests.sh
-│       └── run-all-tests.sh
-└── sprint-summary.md              # Overall sprint summary
+└── quality/sprint-{N}/
+    ├── test-plan.md               # Test plan
+    ├── test-cases.md              # Detailed test cases
+    ├── quality-report.md          # Final quality report
+    └── scripts/                   # Idempotent test/deploy scripts
+        ├── deploy.sh
+        ├── setup-test-env.sh
+        ├── teardown-test-env.sh
+        ├── run-api-tests.sh
+        ├── run-ui-tests.sh
+        └── run-all-tests.sh
 ```
 
 ## Kanban Rules
