@@ -668,7 +668,6 @@ class VulcanBrownoutPanel extends LitElement {
         type: QUERY_DEVICES_COMMAND,
         data: {
           limit: DEFAULT_PAGE_SIZE,
-          cursor: null,
           sort_key: "priority",
           sort_order: "asc",
         },
@@ -1026,9 +1025,13 @@ class VulcanBrownoutPanel extends LitElement {
       throw new Error("Home Assistant WebSocket not available");
     }
     // Flatten nested 'data' field — HA callWS expects params at the top level,
-    // not wrapped in a data object
+    // not wrapped in a data object. Also strip null/undefined values to avoid
+    // schema validation errors (e.g., cursor: null fails vol.Optional("cursor"): str)
     const { data, ...rest } = message;
-    const flatMessage = data ? { ...rest, ...data } : rest;
+    const merged = data ? { ...rest, ...data } : rest;
+    const flatMessage = Object.fromEntries(
+      Object.entries(merged).filter(([_, v]) => v !== null && v !== undefined)
+    );
     return this.hass.callWS(flatMessage);
   }
 

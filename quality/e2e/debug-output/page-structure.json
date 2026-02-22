@@ -1,0 +1,18 @@
+{
+  "documentTitle": "Battery Monitoring – Home Assistant",
+  "bodyClass": "",
+  "htmlLang": "en",
+  "hasHomeAssistant": true,
+  "hasPanelElement": false,
+  "rootElements": [
+    {
+      "tag": "html",
+      "class": ""
+    }
+  ],
+  "foundCustomElements": [
+    "home-assistant",
+    "action-handler"
+  ],
+  "undefinedElements": []
+}

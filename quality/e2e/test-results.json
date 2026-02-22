@@ -1,0 +1,201 @@
+{
+  "config": {
+    "configFile": "/sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/playwright.config.ts",
+    "rootDir": "/sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/tests",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": "/sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/global-setup.ts",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 1,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 2,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "panel-load.spec.ts",
+      "file": "panel-load.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Vulcan Brownout - Panel Loading",
+          "file": "panel-load.spec.ts",
+          "line": 11,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should load panel and verify DOM structure",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 26422,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('vulcan-brownout-panel')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('vulcan-brownout-panel')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('vulcan-brownout-panel')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('vulcan-brownout-panel')\u001b[22m\n\n    at /sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/tests/panel-load.spec.ts:40:31",
+                        "location": {
+                          "file": "/sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/tests/panel-load.spec.ts",
+                          "column": 31,
+                          "line": 40
+                        },
+                        "snippet": "  38 |\n  39 |     // Verify panel element is in DOM\n> 40 |     await expect(panel.panel).toBeVisible();\n     |                               ^\n  41 |\n  42 |     // Verify panel contains expected UI elements\n  43 |     await expect(panel.deviceList).toBeVisible();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/tests/panel-load.spec.ts",
+                            "column": 31,
+                            "line": 40
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('vulcan-brownout-panel')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('vulcan-brownout-panel')\u001b[22m\n\n\n  38 |\n  39 |     // Verify panel element is in DOM\n> 40 |     await expect(panel.panel).toBeVisible();\n     |                               ^\n  41 |\n  42 |     // Verify panel contains expected UI elements\n  43 |     await expect(panel.deviceList).toBeVisible();\n    at /sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/tests/panel-load.spec.ts:40:31"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Navigating to panel...\n"
+                        },
+                        {
+                          "text": "Attempting to navigate to http://homeassistant.lan:8123/vulcan-brownout\n"
+                        },
+                        {
+                          "text": "Navigation response status:200\n"
+                        },
+                        {
+                          "text": "Current URL after navigation: http://homeassistant.lan:8123/vulcan-brownout\n"
+                        },
+                        {
+                          "text": "Final URL: http://homeassistant.lan:8123/vulcan-brownout\n"
+                        },
+                        {
+                          "text": "Panel element not yet attached (may not be loaded from server)\n"
+                        },
+                        {
+                          "text": "Found 0 panel elements\n"
+                        },
+                        {
+                          "text": "Page contains vulcan-brownout-panel: \u001b[33mfalse\u001b[39m\n"
+                        },
+                        {
+                          "text": "Found 1 home-assistant elements\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-22T12:26:04.170Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/test-results/panel-load-Vulcan-Brownout-83fbe-el-and-verify-DOM-structure-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/test-results/panel-load-Vulcan-Brownout-83fbe-el-and-verify-DOM-structure-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/test-results/panel-load-Vulcan-Brownout-83fbe-el-and-verify-DOM-structure-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/tests/panel-load.spec.ts",
+                        "column": 31,
+                        "line": 40
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "6a4b2a6dcfdb471c3c1c-6114d6dc321c4a4b10ba",
+              "file": "panel-load.spec.ts",
+              "line": 12,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "message": "Testing stopped early after 1 maximum allowed failures."
+    }
+  ],
+  "stats": {
+    "startTime": "2026-02-22T12:26:02.567Z",
+    "duration": 28176.054,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

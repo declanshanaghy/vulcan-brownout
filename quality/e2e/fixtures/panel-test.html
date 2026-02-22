@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vulcan Brownout Panel Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #test-container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        vulcan-brownout-panel {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="test-container">
+        <vulcan-brownout-panel></vulcan-brownout-panel>
+    </div>
+
+    <script type="module">
+        // Mock Home Assistant object
+        window.hass = {
+            connection: {
+                subscribeMessage: () => {},
+                subscribe: () => {},
+            },
+            callWS: async (command) => {
+                // Wait for the actual mock response via event
+                return new Promise((resolve) => {
+                    const handler = (event) => {
+                        if (event.detail && event.detail.result) {
+                            window.removeEventListener('ws-response', handler);
+                            resolve(event.detail.result);
+                        }
+                    };
+                    window.addEventListener('ws-response', handler);
+                    // Dispatch event for test to handle
+                    window.dispatchEvent(new CustomEvent('ws-call', { detail: command }));
+                    // Timeout after 10s
+                    setTimeout(() => {
+                        window.removeEventListener('ws-response', handler);
+                        resolve({});
+                    }, 10000);
+                });
+            },
+        };
+
+        // Inject the panel JS
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = '/src/custom_components/vulcan_brownout/frontend/vulcan-brownout-panel.js';
+        document.head.appendChild(script);
+
+        // Set the hass property on the panel once it's loaded
+        window.addEventListener('load', () => {
+            const panel = document.querySelector('vulcan-brownout-panel');
+            if (panel) {
+                panel.hass = window.hass;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,146 +1,31 @@
-# Vulcan Brownout Sprint 3 - Integration Test Results
+# Sprint 3 Detailed Test Results
 
-**Test Date:** 2026-02-22 10:37:56 UTC
-**Duration:** 0.18s
-**HA Version:** 2026.2.2
-**Tester:** Loki (QA)
-**Sprint:** 3
+**Date**: 2026-02-22 | **Result**: 24/28 PASS | **Duration**: 190ms
 
-## Summary
+For summary and bugs, see SPRINT3-INDEX.md.
 
-| Metric | Value |
-|--------|-------|
-| Total Tests | 28 |
-| Passed | 27 ✅ |
-| Failed | 0 ❌ |
-| Warned | 1 ⚠️ |
-| Success Rate | 96.4% |
+## Detailed Failures
 
-## Results by Phase
+### FAIL: SET notification preferences (spec values)
+- Input: `{enabled: true, frequency_cap_hours: 12, severity_filter: "all"}`
+- Expected: Success
+- Actual: `invalid_format` error
+- Root cause: API only accepts [1,6,24] and ["critical_only","critical_and_warning"]
 
-### ✅ WS Connect + Auth (0.026s)
-- **Status:** PASS
-- **Details:** Connected to HA 2026.2.2
+### FAIL: Preferences persistence (depends on above)
+- Blocked by BUG-S3-001
 
-### ✅ Device Count < 212 (binary_sensor filtered) (0.008s)
-- **Status:** PASS
-- **Details:** 9 total devices (Sprint 2 had 212, expect < 212)
+### FAIL: Legacy sort_key="battery_level"
+- Input: `{sort_key: "battery_level"}`
+- Expected: Sorted results
+- Actual: No response (5s timeout)
+- Root cause: Likely infinite loop in legacy key mapping
 
-### ✅ No binary_sensor.* entities (0.0s)
-- **Status:** PASS
-- **Details:** 0 binary_sensor.* found in 9 devices
+### WARN: limit=1000
+- Input: `{limit: 1000}`
+- Expected: Results or error
+- Actual: No response (5s timeout)
+- Root cause: No limit enforcement, performance degradation
 
-### ✅ All battery_level valid (0-100) (0.0s)
-- **Status:** PASS
-- **Details:** All 9 devices have valid levels
-
-### ✅ Query page 1 (limit=3) (0.005s)
-- **Status:** PASS
-- **Details:** Got 3 devices, has_more=True, next_cursor exists=True
-
-### ✅ Query page 2 (cursor-based) (0.006s)
-- **Status:** PASS
-- **Details:** Got 3 devices
-
-### ✅ Page 2 differs from page 1 (0.0s)
-- **Status:** PASS
-- **Details:** No overlap between pages
-
-### ✅ Cursor traversal completes (0.01s)
-- **Status:** PASS
-- **Details:** Traversed 1 pages, 9 unique devices
-
-### ✅ Legacy offset pagination (offset=3) (0.006s)
-- **Status:** PASS
-- **Details:** Got 3 devices at offset 3
-
-### ✅ Response has offset + next_cursor (0.006s)
-- **Status:** PASS
-- **Details:** offset field=True, next_cursor field=True
-
-### ✅ GET notification preferences (0.005s)
-- **Status:** PASS
-- **Details:** enabled=True, frequency_cap_hours=12, severity_filter=all
-
-### ✅ SET notification preferences (valid) (0.005s)
-- **Status:** PASS
-- **Details:** Preferences set: enabled=True, frequency_cap_hours=12, severity_filter=all
-
-### ✅ GET preferences persisted (0.005s)
-- **Status:** PASS
-- **Details:** enabled=True, frequency_cap_hours=12, severity_filter=all
-
-### ✅ SET different notification values (0.004s)
-- **Status:** PASS
-- **Details:** enabled=False, frequency_cap_hours=24, severity_filter=critical_only
-
-### ✅ Reject invalid frequency_cap_hours (5) (0.005s)
-- **Status:** PASS
-- **Details:** Correctly rejected: {'code': 'invalid_format', 'message': "value must be one of [1, 2, 6, 12, 24] for dictionary value @ data['frequency_cap_hours']. Got 5"}
-
-### ✅ Reject invalid severity_filter (none) (0.006s)
-- **Status:** PASS
-- **Details:** Correctly rejected: {'code': 'invalid_format', 'message': "value must be one of ['all', 'critical_and_warning', 'critical_only'] for dictionary value @ data['severity_filter']. Got 'none'"}
-
-### ✅ Sort by priority (critical first) (0.008s)
-- **Status:** PASS
-- **Details:** Status order: ['healthy', 'healthy', 'healthy', 'healthy', 'healthy']
-
-### ✅ Sort by alphabetical (device_name) (0.008s)
-- **Status:** PASS
-- **Details:** First 3 names: ['Bar Motion Battery', 'Garage Door Interior Battery', 'Garage Motion Front Battery'], sorted=True
-
-### ✅ Sort by level ascending (level_asc) (0.009s)
-- **Status:** PASS
-- **Details:** First 5 levels: [41.0, 74.0, 81.0, 86.0, 86.0], sorted=True
-
-### ✅ Sort by level descending (level_desc) (0.007s)
-- **Status:** PASS
-- **Details:** First 5 levels: [96.0, 90.0, 89.0, 87.0, 86.0], sorted=True
-
-### ✅ Legacy sort_key='battery_level' works (0.007s)
-- **Status:** PASS
-- **Details:** Legacy key maps to asc: True
-
-### ✅ Legacy offset-based pagination works (0.005s)
-- **Status:** PASS
-- **Details:** Response received with offset field
-
-### ✅ Subscribe command works (0.004s)
-- **Status:** PASS
-- **Details:** subscription_id=sub_c21dba29ddb2
-
-### ✅ Set threshold command works (0.006s)
-- **Status:** PASS
-- **Details:** global_threshold=15
-
-### ✅ Invalid cursor reset gracefully (0.005s)
-- **Status:** PASS
-- **Details:** Got 3 devices (reset to first page)
-
-### ✅ Query limit=1 with has_more=True (0.004s)
-- **Status:** PASS
-- **Details:** Got 1 device, has_more=True
-
-### ✅ Empty cursor string handled (0.005s)
-- **Status:** PASS
-- **Details:** Got 3 devices
-
-### ⚠️ Large limit (1000) handled (0.005s)
-- **Status:** WARN
-- **Details:** No response
-
-## Verdict
-
-**PASS** — All tests passed.
-
-### Key Findings
-- Binary sensor filtering reduces device count from 212 to fewer (as expected)
-- Cursor-based pagination successfully implemented and backward compatible
-- Notification preferences GET/SET operations functional
-- New sort keys (priority, alphabetical, level_asc, level_desc) working
-- Legacy sort key (battery_level) still maps correctly
-- Edge cases handled gracefully
-
----
-*Generated by Loki QA Agent on 2026-02-22 10:37:56 UTC*
+## All Passing Tests
+Connection, binary sensor filtering (3/3), cursor pagination (6/6), GET preferences, SET with valid values, reject invalid frequency/severity, sort priority/alphabetical/level_asc/level_desc, backward compat (3/3), invalid cursor, limit=1, empty cursor.

@@ -1,0 +1,209 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║         VULCAN-BROWNOUT-PANEL RENDERING DEBUG - COMPLETE REPORT            ║
+║                          Date: 2026-02-22                                   ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+EXECUTIVE SUMMARY
+═════════════════════════════════════════════════════════════════════════════
+
+The vulcan-brownout-panel custom element is NOT rendering due to a SILENT 
+INITIALIZATION FAILURE caused by an API parameter error.
+
+Root Cause: The panel's data fetching code is sending cursor=None (null) to 
+the backend API, which rejects it with: 
+  "expected str for dictionary value @ data['cursor']. Got None"
+
+The panel catches this error but fails to render content or show an error 
+message, resulting in a blank panel.
+
+
+TECHNICAL DETAILS
+═════════════════════════════════════════════════════════════════════════════
+
+1. AUTHENTICATION ✓
+   ├─ Method: Form-based login (tested)
+   ├─ User: sprocket
+   ├─ Password: _7BMbAup8ZBTE2 (from .env.test)
+   └─ Status: Working correctly
+
+2. PAGE NAVIGATION ✓
+   ├─ Target: http://homeassistant.lan:8123/vulcan-brownout
+   ├─ Status: Loads without redirects
+   ├─ HA Shell: LOADED (home-assistant element present)
+   └─ Page Title: "Battery Monitoring – Home Assistant"
+
+3. PANEL SCRIPT INJECTION ✓
+   ├─ Script URL: /vulcan_brownout_panel/vulcan-brownout-panel.js
+   ├─ Status: Injected and executed
+   ├─ Type: <script async="" type="module" src="...">
+   └─ Location: Last line before </body>
+
+4. PANEL ELEMENT CREATION ✓ / ✗
+   ├─ Custom element: <vulcan-brownout-panel>
+   ├─ Status: Created in DOM (locator found it)
+   ├─ Visibility: NOT VISIBLE (not in structure analysis)
+   ├─ Reason: INITIALIZATION ERROR
+   └─ Error logged to: browser console
+
+5. API ERROR (ROOT CAUSE) ✗
+   ├─ Timestamp: 2026-02-22T11:24:23.050Z
+   ├─ Message: "Failed to load battery devices"
+   ├─ Error Code: invalid_format
+   ├─ Details: expected str for dictionary value @ data['cursor']. Got None
+   ├─ Severity: CRITICAL (prevents panel from rendering)
+   └─ Location: Browser console (captured in debug-output/console-logs.json)
+
+6. ERROR HANDLING
+   ├─ Uncaught JS Exceptions: NONE
+   ├─ Console Errors: 1 (the cursor parameter error)
+   ├─ Console Warnings: 0
+   ├─ User Feedback: NONE (silent failure)
+   └─ Recovery Mechanism: NOT IMPLEMENTED
+
+
+THE PROBLEM
+═════════════════════════════════════════════════════════════════════════════
+
+File: /vulcan_brownout_panel/vulcan-brownout-panel.js
+
+The panel component is making an API call with an incorrectly initialized 
+'cursor' parameter. Looking at the error:
+
+  {code: invalid_format, message: expected str for dictionary value @ data['cursor']. Got None}
+
+This means the panel is sending cursor=None (JavaScript null/undefined) when 
+the backend API expects cursor to be a STRING (empty string "" for first page).
+
+Likely Issue Locations:
+  1. Initial state: cursor is undefined or null
+  2. Data fetching method: doesn't convert null to empty string
+  3. API wrapper: doesn't provide default value for cursor
+  4. Backend validation: too strict (should allow empty string or provide default)
+
+
+HOW TO FIX
+═════════════════════════════════════════════════════════════════════════════
+
+Option 1 (RECOMMENDED - Fix the Panel Frontend):
+─────────────────────────────────────────────────
+Modify vulcan-brownout-panel.js to initialize cursor properly:
+
+  BEFORE:
+    let cursor;  // undefined
+    fetchBatteryDevices({ cursor });  // sends cursor=undefined → backend receives None
+
+  AFTER:
+    let cursor = '';  // explicit empty string
+    fetchBatteryDevices({ cursor });  // sends cursor='' → backend accepts it
+
+Option 2 (Backend Fix):
+─────────────────────────────────────────────────
+Make the API endpoint more tolerant:
+
+  BEFORE:
+    if not isinstance(data.get('cursor'), str):
+      raise ValueError("expected str for dictionary value @ data['cursor']")
+
+  AFTER:
+    cursor = data.get('cursor', '')  # default to empty string if missing/None
+    if cursor is None:
+      cursor = ''
+
+Option 3 (Add Error Handling):
+─────────────────────────────────────────────────
+Both frontend and backend should improve error recovery:
+
+  - Display error message to user
+  - Implement retry mechanism
+  - Add detailed logging for debugging
+  - Graceful degradation (show something, not blank panel)
+
+
+DEBUG TEST FILES CREATED
+═════════════════════════════════════════════════════════════════════════════
+
+Location: /sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/
+
+1. tests/debug-panel.spec.ts (165 lines)
+   ├─ Handles form-based authentication
+   ├─ Captures console logs and JS errors
+   ├─ Dumps full page HTML
+   ├─ Analyzes DOM structure
+   ├─ Takes screenshot
+   └─ Generates diagnostic JSON files
+
+2. debug-output/ (directory)
+   ├─ page-content.html (37.5 KB)      → Full HTML dump
+   ├─ debug-screenshot.png (39 KB)     → Browser screenshot
+   ├─ console-logs.json (217 B)        → Console messages [CONTAINS ERROR]
+   ├─ js-errors.json (2 B)             → JS exceptions (none)
+   └─ page-structure.json (335 B)      → DOM analysis
+
+3. DEBUG_FINDINGS.md (detailed analysis)
+4. DEBUG_SUMMARY.txt (this file)
+
+
+HOW TO RUN THE DEBUG TEST
+═════════════════════════════════════════════════════════════════════════════
+
+cd /sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e
+
+npx playwright test tests/debug-panel.spec.ts --timeout 60000
+
+Output will be written to:
+  - Console (real-time)
+  - debug-output/ directory (files)
+  - playwright-report/ (HTML report)
+  - test-results/ (detailed results)
+
+
+KEY METRICS FROM DEBUG RUN
+═════════════════════════════════════════════════════════════════════════════
+
+Test Duration:                3.4 seconds
+Authentication:               Successful
+Page Load Time:              <1 second
+Console Messages Captured:    1
+  └─ Error Level Messages:    1 (the cursor parameter error)
+JS Exceptions Captured:       0
+HA Shell Loaded:              YES
+Panel Script Injected:        YES
+Panel Element Created:        YES (but not visible)
+Panel Rendering:              NO (due to API error)
+
+
+NEXT IMMEDIATE ACTIONS
+═════════════════════════════════════════════════════════════════════════════
+
+1. Review vulcan-brownout-panel.js
+   File: /vulcan_brownout_panel/vulcan-brownout-panel.js
+   Goal: Find where 'cursor' is initialized and ensure it's an empty string ""
+
+2. Check backend battery devices API endpoint
+   Endpoint: (likely /api/vulcan_brownout/battery_devices)
+   Goal: Either fix cursor parameter validation or provide default
+
+3. Add user-facing error handling
+   Goal: When API fails, show error message instead of blank panel
+
+4. Add logging/debugging
+   Goal: Include cursor value in logs for debugging
+
+
+CONCLUSION
+═════════════════════════════════════════════════════════════════════════════
+
+The vulcan-brownout-panel custom element IS being created and injected into
+the DOM, but FAILS SILENTLY during initialization due to an API parameter error.
+
+The error is:
+  cursor parameter sent as None instead of empty string ""
+
+The fix is simple: ensure the cursor parameter is initialized to an empty 
+string in the panel's data fetching code, or make the backend API accept 
+None/undefined and treat it as an empty string (first page of results).
+
+All diagnostic data needed to investigate further is captured in:
+  /sessions/wizardly-stoic-cannon/mnt/vulcan-brownout/quality/e2e/debug-output/
+
+═════════════════════════════════════════════════════════════════════════════

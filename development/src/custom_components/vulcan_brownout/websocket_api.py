@@ -47,7 +47,7 @@ def register_websocket_commands(hass: HomeAssistant) -> None:
         vol.Required("type"): COMMAND_QUERY_DEVICES,
         vol.Optional("limit", default=50): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
         vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
-        vol.Optional("cursor"): str,
+        vol.Optional("cursor"): vol.Any(str, None),
         vol.Optional("sort_key", default=SORT_KEY_PRIORITY): vol.In(SUPPORTED_SORT_KEYS),
         vol.Optional("sort_order", default=SORT_ORDER_ASC): vol.In(SUPPORTED_SORT_ORDERS),
     }
@@ -75,7 +75,7 @@ async def handle_query_devices(
         # Extract parameters (validated by schema)
         limit = msg.get("limit", 50)
         offset = msg.get("offset", 0)
-        cursor = msg.get("cursor")
+        cursor = msg.get("cursor") or None  # Treat empty string as None
         sort_key = msg.get("sort_key", SORT_KEY_PRIORITY)
         sort_order = msg.get("sort_order", SORT_ORDER_ASC)
 
