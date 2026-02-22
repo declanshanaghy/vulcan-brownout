@@ -130,14 +130,17 @@ class VulcanBrownoutPanel extends LitElement {
   scroll_container = null;
   scroll_debounce_timer = null;
 
-  // Sprint 3: Theme observer
+  // Sprint 3: Theme observer (deprecated, replaced by event listener)
   theme_observer = null;
+
+  // Sprint 4: Theme event listener for hass_themes_updated
+  _themeListener = null;
 
   connectedCallback() {
     super.connectedCallback();
     this._load_ui_state_from_storage();
-    this._detect_theme();
-    this._setup_theme_observer();
+    this._apply_theme(this._detect_theme());
+    this._setup_theme_listener();
     this._load_devices();
     window.addEventListener("resize", () => {
       this.is_mobile = window.innerWidth < 768;
@@ -152,6 +155,11 @@ class VulcanBrownoutPanel extends LitElement {
     }
     if (this.theme_observer) {
       this.theme_observer.disconnect();
+    }
+    // Sprint 4: Clean up theme listener to prevent memory leaks
+    if (this._themeListener && this.hass?.connection) {
+      this.hass.connection.removeEventListener('hass_themes_updated', this._themeListener);
+      this._themeListener = null;
     }
     window.removeEventListener("resize", this._on_window_resize.bind(this));
   }
@@ -199,6 +207,7 @@ class VulcanBrownoutPanel extends LitElement {
       color: var(--vb-text-primary);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       padding: 16px;
+      transition: background-color 300ms ease-out, color 300ms ease-out;
     }
 
     .header {
@@ -208,6 +217,7 @@ class VulcanBrownoutPanel extends LitElement {
       margin-bottom: 16px;
       padding-bottom: 12px;
       border-bottom: 1px solid var(--vb-bg-divider);
+      transition: border-color 300ms ease-out;
     }
 
     .header h1 {
@@ -237,6 +247,7 @@ class VulcanBrownoutPanel extends LitElement {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      transition: background-color 300ms ease-out, color 300ms ease-out, box-shadow 300ms ease-out;
     }
 
     .device-info {
@@ -306,7 +317,12 @@ class VulcanBrownoutPanel extends LitElement {
       padding: 8px 16px;
       font-size: 12px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.2s, background-color 300ms ease-out;
+      min-height: 44px;
+      min-width: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .button:hover {
@@ -350,8 +366,9 @@ class VulcanBrownoutPanel extends LitElement {
       font-size: 20px;
       cursor: pointer;
       opacity: 0;
-      transition: opacity 0.3s;
+      transition: opacity 0.3s, background-color 300ms ease-out;
       z-index: 1000;
+      touch-action: manipulation;
     }
 
     .back-to-top.visible {
@@ -379,6 +396,7 @@ class VulcanBrownoutPanel extends LitElement {
       border-radius: 8px 8px 0 0;
       padding: 16px;
       animation: slideUp 0.3s ease-out;
+      transition: background-color 300ms ease-out, color 300ms ease-out;
     }
 
     @keyframes slideUp {
@@ -397,6 +415,7 @@ class VulcanBrownoutPanel extends LitElement {
       margin-bottom: 16px;
       padding-bottom: 12px;
       border-bottom: 1px solid var(--vb-bg-divider);
+      transition: border-color 300ms ease-out;
     }
 
     .modal-header h2 {
@@ -411,6 +430,12 @@ class VulcanBrownoutPanel extends LitElement {
       font-size: 20px;
       cursor: pointer;
       color: var(--vb-text-secondary);
+      min-height: 44px;
+      min-width: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 300ms ease-out;
     }
 
     .connection-badge {
@@ -422,6 +447,7 @@ class VulcanBrownoutPanel extends LitElement {
       background-color: var(--vb-bg-card);
       color: var(--vb-text-secondary);
       font-size: 12px;
+      transition: background-color 300ms ease-out, color 300ms ease-out;
     }
 
     .connection-dot {
@@ -466,8 +492,8 @@ class VulcanBrownoutPanel extends LitElement {
               ${this.connection_status === CONNECTION_CONNECTED ? "Connected" :
                 this.connection_status === CONNECTION_RECONNECTING ? "Reconnecting..." : "Offline"}
             </div>
-            <button class="button" @click=${this._open_settings_modal}>⚙️ Settings</button>
-            <button class="button" @click=${this._open_notification_modal}>🔔 Notifications</button>
+            <button class="button" @click=${this._open_settings_modal} aria-label="Settings" title="Settings">⚙️ Settings</button>
+            <button class="button" @click=${this._open_notification_modal} aria-label="Notification settings" title="Notification settings">🔔 Notifications</button>
           </div>
         </div>
 
@@ -480,11 +506,21 @@ class VulcanBrownoutPanel extends LitElement {
         ${this.battery_devices.length === 0 && !this.isLoading
           ? html`<div class="empty-state">
               <div class="empty-state-icon">🔋</div>
-              <div class="empty-state-text">No battery devices found</div>
-              <small style="color: var(--vb-text-disabled);">Check your Home Assistant configuration</small>
-              <button class="button" @click=${this._load_devices} style="margin-top: 12px;">
-                🔄 Refresh
-              </button>
+              <div class="empty-state-text">No battery entities found</div>
+              <small style="color: var(--vb-text-secondary); max-width: 400px; line-height: 1.5;">
+                Check that your devices have a <code style="background-color: var(--vb-bg-card); padding: 2px 4px; border-radius: 2px;">battery_level</code> attribute and are not binary sensors.
+              </small>
+              <div style="display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; justify-content: center;">
+                <button class="button" @click=${this._load_devices}>
+                  🔄 Refresh
+                </button>
+                <button class="button" @click=${this._open_settings_modal}>
+                  ⚙️ Settings
+                </button>
+                <button class="button" @click=${() => window.open('https://www.home-assistant.io/docs', '_blank')}>
+                  📖 Docs
+                </button>
+              </div>
             </div>`
           : html`<div class="battery-list" id="battery-list">
               ${this.battery_devices.map(
@@ -504,7 +540,7 @@ class VulcanBrownoutPanel extends LitElement {
               )}
               ${this.show_skeleton_loaders
                 ? html`${Array.from({ length: SKELETON_LOADER_COUNT }).map(
-                    () => html`<div class="skeleton-loader" style="height: 60px; margin-top: 8px;"></div>`
+                    () => html`<div class="skeleton-loader" style="height: 68px; margin-top: 8px;"></div>`
                   )}`
                 : ""}
               ${this.has_more
@@ -719,8 +755,9 @@ class VulcanBrownoutPanel extends LitElement {
       { threshold: 0.1 }
     );
 
-    // Observe the bottom sentinel
+    // Observe the bottom sentinel (min-height prevents layout shifts)
     const sentinel = document.createElement("div");
+    sentinel.style.minHeight = "1px";
     sentinel.style.height = "1px";
     scroll_container.appendChild(sentinel);
     this.scroll_observer.observe(sentinel);
@@ -897,17 +934,55 @@ class VulcanBrownoutPanel extends LitElement {
   }
 
   _detect_theme() {
-    const ha_theme = document.documentElement.getAttribute("data-theme");
-    if (ha_theme === "dark" || ha_theme === "dark-theme") {
-      this.current_theme = "dark";
-    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      this.current_theme = "dark";
-    } else {
-      this.current_theme = "light";
+    // Sprint 4: Primary source - hass.themes.darkMode (authoritative HA theme setting)
+    if (this.hass?.themes?.darkMode !== undefined) {
+      return this.hass.themes.darkMode ? 'dark' : 'light';
     }
+
+    // Fallback 1: DOM attribute (legacy, from older HA versions)
+    const domTheme = document.documentElement.getAttribute('data-theme');
+    if (domTheme === 'dark' || domTheme === 'dark-theme') {
+      return 'dark';
+    }
+
+    // Fallback 2: OS preference (system-wide dark mode)
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+
+    // Default: light mode
+    return 'light';
+  }
+
+  _apply_theme(theme) {
+    // Sprint 4: Apply theme to DOM and trigger re-render
+    const newTheme = theme || 'light';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    this.current_theme = newTheme;
+    // Request update to apply CSS custom properties
+    this.requestUpdate();
+  }
+
+  _setup_theme_listener() {
+    // Sprint 4: Listen to hass_themes_updated event for real-time theme changes
+    if (!this.hass?.connection) {
+      return;
+    }
+
+    // Arrow function to preserve 'this' context
+    this._themeListener = () => {
+      const newTheme = this._detect_theme();
+      if (newTheme !== this.current_theme) {
+        this._apply_theme(newTheme);
+      }
+    };
+
+    this.hass.connection.addEventListener('hass_themes_updated', this._themeListener);
   }
 
   _setup_theme_observer() {
+    // Sprint 3 legacy: MutationObserver for older HA versions (deprecated)
+    // Kept as fallback if hass.connection unavailable
     if (this.theme_observer) {
       this.theme_observer.disconnect();
     }
@@ -915,8 +990,8 @@ class VulcanBrownoutPanel extends LitElement {
     this.theme_observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.attributeName === "data-theme") {
-          this._detect_theme();
-          this.requestUpdate();
+          const newTheme = this._detect_theme();
+          this._apply_theme(newTheme);
         }
       });
     });
