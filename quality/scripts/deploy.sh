@@ -88,9 +88,9 @@ for var in "${REQUIRED_VARS[@]}"; do
     fi
 done
 
-# Resolve SSH key path
+# Resolve SSH key path (relative paths are relative to project root)
 if [[ "$SSH_KEY_PATH" != /* ]]; then
-    SSH_KEY_PATH="${HOME}/${SSH_KEY_PATH}"
+    SSH_KEY_PATH="${PROJECT_ROOT}/${SSH_KEY_PATH}"
 fi
 
 if [ ! -f "$SSH_KEY_PATH" ]; then

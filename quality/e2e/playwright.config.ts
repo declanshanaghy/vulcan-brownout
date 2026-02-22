@@ -3,13 +3,15 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright configuration for Vulcan Brownout E2E tests
  *
- * Architecture decisions:
- * - Mock WebSocket (fast feedback, <5s per test)
- * - Headless by default (headless + screenshot on failure)
- * - Chromium only for MVP (add Firefox/WebKit later)
- * - Base URL: HA panel at homeassistant.lan:8123
- * - Authentication via stored state (auth.json)
+ * Projects:
+ * - chromium: Mock WebSocket (fast feedback, <5s per test)
+ * - staging: Real HA backend (integration tests against staging environment)
+ *
+ * Run staging tests: STAGING_MODE=true npx playwright test --project=staging
+ * Or use: npm run test:staging
  */
+
+const isStaging = process.env.STAGING_MODE === 'true';
 
 export default defineConfig({
   testDir: './tests',
@@ -31,6 +33,10 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
 
+  globalSetup: isStaging
+    ? require.resolve('./global-setup-staging.ts')
+    : require.resolve('./global-setup.ts'),
+
   projects: [
     {
       name: 'chromium',
@@ -39,23 +45,17 @@ export default defineConfig({
         storageState: 'playwright/.auth/auth.json',
       },
     },
-    // Future: Add Firefox and WebKit after MVP
-    // {
-    //   name: 'firefox',
-    //   use: {
-    //     ...devices['Desktop Firefox'],
-    //     storageState: 'playwright/.auth/auth.json',
-    //   },
-    // },
-    // {
-    //   name: 'webkit',
-    //   use: {
-    //     ...devices['Desktop Safari'],
-    //     storageState: 'playwright/.auth/auth.json',
-    //   },
-    // },
+    {
+      name: 'staging',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'playwright/.auth/staging-auth.json',
+        actionTimeout: 15000,
+        navigationTimeout: 30000,
+      },
+      timeout: 60000,
+      retries: 1,
+      grepInvert: /@mock-only/,
+    },
   ],
-
-  // Setup test runs once to establish authentication
-  globalSetup: require.resolve('./global-setup.ts'),
 });

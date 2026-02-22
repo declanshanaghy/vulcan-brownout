@@ -11,6 +11,9 @@
     "test:webkit": "playwright test --project=webkit",
     "test:ui": "playwright test --ui",
     "test:codegen": "playwright codegen http://homeassistant.lan:8123/vulcan-brownout",
+    "test:staging": "STAGING_MODE=true playwright test --project=staging",
+    "test:staging:headed": "STAGING_MODE=true playwright test --project=staging --headed",
+    "test:staging:debug": "STAGING_MODE=true playwright test --project=staging --debug",
     "report": "playwright show-report"
   },
   "devDependencies": {

@@ -1,6 +1,9 @@
 /**
  * WebSocket mock helper for intercepting and mocking HA API calls
  * Handles the HA WebSocket authentication flow and routes custom commands
+ *
+ * In staging mode (STAGING_MODE=true), all methods become no-ops and
+ * the real HA WebSocket backend handles all commands directly.
  */
 
 import { Page, WebSocketRoute } from '@playwright/test';
@@ -23,16 +26,21 @@ export class WebSocketMock {
   private page: Page;
   private messageHandlers: Map<string, (data: any) => any> = new Map();
   private messageId = 0;
+  private isStaging: boolean;
 
   constructor(page: Page) {
     this.page = page;
-    this.setupDefaultHandlers();
+    this.isStaging = process.env.STAGING_MODE === 'true';
+    if (!this.isStaging) {
+      this.setupDefaultHandlers();
+    }
   }
 
   /**
-   * Setup WebSocket interception
+   * Setup WebSocket interception (no-op in staging mode)
    */
   async setup(): Promise<void> {
+    if (this.isStaging) return;
     await this.page.routeWebSocket('/api/websocket', async (route) => {
       await this.handleWebSocket(route);
     });
@@ -116,12 +124,13 @@ export class WebSocketMock {
   }
 
   /**
-   * Register a message handler
+   * Register a message handler (no-op in staging mode)
    */
   registerHandler(
     messageType: string,
     handler: (data: HAWebSocketMessage) => HAWebSocketResponse | null
   ): void {
+    if (this.isStaging) return;
     this.messageHandlers.set(messageType, handler);
   }
 
@@ -129,6 +138,7 @@ export class WebSocketMock {
    * Mock vulcan-brownout/query_devices response with optional filtering
    */
   mockQueryDevices(devices: Device[]): void {
+    if (this.isStaging) return;
     this.registerHandler('vulcan-brownout/query_devices', (data) => {
       let filtered = devices;
 
@@ -182,6 +192,7 @@ export class WebSocketMock {
    * Mock device list responses for pagination using cursor-based pagination
    */
   mockDevicePages(pages: DeviceListResponse[]): void {
+    if (this.isStaging) return;
     // Create a map: cursor -> page response
     const cursorMap = new Map<string | null, DeviceListResponse>();
     pages.forEach((page, index) => {
@@ -219,6 +230,7 @@ export class WebSocketMock {
    * Mock sorted device response
    */
   mockSortedDevices(devices: Device[], sortKey?: string): void {
+    if (this.isStaging) return;
     this.registerHandler('vulcan-brownout/query_devices', (data) => {
       // If sort parameter matches, return sorted devices
       if (!sortKey || data.sort_key === sortKey) {
@@ -254,6 +266,7 @@ export class WebSocketMock {
    * Mock subscription response
    */
   mockSubscribe(subscriptionId: string): void {
+    if (this.isStaging) return;
     this.registerHandler('vulcan-brownout/subscribe', (data) => ({
       id: data.id,
       type: 'result',
@@ -266,6 +279,7 @@ export class WebSocketMock {
    * Mock notification preferences response
    */
   mockNotificationPrefs(prefs: any): void {
+    if (this.isStaging) return;
     this.registerHandler('vulcan-brownout/get_notification_preferences', (data) => ({
       id: data.id,
       type: 'result',
@@ -285,6 +299,7 @@ export class WebSocketMock {
    * Mock set threshold response
    */
   mockSetThreshold(threshold: number): void {
+    if (this.isStaging) return;
     this.registerHandler('vulcan-brownout/set_threshold', (data) => ({
       id: data.id,
       type: 'result',
@@ -297,6 +312,7 @@ export class WebSocketMock {
    * Mock get_filter_options response
    */
   mockGetFilterOptions(options?: any): void {
+    if (this.isStaging) return;
     const defaultOptions = {
       manufacturers: ['Aqara', 'Philips', 'IKEA', 'Sonoff'],
       device_classes: ['battery'],
