@@ -1,19 +1,20 @@
-# Vulcan Brownout: Sprint 2 API Contracts
+# Vulcan Brownout: Sprint 3 API Contracts
 
 **Author**: FiremanDecko (Architect)
-**Date**: February 2026
+**Date**: February 22, 2026
 **Status**: Proposed
-**Version**: 2.0.0
+**Version**: 3.0.0
 
 ---
 
 ## Overview
 
-This document defines all WebSocket messages, commands, and events for Sprint 2. It extends the Sprint 1 API with three new capabilities:
+This document defines all WebSocket messages, commands, and events for Sprint 3. It extends the Sprint 2 API with four major additions:
 
-1. **WebSocket Subscriptions** — Real-time push updates
-2. **Threshold Configuration** — Setting global and per-device thresholds
-3. **Sort/Filter Metadata** — Filter counts and sort hints
+1. **Cursor-Based Pagination** — Replace offset-based with stable cursor pagination
+2. **Notification Preferences** — Configure per-device alerts and frequency caps
+3. **Theme Information** — Status events include theme detection
+4. **Binary Sensor Filtering** — API filters battery_level entities automatically
 
 All messages use the same WebSocket protocol established in Sprint 1.
 
@@ -21,7 +22,7 @@ All messages use the same WebSocket protocol established in Sprint 1.
 
 ## Connection Lifecycle
 
-### Initial Handshake (Updated from Sprint 1)
+### Initial Handshake (Updated from Sprint 2)
 
 After successful WebSocket authentication, the backend immediately sends a status event:
 
@@ -30,26 +31,37 @@ After successful WebSocket authentication, the backend immediately sends a statu
   "type": "vulcan-brownout/status",
   "data": {
     "status": "connected",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "threshold": 15,
     "threshold_rules": {},
     "device_statuses": {
       "critical": 2,
       "warning": 3,
-      "healthy": 8,
-      "unavailable": 1
+      "healthy": 37,
+      "unavailable": 0
+    },
+    "theme": "dark",
+    "notifications_enabled": true,
+    "notification_preferences": {
+      "enabled": true,
+      "frequency_cap_hours": 6,
+      "severity_filter": "critical_only",
+      "per_device": {}
     }
   }
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `status` | string | "connected" when ready; "disconnected" on logout |
-| `version` | string | API version (2.0.0 for Sprint 2) |
-| `threshold` | int | Current global battery threshold (5-100) |
-| `threshold_rules` | object | Current device-specific rules (entity_id → threshold) |
-| `device_statuses` | object | Count of devices in each status group |
+| Field | Type | NEW? | Description |
+|-------|------|------|-------------|
+| `status` | string | — | "connected" when ready |
+| `version` | string | — | API version (3.0.0 for Sprint 3) |
+| `threshold` | int | — | Current global battery threshold (5-100) |
+| `threshold_rules` | object | — | Current device-specific rules |
+| `device_statuses` | object | — | Count of devices in each status group |
+| `theme` | string | ✓ NEW | "dark" or "light" (detected from HA) |
+| `notifications_enabled` | bool | ✓ NEW | Whether notification system is active |
+| `notification_preferences` | object | ✓ NEW | Current notification configuration |
 
 **Timing**: Sent within 100ms of successful authentication.
 
@@ -57,28 +69,35 @@ After successful WebSocket authentication, the backend immediately sends a statu
 
 ## Commands (Frontend → Backend)
 
-### Command 1: Query Devices (UPDATED)
+### Command 1: Query Devices (UPDATED - Cursor-Based)
 
 **Type**: `vulcan-brownout/query_devices`
 
-**Purpose**: Fetch paginated, sorted list of battery devices (same as Sprint 1, but response includes filter metadata).
+**Purpose**: Fetch paginated, sorted list of battery devices with cursor-based pagination.
 
-**Request** (UNCHANGED from Sprint 1):
+**Request** (UPDATED from Sprint 2):
 
 ```json
 {
   "type": "vulcan-brownout/query_devices",
   "id": "msg_abc123",
   "data": {
-    "limit": 20,
-    "offset": 0,
-    "sort_key": "battery_level",
+    "limit": 50,
+    "cursor": null,
+    "sort_key": "priority",
     "sort_order": "asc"
   }
 }
 ```
 
-**Response** (UPDATED with filter counts):
+| Field | Type | Required | Constraints | Notes |
+|-------|------|----------|-------------|-------|
+| `limit` | int | Yes | 1-100 | Default 50; max 100 for performance |
+| `cursor` | string | No | base64 | Null for first page; use `next_cursor` from previous response |
+| `sort_key` | string | Yes | "priority" \| "alphabetical" \| "level_asc" \| "level_desc" | Sorting method |
+| `sort_order` | string | Yes | "asc" \| "desc" | Direction (typically "asc") |
+
+**Response** (UPDATED with cursor):
 
 ```json
 {
@@ -99,29 +118,42 @@ After successful WebSocket authentication, the backend immediately sends a statu
         "available": true,
         "status": "critical"
       },
-      // ... more devices
+      // ... more devices (up to limit)
     ],
-    "total": 47,
-    "offset": 0,
-    "limit": 20,
+    "total": 200,
     "has_more": true,
+    "next_cursor": "eyIyMDI2LTAyLTIyVDEwOjE1OjMwWiIsInNlbnNvci5raXRjaGVuX21vdGlvbl9iYXR0ZXJ5In0=",
     "device_statuses": {
       "critical": 2,
       "warning": 3,
-      "healthy": 8,
-      "unavailable": 1
+      "healthy": 195,
+      "unavailable": 0
     }
   }
 }
 ```
 
-**New Fields**:
-- `devices[].status` — Pre-calculated status for each device (based on thresholds)
-- `device_statuses` — Counts for filter UI (how many devices in each group)
+| Field | Type | NEW? | Description |
+|-------|------|------|-------------|
+| `devices` | array | — | Array of device objects (up to limit) |
+| `total` | int | — | Total devices available |
+| `has_more` | bool | — | Whether more devices exist after this page |
+| `next_cursor` | string | ✓ NEW | Cursor for next page (null if at end) |
+| `device_statuses` | object | — | Counts for filter UI |
+
+**Cursor Format**: `base64("{last_changed}|{entity_id}")`
+
+Example decode:
+```
+eyIyMDI2LTAyLTIyVDEwOjE1OjMwWiIsInNlbnNvci5raXRjaGVuX21vdGlvbl9iYXR0ZXJ5In0=
+  → 2026-02-22T10:15:30Z|sensor.kitchen_motion_battery
+```
+
+**Filtering (NEW Sprint 3)**: Only entities with `device_class="battery"` AND `battery_level` attribute are included. Binary sensors excluded automatically.
 
 ---
 
-### Command 2: Subscribe to Updates (NEW)
+### Command 2: Subscribe to Updates (UNCHANGED)
 
 **Type**: `vulcan-brownout/subscribe`
 
@@ -151,37 +183,9 @@ After successful WebSocket authentication, the backend immediately sends a statu
 }
 ```
 
-**Response** (Error):
-
-```json
-{
-  "type": "result",
-  "id": "msg_001",
-  "success": false,
-  "error": {
-    "code": "subscription_limit_exceeded",
-    "message": "Maximum subscriptions reached (100)"
-  }
-}
-```
-
-| Error Code | Meaning | Recovery |
-|------------|---------|----------|
-| `integration_not_loaded` | Integration failed to initialize | Refresh page |
-| `subscription_limit_exceeded` | Too many subscriptions on server | Close other panels |
-| `auth_failed` | Authentication token expired | Refresh page |
-
-**Timing**: Sent immediately; subscription active within 50ms.
-
-**Lifecycle**:
-- Frontend calls this on sidebar load (once per panel instance)
-- Backend adds client to subscriber list
-- Client receives `device_changed` events until disconnect
-- On disconnect, subscription automatically removed
-
 ---
 
-### Command 3: Set Threshold (NEW)
+### Command 3: Set Threshold (UNCHANGED)
 
 **Type**: `vulcan-brownout/set_threshold`
 
@@ -203,11 +207,6 @@ After successful WebSocket authentication, the backend immediately sends a statu
 }
 ```
 
-| Field | Type | Required | Constraints |
-|-------|------|----------|-------------|
-| `global_threshold` | int | No | 5-100 |
-| `device_rules` | object | No | Each rule 5-100 |
-
 **Response** (Success):
 
 ```json
@@ -226,36 +225,164 @@ After successful WebSocket authentication, the backend immediately sends a statu
 }
 ```
 
+---
+
+### Command 4: Get Notification Preferences (NEW)
+
+**Type**: `vulcan-brownout/get_notification_preferences`
+
+**Purpose**: Retrieve current notification configuration.
+
+**Request**:
+
+```json
+{
+  "type": "vulcan-brownout/get_notification_preferences",
+  "id": "msg_003",
+  "data": {}
+}
+```
+
+**Response** (Success):
+
+```json
+{
+  "type": "result",
+  "id": "msg_003",
+  "success": true,
+  "data": {
+    "enabled": true,
+    "frequency_cap_hours": 6,
+    "severity_filter": "critical_only",
+    "per_device": {
+      "sensor.front_door_lock_battery": {
+        "enabled": true,
+        "frequency_cap_hours": 6
+      },
+      "sensor.kitchen_sensor_battery": {
+        "enabled": false,
+        "frequency_cap_hours": 6
+      },
+      "sensor.solar_backup_battery": {
+        "enabled": true,
+        "frequency_cap_hours": 24
+      }
+    },
+    "notification_history": [
+      {
+        "timestamp": "2026-02-22T10:15:00Z",
+        "entity_id": "sensor.front_door_lock_battery",
+        "device_name": "Front Door Lock",
+        "battery_level": 8,
+        "status": "critical",
+        "message": "Front Door Lock battery critical (8%)"
+      },
+      {
+        "timestamp": "2026-02-22T09:30:00Z",
+        "entity_id": "sensor.solar_backup_battery",
+        "device_name": "Solar Backup",
+        "battery_level": 5,
+        "status": "critical",
+        "message": "Solar Backup battery critical (5%)"
+      }
+    ]
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | bool | Global notifications on/off |
+| `frequency_cap_hours` | int | 1, 6, or 24 hours |
+| `severity_filter` | string | "critical_only" or "critical_and_warning" |
+| `per_device` | object | Device-specific settings (entity_id → {enabled, frequency_cap_hours}) |
+| `notification_history` | array | Last 10-20 notifications sent |
+
+---
+
+### Command 5: Set Notification Preferences (NEW)
+
+**Type**: `vulcan-brownout/set_notification_preferences`
+
+**Purpose**: Update notification configuration.
+
+**Request**:
+
+```json
+{
+  "type": "vulcan-brownout/set_notification_preferences",
+  "id": "msg_004",
+  "data": {
+    "enabled": true,
+    "frequency_cap_hours": 6,
+    "severity_filter": "critical_and_warning",
+    "per_device": {
+      "sensor.front_door_lock_battery": {
+        "enabled": true,
+        "frequency_cap_hours": 6
+      },
+      "sensor.kitchen_sensor_battery": {
+        "enabled": false,
+        "frequency_cap_hours": 6
+      },
+      "sensor.solar_backup_battery": {
+        "enabled": true,
+        "frequency_cap_hours": 24
+      }
+    }
+  }
+}
+```
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| `enabled` | bool | Yes | — |
+| `frequency_cap_hours` | int | Yes | 1, 6, or 24 |
+| `severity_filter` | string | Yes | "critical_only" or "critical_and_warning" |
+| `per_device` | object | No | Optional; null to clear |
+
+**Response** (Success):
+
+```json
+{
+  "type": "result",
+  "id": "msg_004",
+  "success": true,
+  "data": {
+    "message": "Notification preferences updated",
+    "enabled": true,
+    "frequency_cap_hours": 6,
+    "severity_filter": "critical_and_warning"
+  }
+}
+```
+
 **Response** (Error):
 
 ```json
 {
   "type": "result",
-  "id": "msg_002",
+  "id": "msg_004",
   "success": false,
   "error": {
-    "code": "invalid_threshold",
-    "message": "Global threshold must be between 5 and 100"
+    "code": "invalid_notification_preferences",
+    "message": "Invalid frequency_cap_hours: must be 1, 6, or 24"
   }
 }
 ```
 
 | Error Code | Meaning | Recovery |
 |------------|---------|----------|
-| `invalid_threshold` | Threshold out of range | Use 5-100 |
-| `invalid_device_rule` | Device entity doesn't exist | Check entity_id |
-| `too_many_rules` | > 10 device rules | Remove some rules |
+| `invalid_notification_preferences` | Invalid settings | Check constraints (1/6/24 hours) |
+| `invalid_device_entity` | Device entity doesn't exist | Remove from per_device config |
 | `permission_denied` | User can't edit config | Contact admin |
-
-**Timing**: Backend responds within 200ms; broadcasts update to all clients within 300ms.
-
-**Persistence**: Changes saved in HA's `ConfigEntry.options`; survive HA restart.
+| `internal_error` | Server-side error | Retry |
 
 ---
 
 ## Events (Backend → Frontend)
 
-### Event 1: Device Changed (ENHANCED)
+### Event 1: Device Changed (UNCHANGED)
 
 **Type**: `vulcan-brownout/device_changed`
 
@@ -283,42 +410,13 @@ After successful WebSocket authentication, the backend immediately sends a statu
 }
 ```
 
-| Field | Type | NEW? | Description |
-|-------|------|------|-------------|
-| `entity_id` | string | — | Entity that changed |
-| `state` | string | — | Raw state (e.g., "8" or "unavailable") |
-| `battery_level` | number | — | Parsed battery % (0-100) |
-| `available` | bool | — | Whether device is available |
-| `last_changed` | string | — | ISO8601 timestamp of state change |
-| `last_updated` | string | — | ISO8601 timestamp of last update |
-| `status` | string | ✓ NEW | "critical" \| "warning" \| "healthy" \| "unavailable" |
-| `attributes` | object | — | Entity attributes |
-
-**New Field Rationale**:
-- `status` — Eliminates need for frontend to re-calculate status from battery_level + threshold
-- Thresholds may have changed since last update; backend has authoritative value
-
-**Trigger Conditions**:
-- Device's battery level changed AND entity is in active subscription list
-- Device's availability changed (available ↔ unavailable)
-- Threshold rule changed affecting this device's status
-
-**Timing**: Sent within 100ms of HA state change.
-
-**Frontend Action**:
-1. Find device in `this.battery_devices[]` by matching `entity_id`
-2. Update device object: `battery_level`, `available`, `status`, `last_changed`
-3. Trigger Lit re-render
-4. Progress bar animates to new level (300ms CSS transition)
-5. Update timestamp
-
 ---
 
-### Event 2: Threshold Updated (NEW)
+### Event 2: Threshold Updated (UNCHANGED)
 
 **Type**: `vulcan-brownout/threshold_updated`
 
-**Purpose**: Notify all connected clients when thresholds change (e.g., user modified settings).
+**Purpose**: Notify all connected clients when thresholds change.
 
 **Event**:
 
@@ -328,45 +426,66 @@ After successful WebSocket authentication, the backend immediately sends a statu
   "data": {
     "global_threshold": 20,
     "device_rules": {
-      "sensor.solar_backup_battery": 50,
-      "sensor.front_door_lock_battery": 30
+      "sensor.solar_backup_battery": 50
     },
     "affected_devices": [
-      { "entity_id": "sensor.kitchen_motion_battery", "old_status": "healthy", "new_status": "warning" },
-      { "entity_id": "sensor.garage_sensor_battery", "old_status": "healthy", "new_status": "critical" }
+      { "entity_id": "sensor.kitchen_motion_battery", "old_status": "healthy", "new_status": "warning" }
     ]
+  }
+}
+```
+
+---
+
+### Event 3: Notification Sent (NEW)
+
+**Type**: `vulcan-brownout/notification_sent`
+
+**Purpose**: Notify frontend when a notification is sent (for history UI).
+
+**Event**:
+
+```json
+{
+  "type": "vulcan-brownout/notification_sent",
+  "data": {
+    "timestamp": "2026-02-22T10:15:00Z",
+    "entity_id": "sensor.front_door_lock_battery",
+    "device_name": "Front Door Lock",
+    "battery_level": 8,
+    "status": "critical",
+    "message": "Front Door Lock battery critical (8%)",
+    "notification_id": "vulcan_brownout.front_door_lock.critical"
   }
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `global_threshold` | int | New global threshold value |
-| `device_rules` | object | New device-specific rules |
-| `affected_devices` | array | Devices whose status changed (for optimized re-render) |
+| `timestamp` | string | ISO8601 when notification was sent |
+| `entity_id` | string | Battery entity that triggered notification |
+| `device_name` | string | Friendly device name |
+| `battery_level` | int | Battery % at time of notification |
+| `status` | string | "critical" or "warning" |
+| `message` | string | Full notification message |
+| `notification_id` | string | HA persistent_notification ID |
 
-**Trigger Conditions**:
-- Any client sends `vulcan-brownout/set_threshold` command
-- Threshold changes processed by backend
-- Broadcast to ALL connected clients (not just the requester)
-
-**Timing**: Sent within 300ms of threshold change request.
+**Timing**: Sent within 100ms of HA notification service call.
 
 **Frontend Action**:
-1. Update local threshold cache
-2. Re-calculate status for affected devices only (optimization)
-3. Full re-render (color coding may have changed)
-4. Device list may re-sort (if sorting by priority)
+1. Add notification to history list
+2. Update notification preferences modal (if open)
+3. Show toast notification (optional)
 
 ---
 
-### Event 3: Status Update (UNCHANGED)
+### Event 4: Status Update (UPDATED)
 
 **Type**: `vulcan-brownout/status`
 
 **Purpose**: Configuration changes or connection status updates.
 
-**Event**:
+**Event** (UPDATED from Sprint 2):
 
 ```json
 {
@@ -377,103 +496,170 @@ After successful WebSocket authentication, the backend immediately sends a statu
     "threshold_rules": {
       "sensor.solar_backup_battery": 50
     },
+    "theme": "dark",
+    "notifications_enabled": true,
     "message": "Configuration updated"
   }
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `status` | string | "connected", "disconnected", "error" |
-| `threshold` | int | Current global threshold (optional) |
-| `threshold_rules` | object | Current device rules (optional) |
-| `message` | string | Human-readable message (optional) |
+| Field | Type | NEW? | Description |
+|-------|------|------|-------------|
+| `status` | string | — | "connected", "disconnected", "error" |
+| `threshold` | int | — | Current global threshold (optional) |
+| `threshold_rules` | object | — | Current device rules (optional) |
+| `theme` | string | ✓ NEW | "dark" or "light" |
+| `notifications_enabled` | bool | ✓ NEW | Whether notifications are active |
+| `message` | string | — | Human-readable message (optional) |
 
 **Trigger Conditions**:
 - Connection established (sent immediately)
 - Configuration changes propagated
+- Theme change detected
 - Connection errors occur
 
 ---
 
 ## Message Flow Examples
 
-### Scenario 1: Initial Load with Real-Time Subscription
+### Scenario 1: Infinite Scroll with Cursor Pagination
 
 ```
 T=0ms: Frontend connects to WebSocket
 
 T=50ms: Backend sends vulcan-brownout/status
-        ← { status: 'connected', version: '2.0.0', threshold: 15, ... }
+        ← { status: 'connected', version: '3.0.0', theme: 'dark', ... }
 
 T=100ms: Frontend sends vulcan-brownout/query_devices
-         → { type: '...', data: { limit: 20, offset: 0 } }
+         → { limit: 50, cursor: null, sort_key: 'priority' }
 
 T=150ms: Frontend sends vulcan-brownout/subscribe
          → { type: '...', data: {} }
 
 T=200ms: Backend responds to query_devices
-         ← { type: 'result', data: { devices: [...20...], device_statuses: {...} } }
+         ← { devices: [...50...], total: 200, has_more: true, next_cursor: "base64(...)" }
 
 T=250ms: Backend responds to subscribe
-         ← { type: 'result', data: { subscription_id: 'sub_xyz', status: 'subscribed' } }
+         ← { subscription_id: 'sub_xyz', status: 'subscribed' }
 
-T=300ms: Frontend renders battery list
-         ← User sees 20 devices
+T=300ms: Frontend renders battery list with 50 items
+         ← User sees list + "Back to Top" appears after scroll
 
-T=300ms+: Real-time updates start flowing
-         ← device_changed events as batteries change
+T=500ms: User scrolls to bottom
+
+T=550ms: Frontend sends vulcan-brownout/query_devices (next page)
+         → { limit: 50, cursor: "base64(...)", sort_key: 'priority' }
+
+T=750ms: Backend responds with next 50 items
+         ← { devices: [...50...], total: 200, has_more: true, next_cursor: "base64(...)" }
+
+T=800ms: Skeleton loaders fade out, new items fade in
+         ← User sees 100 items total
 ```
 
-### Scenario 2: User Changes Threshold
+---
+
+### Scenario 2: Notification Triggered by Battery Drop
 
 ```
-T=0ms: Frontend sends vulcan-brownout/set_threshold
-       → { global_threshold: 25, device_rules: {} }
+T=0ms: Device battery drops from 20% to 8%
+       HA fires state_changed event
 
-T=100ms: Backend processes request
-         - Validates: 25 is 5-100 ✓
-         - Updates config entry
-         - Updates BatteryMonitor cache
+T=50ms: Backend NotificationManager checks:
+        - Notifications enabled? YES
+        - Device enabled? YES
+        - Frequency cap: within 6h? NO
+        - Severity: critical? YES (below threshold)
+        ✓ Send notification
 
-T=150ms: Backend broadcasts to ALL clients
-         ← vulcan-brownout/threshold_updated
-           { global_threshold: 25, affected_devices: [... devices whose status changed ...] }
+T=100ms: Backend POST /api/services/persistent_notification/create
+         Payload:
+           {
+             "title": "🔋 Battery Low",
+             "message": "Front Door Lock battery critical (8%)",
+             "notification_id": "vulcan_brownout.front_door_lock.critical"
+           }
 
-T=200ms: Backend sends response to requester
-         ← { type: 'result', success: true }
+T=200ms: HA notification service responds 200 OK
+         Notification appears in HA sidebar
 
-T=250ms: All connected clients re-render
-         - Status colors updated
-         - Sort order may change (if priority sort)
-         - Timestamps updated
+T=250ms: Backend broadcasts vulcan-brownout/notification_sent
+         ← { entity_id: "...", device_name: "...", status: "critical", ... }
+
+T=300ms: Frontend updates notification history
+         Toast: "🔔 Notification sent: Front Door Lock"
+
+T=400ms: Backend broadcasts vulcan-brownout/device_changed
+         ← { entity_id: "...", battery_level: 8, status: "critical", ... }
+
+T=450ms: Frontend updates device in list
+         Progress bar animates to 8%
 ```
 
-### Scenario 3: Network Disconnect & Reconnect
+---
+
+### Scenario 3: User Changes Notification Preferences
 
 ```
-T=0-30s: Normal operation
-         ← device_changed events flowing
+T=0ms: User opens notification preferences modal
 
-T=30s: Network drops
-       - WebSocket closes
-       - Backend removes subscription
-       - Frontend detects close
+T=100ms: Frontend sends vulcan-brownout/get_notification_preferences
+         → { type: '...', data: {} }
 
-T=30-35s: Frontend shows connection badge: 🔵 (reconnecting)
-          Attempts reconnect with backoff (1s, 2s, 4s, 8s, ...)
+T=200ms: Backend responds
+         ← { enabled: true, frequency_cap_hours: 6, per_device: {...}, notification_history: [...] }
 
-T=35s: Reconnect succeeds
-       - WebSocket handshake completes
-       - Backend creates new subscription
-       - Frontend re-sends query_devices to sync missed updates
+T=300ms: Modal renders with current preferences
 
-T=36s: Backend broadcasts vulcan-brownout/status
-       ← { status: 'connected' }
+T=500ms: User toggles "Kitchen Sensor" from ON to OFF
 
-T=37s: Frontend shows connection badge: 🟢 (connected)
-       Toast notification: "✓ Connection updated"
-       Device list updates with any missed changes
+T=600ms: User clicks "SAVE PREFERENCES"
+
+T=700ms: Frontend sends vulcan-brownout/set_notification_preferences
+         → { enabled: true, per_device: { ..., "sensor.kitchen_sensor_battery": { enabled: false } } }
+
+T=800ms: Backend validates and updates config entry
+
+T=850ms: Backend broadcasts vulcan-brownout/status
+         ← { status: 'connected', notifications_enabled: true }
+
+T=900ms: Frontend closes modal
+         Toast: "✓ Notification preferences saved"
+
+T=1000ms+: Kitchen Sensor no longer triggers notifications (even if battery drops)
+```
+
+---
+
+### Scenario 4: Dark Mode Detection
+
+```
+T=0ms: User has HA configured with dark theme
+       User clicks sidebar, opens Vulcan Brownout panel
+
+T=50ms: WebSocket connects successfully
+
+T=100ms: Backend sends vulcan-brownout/status
+         ← { status: 'connected', theme: 'dark', version: '3.0.0', ... }
+
+T=150ms: Frontend detectTheme() runs
+         - Checks: document.documentElement.getAttribute('data-theme')
+         - Result: 'dark' detected
+
+T=200ms: CSS custom properties applied:
+         --vb-bg-primary: #1C1C1C
+         --vb-color-critical: #FF5252 (brightened red)
+         etc.
+
+T=250ms: Panel renders with dark mode colors
+         User sees battery list in dark background
+
+T=250ms+: MutationObserver listens for theme changes
+          If user toggles HA theme while panel is open:
+          - Detects data-theme attribute change
+          - Calls applyTheme() → updates CSS variables
+          - Smooth transition (300ms CSS)
+          - No page reload
 ```
 
 ---
@@ -494,17 +680,17 @@ All errors follow this format:
 }
 ```
 
-Standard HTTP-like error codes (mapped to string codes):
+Standard error codes:
 
 | Code | Meaning |
 |------|---------|
 | `invalid_request` | Request malformed or missing fields |
-| `invalid_limit` | Limit out of range |
-| `invalid_offset` | Offset out of range |
+| `invalid_limit` | Limit out of range (1-100) |
+| `invalid_cursor` | Cursor invalid or expired |
 | `invalid_sort_key` | Sort key not supported |
-| `invalid_sort_order` | Sort order not "asc" or "desc" |
 | `invalid_threshold` | Threshold out of range (5-100) |
-| `invalid_device_rule` | Device entity doesn't exist |
+| `invalid_notification_preferences` | Invalid notification settings |
+| `invalid_device_entity` | Device entity doesn't exist |
 | `too_many_rules` | > 10 device-specific rules |
 | `permission_denied` | User lacks permission |
 | `integration_not_loaded` | Integration initialization failed |
@@ -515,99 +701,71 @@ Standard HTTP-like error codes (mapped to string codes):
 
 ## Versioning & Backward Compatibility
 
-**Current Version**: `2.0.0` (Semantic Versioning)
+**Current Version**: `3.0.0` (Semantic Versioning)
 
-**Breaking Changes from Sprint 1 → Sprint 2**:
-- Response to `query_devices` now includes `device_statuses` object (optional field, not breaking)
-- New optional fields in device objects: `status`
-- New event types: `threshold_updated` (clients can ignore unknown events)
+**Breaking Changes from Sprint 2 → Sprint 3**:
+- `query_devices` response now uses `next_cursor` instead of `offset` (offset removed)
+- `status` event now includes `theme` field (optional, non-breaking)
+- New command `set_notification_preferences` (clients can ignore if not used)
 
 **Backward Compatibility**:
-- Frontend written for version 1.0.0 can connect to 2.0.0 backend
-- New fields are optional; requests without them use defaults
-- Unknown events are logged and ignored (graceful degradation)
+- Frontend written for version 2.0.0 can still connect to 3.0.0 backend
+- Cursor-based pagination is a breaking change for offset-based clients
+- Clients expecting `offset` in response will fail to paginate
 
 **Version Checking**:
 ```javascript
-// Frontend should check version on connect
 const statusEvent = await this.hass.callWS({type: 'vulcan-brownout/status'});
-const version = statusEvent.data.version;  // "2.0.0"
+const version = statusEvent.data.version;  // "3.0.0"
 const majorVersion = parseInt(version.split('.')[0]);
 
-if (majorVersion !== 2) {
-  console.warn(`Version mismatch: expected 2.x, got ${version}`);
+if (majorVersion < 3) {
+  console.warn(`Version mismatch: expected 3.x, got ${version}`);
   // Show user warning, suggest update
 }
 ```
 
 ---
 
-## Testing Mock Data
+## API Rate Limiting
 
-### Mock Query Response (Sprint 2)
+**Recommended Limits** (per WebSocket connection):
 
-```json
-{
-  "type": "result",
-  "id": "test_001",
-  "success": true,
-  "data": {
-    "devices": [
-      {
-        "entity_id": "sensor.kitchen_motion_battery",
-        "state": "5",
-        "battery_level": 5,
-        "available": true,
-        "status": "critical",
-        "device_name": "Kitchen Motion Sensor",
-        "device_id": "dev_001",
-        "last_changed": "2026-02-22T10:00:00Z",
-        "last_updated": "2026-02-22T10:00:00Z",
-        "attributes": {
-          "unit_of_measurement": "%",
-          "friendly_name": "Kitchen Motion Sensor Battery",
-          "device_class": "battery"
-        }
-      },
-      {
-        "entity_id": "sensor.solar_backup_battery",
-        "state": "95",
-        "battery_level": 95,
-        "available": true,
-        "status": "healthy",
-        "device_name": "Solar Backup",
-        "device_id": "dev_002",
-        "last_changed": "2026-02-22T09:30:00Z",
-        "last_updated": "2026-02-22T09:30:00Z",
-        "attributes": {
-          "unit_of_measurement": "%",
-          "friendly_name": "Solar Backup Battery",
-          "device_class": "battery"
-        }
-      }
-    ],
-    "total": 13,
-    "offset": 0,
-    "limit": 50,
-    "has_more": false,
-    "device_statuses": {
-      "critical": 2,
-      "warning": 3,
-      "healthy": 8,
-      "unavailable": 0
-    }
-  }
-}
-```
+| Command | Max Requests/Min | Rationale |
+|---------|------------------|-----------|
+| `query_devices` | 10 | Pagination fetch (user scrolling) |
+| `set_threshold` | 2 | Settings changes (user interaction) |
+| `set_notification_preferences` | 5 | Preference changes (modal interaction) |
+| `subscribe` | 1 | Once per session |
+| `get_notification_preferences` | 5 | Modal open/refresh |
+
+**Enforcement**: Backend should log but not reject excess requests in Sprint 3 (log for Sprint 4 rate limiting feature).
+
+---
+
+## WebSocket Message Timing
+
+**Maximum Message Latencies**:
+
+| Message Type | Max Latency | Typical | Retry |
+|--------------|-------------|---------|-------|
+| `query_devices` | 2s | 200-500ms | 3x with backoff |
+| `set_threshold` | 2s | 300-600ms | 1x |
+| `set_notification_preferences` | 2s | 300-600ms | 1x |
+| `device_changed` (event) | 500ms | 50-100ms | — |
+| `notification_sent` (event) | 2s | 100-200ms | — |
+| `status` (event) | 1s | 50-100ms | — |
 
 ---
 
 ## Related Documents
 
-- [System Design](./system-design.md) — Architecture overview
-- [ADR-006](./ADR-006-websocket-subscriptions.md) — Subscription design
-- [ADR-007](./ADR-007-threshold-configuration.md) — Threshold storage
-- [ADR-008](./ADR-008-sort-filter-implementation.md) — Sort/filter logic
+- [System Design](./system-design.md)
+- [Sprint Plan](./sprint-plan.md)
+- [ADR-009: Cursor-Based Pagination](./adrs/ADR-009-cursor-pagination.md)
+- [ADR-010: Notification Service](./adrs/ADR-010-notification-service.md)
+- [ADR-011: Dark Mode](./adrs/ADR-011-dark-mode-support.md)
+- [ADR-012: Entity Filtering](./adrs/ADR-012-entity-filtering.md)
 
 ---
 

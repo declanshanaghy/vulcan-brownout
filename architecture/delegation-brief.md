@@ -1,655 +1,785 @@
-# Delegation Brief: Sprint 2 Implementation
+# Delegation Brief: Sprint 3 Implementation
 
-**For**: Lead Developer
+**For**: ArsonWells (Lead Developer)
 **From**: FiremanDecko (Architect)
-**Date**: February 2026
+**Date**: February 22, 2026
 **Sprint Duration**: 2 weeks (10 business days)
 **Capacity**: 16 days
+**Planned Work**: 12 days (1+3+4+2+2)
+**Buffer**: 4 days contingency
 
 ---
 
 ## The Mission
 
-Sprint 2 transforms Vulcan Brownout from a passive battery display into an active monitoring tool. You'll implement three major features:
+Sprint 3 makes Vulcan Brownout a truly proactive monitoring system. You'll implement:
 
-1. **Real-Time WebSocket Updates** (< 500ms latency)
-2. **Configurable Thresholds** (global + per-device)
-3. **Sort & Filter Controls** (user-controlled list organization)
+1. **Binary Sensor Filtering** (1 day - DO THIS FIRST - quick win)
+2. **Infinite Scroll with Cursor Pagination** (3 days)
+3. **Notification System** (4 days - most complex)
+4. **Dark Mode / Theme Support** (2 days)
+5. **Deployment & Infrastructure** (2 days)
 
-Plus mobile-responsive UX and deployment infrastructure improvements.
-
-**Success = All 5 stories shipped, tested, and production-ready by sprint end.**
-
----
-
-## What You're Building
-
-### Overview
-
-The system evolves from request-response to push-response hybrid:
-
-**Sprint 1**: User clicks refresh → Backend queries → User waits for data
-**Sprint 2**: User opens panel → WebSocket subscribes → Real-time updates flow automatically
-
-Three separate systems, all interconnected:
-
-1. **WebSocket Subscription Manager** (Backend)
-   - Tracks active client connections
-   - Broadcasts battery updates to all subscribers
-   - Handles reconnection gracefully
-
-2. **Threshold Configuration System** (Backend + Frontend)
-   - Stores global and per-device thresholds in HA config entry
-   - Calculates device status (critical/warning/healthy/unavailable) using thresholds
-   - Broadcasts threshold changes to all connected clients
-
-3. **Sort & Filter Engine** (Frontend)
-   - Client-side sorting (4 algorithms)
-   - Client-side filtering (4 status groups)
-   - localStorage persistence for user preferences
+**Success = All 5 stories shipped, tested, and production-ready by Friday sprint end.**
 
 ---
 
-## Architecture Documents to Follow
+## Architecture Documents to Read (In Order)
 
-Read these in order (all in `architecture/`):
+1. **SKILL.md** — Your role as architect liaison
+2. **system-design.md** (Sprint 3 updated) — Component diagram, data flows, entity filtering, pagination algorithm
+3. **api-contracts.md** (Sprint 3 updated) — All new WebSocket commands/events (cursor-based pagination, notifications, theme)
+4. **sprint-plan.md** (Sprint 3) — 5 stories with acceptance criteria
+5. **ADR-009, 010, 011, 012** — Design decisions for cursor pagination, notifications, dark mode, entity filtering
+6. **Existing code**: `/development/src/custom_components/vulcan_brownout/*.py` and frontend JS
 
-1. **system-design.md** — Updated component diagram, data flows for each feature
-2. **api-contracts.md** — All new WebSocket messages, commands, events
-3. **ADR-006** — WebSocket subscription architecture (design decisions)
-4. **ADR-007** — Threshold storage (why ConfigEntry.options)
-5. **ADR-008** — Sort/filter implementation (why client-side for Sprint 2)
-6. **sprint-plan.md** — 5 stories with acceptance criteria & technical notes
-
-**CRITICAL**: Don't skip the ADRs. They contain the "why" behind decisions. If you have concerns, flag them in code review.
+**CRITICAL**: These docs contain the architecture. Read them before coding. If anything is unclear, ask now.
 
 ---
 
-## Story-by-Story Implementation
+## Quick Start: Do This First
 
-### Story 1: Real-Time WebSocket Updates (4 days)
+### Binary Sensor Filtering (1 Day - QUICK WIN)
 
-**What**: Battery levels update automatically as devices change in Home Assistant.
+This is a **quick win** that unblocks other stories and fixes data quality.
 
-**Why**: Users want confidence their monitoring is active, not "I need to refresh."
+**What**: Remove binary sensors from battery list (they report on/off, not %)
 
-**Key Components to Build**:
+**Files to Change**:
 
-1. **Backend: `WebSocketSubscriptionManager` (NEW)**
-   - Manages subscriber list: `{connection_id: ClientSubscription}`
-   - Listens to HA `state_changed` events
-   - For each battery change, broadcasts to all subscribers
-   - Handles client disconnection cleanup
+1. `/development/src/custom_components/vulcan_brownout/battery_monitor.py`
+   - Modify method `get_battery_entities()` (or similar entity discovery method)
+   - Add filter: `battery_level` attribute must exist AND be numeric (0-100)
+   - Add filter: Exclude domain == 'binary_sensor'
+   - Example:
+     ```python
+     def is_battery_entity(entity_id: str) -> bool:
+         domain = entity_id.split('.')[0]
+         if domain == 'binary_sensor':
+             return False
+         entity = hass.states.get(entity_id)
+         battery_level = entity.attributes.get('battery_level')
+         if battery_level is None:
+             return False
+         try:
+             level = float(battery_level)
+             if not (0 <= level <= 100):
+                 return False
+         except (TypeError, ValueError):
+             return False
+         return True
+     ```
 
-2. **Backend: Modify `__init__.py`**
-   - Create subscription manager on setup
-   - Register state_changed event listener
-   - Call subscription manager for each battery entity change
+2. `/development/src/custom_components/vulcan_brownout/frontend/vulcan-brownout-panel.js`
+   - Add empty state UI (show if `devices.length === 0`)
+   - Template: Friendly message, "No battery devices found"
+   - Include buttons: Docs link, Refresh, Settings
+   - Example Mermaid from design doc for reference
 
-3. **Backend: Modify `websocket_api.py`**
-   - Add `handle_subscribe` command handler
-   - Add broadcast mechanism for `device_changed` events
-   - Return subscription_id to client
+**Testing**:
+- Unit: Test `is_battery_entity()` with various inputs (binary sensor, missing battery_level, etc.)
+- Integration: Query HA instance, count filtered devices
+- QA will verify 45 binary sensors are removed from test HA
 
-4. **Frontend: Connection State Machine**
-   - Track state: connected | reconnecting | offline
-   - Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s
-   - Max 10 retries before showing "Offline" message
-   - Auto-retry on network restore
-
-5. **Frontend: Real-Time Update Handler**
-   - Listen for `device_changed` events
-   - Update local device: `battery_level`, `available`, `status`
-   - Trigger Lit re-render
-   - Progress bar animates 300ms (CSS transition, not JS)
-
-6. **Frontend: UI Components**
-   - Connection badge (🟢 green, 🔵 spinning blue, 🔴 red)
-   - Last Updated timestamp ("Updated 3 seconds ago")
-   - Toast notification on reconnect ("✓ Connection updated")
-
-**Acceptance Criteria** (from sprint-plan.md):
-- Real-time latency < 500ms (HA change to UI update)
-- Connection badge accurately reflects state
-- Exponential backoff works (1s, 2s, 4s, 8s, ...)
-- No lost updates during brief disconnects
-- No jank or stutter during animations
-- Works on mobile (scrolling smooth despite updates)
-- Keyboard & screen reader accessible
-
-**Testing You Must Do**:
-- Unit: Subscription manager, reconnection logic
-- Integration: Real HA instance, simulate battery changes, measure latency
-- E2E: Panel open, watch updates, simulate disconnect/reconnect
-- Performance: 100+ batteries, 100 updates/sec, no jank
-- Mobile: iPhone/Android, verify smooth scrolling
-
-**Code Review Will Check**:
-- Subscription memory leak prevention (cleanup on disconnect)
-- Exponential backoff correctness (no missing edge cases)
-- Error handling (disconnects, auth failures, max retries)
-- Animation performance (60 FPS on low-end devices)
+**Why First?**: Clean data quality, unblocks pagination (don't want to paginate bad entities), small scope, high impact.
 
 ---
 
-### Story 2: Configurable Thresholds (5 days)
+## Story 1: Binary Sensor Filtering
 
-**What**: Users set custom thresholds: global (all devices) or per-device (override).
-
-**Why**: Solar backup needs 50% alert, sensors need 15%. One-size-fits-all is broken.
-
-**Key Components to Build**:
-
-1. **Backend: Config Flow (NEW `config_flow.py`)**
-   - OptionsFlow for threshold configuration
-   - Validate inputs: threshold 5-100, device_rules ≤ 10
-   - Store in `ConfigEntry.options`
-
-2. **Backend: Modify `battery_monitor.py`**
-   - Add threshold cache: `self.global_threshold`, `self.device_rules`
-   - Add `get_threshold_for_device(entity_id)` method
-   - Add `get_status_for_device(device)` method
-   - Update status calculation to use thresholds
-
-3. **Backend: WebSocket Handler**
-   - Add `handle_set_threshold` command
-   - Validate threshold inputs
-   - Update config entry
-   - Broadcast `threshold_updated` event to ALL clients (not just requester)
-
-4. **Backend: Event Listener**
-   - Hook to config entry changes
-   - Call `battery_monitor.on_options_updated()`
-   - Broadcast update to all WebSocket subscribers
-
-5. **Frontend: Settings Panel (NEW)**
-   - Slide-out from right on desktop (400px wide, 300ms animation)
-   - Full-screen modal on mobile (100vh, 90% height)
-   - Global threshold section:
-     - Slider 5-100%
-     - Text input (optional)
-     - Live preview: "8 batteries below this threshold"
-   - Device-specific rules section:
-     - "+ Add Device Rule" button
-     - List of rules (show 5, "SHOW MORE" if > 5)
-     - Delete button (✕) for each rule
-   - Buttons: "SAVE" (blue), "CANCEL" (gray)
-   - Close button (✕) and Escape key close without saving
-
-6. **Frontend: Add Device Rule Modal (NEW)**
-   - Step 1: Select device
-     - Searchable list of all battery entities
-     - Filter as user types
-     - Show device name + current battery level + status
-   - Step 2: Set threshold
-     - Slider 5-100%
-     - Text input
-     - Help text: "Show CRITICAL when battery < X%"
-     - Live feedback: "After save: 3 devices will be CRITICAL"
-   - Buttons: "SAVE RULE" (blue), "CANCEL" (gray)
-
-7. **Frontend: Threshold Application**
-   - On page load: Request query_devices, get device_statuses
-   - On threshold_updated event: Re-calculate status for all devices
-   - Re-render with new colors (red for CRITICAL, orange for WARNING, green for HEALTHY)
-   - Smooth color transition (no jarring change)
-
-**Acceptance Criteria**:
-- Settings icon (⚙️) opens settings panel
-- Global threshold 5-100%, defaults to 15%
-- Can add up to 10 device rules per session
-- Live preview shows affected device count
-- Save persists in HA ConfigEntry.options
-- Changes survive HA restart
-- Changes broadcast to all connected clients
-- Threshold changes immediately re-color list
-- Mobile: full-screen modal, touch targets ≥ 44px
-- Keyboard: Tab through fields, Enter to save, Escape to cancel
-
-**Testing You Must Do**:
-- Unit: Threshold validation, status calculation
-- Integration: Config entry persistence, multi-client sync
-- E2E: Open settings, change threshold, verify colors update
-- QA: Add 5 device rules, verify overrides apply correctly
-- Regression: Ensure Sprint 1 features still work
-
-**Code Review Will Check**:
-- Config entry schema versioning
-- Threshold validation (edge cases)
-- Multi-client broadcast mechanism
-- localStorage handling (if implemented)
-- Performance of device status re-calculation (< 100ms for 50 devices)
+See "Quick Start" section above. Do this immediately.
 
 ---
 
-### Story 3: Sorting & Filtering (3 days)
+## Story 2: Infinite Scroll with Cursor Pagination
 
-**What**: Users can sort by priority/alphabetical/battery level and filter by status.
+### 2.1 Backend: Cursor-Based Pagination API
 
-**Why**: With 20+ devices, finding "critical" devices is hard. Give users control.
+**Files to Change**:
 
-**Key Components to Build**:
+1. **`websocket_api.py`**
+   - Modify `handle_query_devices()` command handler
+   - **OLD** (Sprint 2): `offset` + `limit` pagination
+   - **NEW** (Sprint 3): `cursor` + `limit` pagination
+   - Old request: `{offset: 0, limit: 50}`
+   - New request: `{cursor: null, limit: 50}`
+   - Next page: `{cursor: "base64(...)", limit: 50}`
 
-1. **Frontend: Sort/Filter Bar (NEW)**
-   - Desktop (> 768px): Inline dropdowns
-     - Sort dropdown: Priority (default), Alphabetical, Level (Low→High), Level (High→Low)
-     - Filter dropdown: Critical, Warning, Healthy, Unavailable (checkboxes)
-     - Reset button (✕): Clears all filters, resets sort to default
-   - Mobile (< 768px): Button bar
-     - "SORT" button → Opens full-screen modal
-     - "FILTER" button → Opens full-screen modal
-     - "✕ RESET" button
+2. **`battery_monitor.py`**
+   - Add method: `get_devices_paginated(cursor: str | None, limit: int, sort_key: str) -> dict`
+   - Cursor format: base64-encoded `{last_changed}|{entity_id}`
+   - Logic:
+     a. Decode cursor (if provided) to find starting position
+     b. Get all battery entities (already filtered by Story 1)
+     c. Apply sort (priority, alphabetical, level_asc, level_desc)
+     d. Find cursor position in sorted list
+     e. Return items from position+1 to position+limit
+     f. Generate next_cursor from last item in response
+     g. Return: `{devices: [...], total: N, has_more: bool, next_cursor: "base64(...)"}`
 
-2. **Frontend: Sort Algorithms**
-   ```javascript
-   // Priority (DEFAULT): critical < warning < healthy < unavailable, then by battery level asc
-   // Alphabetical: device name A-Z
-   // Level Ascending: battery level low → high
-   // Level Descending: battery level high → low
-   ```
-   Implement in `_apply_sort(devices, method)` function.
+**Implementation Detail - Cursor Decoding**:
+```python
+import base64
 
-3. **Frontend: Filter Logic**
-   ```javascript
-   function _apply_filter(devices, filter_state) {
-     return devices.filter(d => {
-       const status = this._get_status(d);
-       return filter_state[status] === true;
+def decode_cursor(cursor_str: str) -> tuple[str, str]:
+    """Decode cursor to (last_changed, entity_id)."""
+    decoded = base64.b64decode(cursor_str).decode('utf-8')
+    parts = decoded.split('|')
+    return parts[0], parts[1]  # last_changed, entity_id
+
+def encode_cursor(last_changed: str, entity_id: str) -> str:
+    """Encode (last_changed, entity_id) to cursor string."""
+    data = f"{last_changed}|{entity_id}"
+    return base64.b64encode(data.encode('utf-8')).decode('utf-8')
+```
+
+**Response Format**:
+```json
+{
+  "devices": [...50 items...],
+  "total": 200,
+  "has_more": true,
+  "next_cursor": "eyIyMDI2LTAyLTIyVDEwOjE1OjMwWiIsInNlbnNvci5raXRjaGVuIn0="
+}
+```
+
+### 2.2 Frontend: Infinite Scroll UI
+
+**Files to Change**:
+
+1. **`vulcan-brownout-panel.js`**
+   - Add Intersection Observer to detect scroll near bottom (100px)
+   - Debounce scroll events (max 1 fetch per 500ms)
+   - Track state: `this.current_cursor`, `this.has_more`, `this.is_fetching`
+   - When near bottom:
+     a. Set `is_fetching = true`
+     b. Show skeleton loaders (5 placeholders)
+     c. Fetch next batch with `current_cursor`
+     d. Append new devices to `this.battery_devices` array
+     e. Update `current_cursor` to `next_cursor`
+     f. Set `is_fetching = false`
+     f. Hide skeleton loaders
+
+2. **Create Skeleton Loader Component**
+   - CSS class: `.skeleton-loader`
+   - Animation: Shimmer gradient, 2s infinite
+   - Colors: Dark mode #444444, light mode #E0E0E0
+   - Sizing: Match real card heights (vary heights)
+   - Example CSS:
+     ```css
+     @keyframes shimmer {
+       0% { background-position: -1000px 0; }
+       100% { background-position: 1000px 0; }
+     }
+     .skeleton-loader {
+       background: linear-gradient(90deg, var(--vb-skeleton-bg) 25%, var(--vb-skeleton-shimmer) 50%, var(--vb-skeleton-bg) 75%);
+       background-size: 1000px 100%;
+       animation: shimmer 2s infinite;
+       border-radius: 4px;
+       height: 16px;
+       margin-bottom: 8px;
+     }
+     ```
+
+3. **Add Back to Top Button**
+   - Element: Fixed position, bottom-right (16px from edges)
+   - Trigger show: scrolled past 30 items (or ~1000px)
+   - Trigger hide: scroll back to top
+   - Click: Smooth scroll to top (500ms)
+   - Animation: Fade in/out (300ms CSS)
+   - ARIA: `aria-label="Back to top"`
+   - Example handler:
+     ```javascript
+     backToTopButton.addEventListener('click', () => {
+       this.shadowRoot.querySelector('.battery-list').scrollTo({
+         top: 0,
+         behavior: 'smooth'
+       });
      });
-   }
-   ```
+     ```
 
-4. **Frontend: State Management**
-   - `@state() sort_method = 'priority'`
-   - `@state() filter_state = { critical: true, warning: true, healthy: true, unavailable: false }`
-   - Computed property: `get _filtered_and_sorted_devices()` returns final list
-
-5. **Frontend: localStorage Persistence**
-   - Save to `localStorage['vulcan_brownout_ui_state']` as JSON
-   - Load on component init
-   - Persist on every sort/filter change
-   - Handle localStorage full/unavailable gracefully
-
-6. **Frontend: Mobile Modals (Responsive)**
-   - Sort modal: Radio buttons (44px touch targets)
-   - Filter modal: Checkboxes (44px touch targets)
-   - Both modals: Full-screen on mobile, close on "Apply"
-   - Desktop: Dropdowns, stay open
-
-**Acceptance Criteria**:
-- Sort dropdown: 4 options work correctly
-- Filter checkboxes: Toggle status groups, update list instantly
-- Sort/filter bar sticky on scroll
-- Default: Priority sort, Show All filters
-- localStorage persists per session
-- Reset button clears all
-- Desktop (dropdowns) and mobile (modals) both work
-- No horizontal scrolling any screen size
-- Keyboard accessible: Tab, Arrow keys, Enter
-- Performance: Sort/filter 100+ devices in < 50ms
+4. **Add Scroll Position Restoration**
+   - On scroll events, save position: `sessionStorage.setItem('vulcanScrollPos', scrollTop)`
+   - On component init, restore: `sessionStorage.getItem('vulcanScrollPos')`
+   - Edge case: If device count changed, validate scroll position doesn't exceed maxScrollHeight
 
 **Testing You Must Do**:
-- Unit: Sort algorithms, filter logic, localStorage
-- Integration: Persistence across reload
-- E2E: Select each sort, verify order; toggle filters, verify visibility
-- Performance: Measure sort/filter time with 100+ devices
-- Mobile: Modals responsive, touch targets clickable
-- Keyboard: Tab through all controls
-
-**Code Review Will Check**:
-- Sort algorithm correctness
-- Filter logic efficiency
-- localStorage error handling
-- Responsive design (no horizontal scroll)
-- Performance (< 50ms)
+- Load panel, scroll to bottom 3x, verify no duplicate items
+- Load with 200 device HA instance, paginate through all pages
+- Scroll rapidly, verify debounce prevents duplicate fetches
+- Refresh page mid-scroll, verify position restored
+- Mobile: Scroll on iPhone 12, verify 60 FPS (no jank)
 
 ---
 
-### Story 4: Mobile-Responsive UX & Accessibility (2 days)
+## Story 3: Notification System with Preferences UI
 
-**What**: Settings modals, sort/filter modals, and all controls responsive & accessible.
+### 3.1 Backend: NotificationManager
 
-**Why**: Many HA users check batteries from phones. Must be native-feeling, not desktop-squeezed.
+**New File to Create**: `/development/src/custom_components/vulcan_brownout/notification_manager.py`
 
-**Key Components to Build**:
+**Class: NotificationManager**
 
-1. **CSS Media Queries**
-   - Mobile-first approach
-   - Breakpoints: 768px, 1024px, 1440px
-   - Responsive font sizes, padding, touch targets
+```python
+class NotificationManager:
+    def __init__(self, hass, battery_monitor):
+        self.hass = hass
+        self.battery_monitor = battery_monitor
+        self.preferences = {}  # Loaded from config entry
+        self.notification_history = {}  # Track last_notification_time per device
 
-2. **Touch Targets**
-   - All buttons, checkboxes, icons: ≥ 44px
-   - No overlapping targets
-   - Visual feedback on tap (highlight)
+    async def async_setup(self):
+        """Load preferences from config entry."""
+        config_entry = ...  # Get from hass.config_entries
+        self.preferences = config_entry.options.get('notification_preferences', {
+            'enabled': True,
+            'frequency_cap_hours': 6,
+            'severity_filter': 'critical_only',
+            'per_device': {}
+        })
 
-3. **Typography**
-   - Base font: 16px (not 14px) on mobile
-   - Headings: 18px+
-   - Line heights: 1.5+ for readability
-   - High contrast text
+    async def check_and_send_notification(self, entity_id: str, status: str, battery_level: int, device_name: str):
+        """Check if notification should be sent, then queue it to HA."""
+        # Step 1: Check global enabled
+        if not self.preferences['enabled']:
+            return
 
-4. **Modals**
-   - Full-screen on mobile (100vw, 90vh)
-   - Fixed header/footer
-   - Scrollable content area
-   - Close button (✕) visible
+        # Step 2: Check device enabled
+        device_pref = self.preferences['per_device'].get(entity_id, {})
+        if not device_pref.get('enabled', True):
+            return
 
-5. **Accessibility (WCAG 2.1 AA)**
-   - ARIA labels: all icons, buttons, status indicators
-   - Color + icon: never color alone for status
-   - Keyboard navigation: Tab through all controls
-   - Focus indicators: visible outline on all focusable elements
-   - Color contrast: min 4.5:1 for text, 3:1 for graphics
-   - Semantic HTML: use `<button>`, `<input>`, etc.
+        # Step 3: Check severity filter
+        severity = self.preferences['severity_filter']
+        if severity == 'critical_only' and status == 'warning':
+            return
 
-6. **Testing Tools**
-   - Lighthouse accessibility audit (target: ≥ 90)
-   - Chrome DevTools: Device emulation (390px, 768px, 1440px)
-   - Screen reader: VoiceOver (iOS), TalkBack (Android)
-   - Keyboard-only navigation: no mouse
-   - Color contrast checker: WebAIM
+        # Step 4: Check frequency cap
+        frequency_cap_hours = device_pref.get('frequency_cap_hours', self.preferences['frequency_cap_hours'])
+        last_notif_time = self.notification_history.get(entity_id)
+        if last_notif_time:
+            time_since = datetime.now() - last_notif_time
+            if time_since < timedelta(hours=frequency_cap_hours):
+                return  # Within cap window, don't send
 
-**Acceptance Criteria**:
-- Settings modal full-screen on mobile, side panel on desktop
-- Sort/filter modals full-screen on mobile, dropdowns on desktop
-- All touch targets ≥ 44px
-- Font sizes readable on 390px screen
-- No horizontal scrolling any viewport
-- Keyboard focus indicators visible
-- ARIA labels on all controls
-- Color contrast ≥ 4.5:1
-- Lighthouse accessibility ≥ 90
-- Tested on iPhone 12, iPad, Desktop
+        # Step 5: Send notification via HA service
+        await self._send_notification(entity_id, status, battery_level, device_name)
+        self.notification_history[entity_id] = datetime.now()
 
-**Testing You Must Do**:
-- Real device testing: iPhone, iPad
-- Browser emulation: 390px, 768px, 1440px
-- Lighthouse: Run accessibility audit
-- Screen reader: Navigate with VoiceOver/TalkBack
-- Keyboard: Tab through all controls, Escape closes
-- Color contrast: Use WebAIM tool
+    async def _send_notification(self, entity_id: str, status: str, battery_level: int, device_name: str):
+        """POST to persistent_notification service."""
+        status_label = "critical" if status == 'critical' else "warning"
+        message = f"{device_name} battery {status_label} ({battery_level}%) — action needed soon"
 
-**Code Review Will Check**:
-- Media query correctness
-- Touch target sizing
-- ARIA labels completeness
-- Color contrast compliance
-- Keyboard navigation flow
-- Lighthouse score ≥ 90
+        await self.hass.services.async_call(
+            'persistent_notification',
+            'create',
+            {
+                'title': '🔋 Battery Low',
+                'message': message,
+                'notification_id': f'vulcan_brownout.{entity_id}.{status}'
+            }
+        )
 
----
-
-### Story 5: Deployment & Infrastructure (2 days)
-
-**What**: Idempotent deployment with systemd, health checks, and rollback.
-
-**Why**: Zero-downtime updates, automatic recovery from failures.
-
-**Key Components to Build**:
-
-1. **Systemd Service Management**
-   - Service file: `vulcan-brownout.service`
-   - Restart policy: `on-failure`, max 3 restarts
-   - HA integration: Works with HA's Docker + bare metal
-
-2. **Deployment Script (`deploy.sh` UPDATED)**
-   - Environment validation: Check required .env vars exist
-   - Idempotent: Safe to run multiple times
-   - Rollback: Keep previous version, swap symlink if health check fails
-   - Health check: POST-deploy, call `/health` endpoint
-   - Smoke test: Verify real-time updates work
-   - Logging: Clear success/failure messages
-
-3. **Health Check Endpoint** (NEW)
-   - Endpoint: GET `/api/vulcan_brownout/health`
-   - Response: `{ status: "healthy", websocket_ready: true, battery_entities: N, timestamp: "..." }`
-   - Validates: WebSocket functional, battery entities loaded
-   - Retry logic: 3 attempts with backoff if fails
-   - Timeout: 30 seconds max
-
-4. **Rollback Mechanism**
-   - Keep directory: `releases/{version}/` for last 2 versions
-   - Symlink: `current/ -> releases/{version}/`
-   - On failure: Swap symlink to previous version
-   - Verify: Check service status after rollback
-
-5. **Testing Deployment**
-   - Run deploy script 3+ times: Verify idempotent (no errors on repeat runs)
-   - Deploy with missing .env: Verify early exit + clear error
-   - Simulate health check failure: Verify rollback triggers + previous version active
-   - Monitor HA logs: No errors or warnings
-   - Verify real-time updates post-deploy: Simulate battery change, verify update received
-
-**Acceptance Criteria**:
-- Deployment script idempotent (3+ successful runs)
-- Environment validation works (fails cleanly on missing vars)
-- Health check endpoint responds 200 with correct JSON
-- Rollback triggered on health check failure
-- Previous version active after rollback
-- Deployment logs clear (success/failure obvious)
-- All secrets in .env (not in git)
-- No secrets in commit history
-- Deployment < 5 minutes total
-
-**Testing You Must Do**:
-- Manual deployment: 3+ runs, verify idempotent
-- Missing .env: Verify validation catches it
-- Health check: Call endpoint, verify response
-- Rollback: Simulate failure, verify rollback works
-- Git history: Verify no secrets committed
-- HA logs: Check for errors
-
-**Code Review Will Check**:
-- Script robustness (error handling)
-- Health check correctness
-- Rollback mechanism
-- Secret management (no hardcodes)
-- Idempotency (no side effects on repeat)
-- Performance (deploy time)
-
----
-
-## Development Workflow
-
-### Daily Routine
-
-1. **Morning Standup** (15 min)
-   - What you did yesterday
-   - What you're doing today
-   - Any blockers
-
-2. **Code Review Loop** (Throughout day)
-   - Submit PRs daily (not all at sprint end)
-   - Architect reviews within 24 hours
-   - Address feedback, iterate
-   - Merge when approved
-
-3. **Testing** (Continuous)
-   - Unit tests as you code
-   - Integration tests after features complete
-   - QA testing in parallel
-
-### Branch Strategy
-
-- Work on `feature/sprint-2-*` branches
-- Open PRs early (mark as draft if not ready)
-- Code review approval required before merge
-- Merge to `develop` branch
-- No direct commits to `develop` or `main`
-
-### Commit Messages
-
-```
-Story 1: Real-time updates - implement WebSocket subscription manager
-
-- Add WebSocketSubscriptionManager class to track subscribers
-- Register state_changed event listener
-- Broadcast device_changed events to all connected clients
-- Handle client disconnection cleanup
-
-Fixes: https://github.com/vulcan-brownout/issues/...
+        # Broadcast event to WebSocket subscribers
+        await self.broadcast_notification_sent(entity_id, device_name, status, battery_level, message)
 ```
 
-Use story number, clear description, bullet points for details.
+### 3.2 Backend: Integrate with Battery Monitor
+
+**Modify**: `/development/src/custom_components/vulcan_brownout/battery_monitor.py`
+
+- Add hook in `on_state_changed()` to call NotificationManager
+- Example:
+  ```python
+  async def on_state_changed(self, entity_id, new_state):
+      if not self.is_battery_entity(entity_id):
+          return
+
+      # ... existing logic to broadcast device_changed ...
+
+      # NEW: Check notifications
+      status = self.get_status(entity_id, new_state)
+      battery_level = float(new_state.state)
+      device_name = new_state.attributes.get('friendly_name', entity_id)
+      await self.notification_manager.check_and_send_notification(
+          entity_id, status, battery_level, device_name
+      )
+  ```
+
+### 3.3 Backend: WebSocket Commands for Notifications
+
+**Modify**: `/development/src/custom_components/vulcan_brownout/websocket_api.py`
+
+Add two new command handlers:
+
+1. **`handle_get_notification_preferences(hass, connection, msg)`**
+   - Retrieve current preferences
+   - Return: `{enabled, frequency_cap_hours, severity_filter, per_device, notification_history}`
+   - notification_history: Last 10-20 notifications (timestamp, entity_id, device_name, battery_level, status, message)
+
+2. **`handle_set_notification_preferences(hass, connection, msg)`**
+   - Validate input:
+     - `enabled`: bool
+     - `frequency_cap_hours`: int in [1, 6, 24]
+     - `severity_filter`: str in ['critical_only', 'critical_and_warning']
+     - `per_device`: dict of {entity_id: {enabled: bool, frequency_cap_hours: int}}
+   - Update config entry options
+   - Broadcast `status` event to all clients
+   - Return success response
+
+### 3.4 Frontend: Notification Preferences Modal
+
+**Modify**: `/development/src/custom_components/vulcan_brownout/frontend/vulcan-brownout-panel.js`
+
+1. **Add Notification Preferences Modal Component**
+   - Trigger: "[⚙️ CONFIGURE NOTIFICATIONS]" button in settings panel
+   - Modal opens: Slide from right (desktop) or bottom (mobile)
+   - Sections:
+     a. **Global Enable**: Toggle switch (44px touch target)
+     b. **Frequency Cap**: Dropdown (1 hour, 6 hours, 24 hours)
+     c. **Severity Filter**: Radio buttons (Critical only, Critical+Warning)
+     d. **Per-Device List**: Checkboxes with search
+     e. **Notification History**: Last 5 notifications
+   - Buttons: Save (blue), Cancel (gray)
+
+2. **Add Search Functionality**
+   - Searchable device list (real-time filter as user types)
+   - Show only matching devices
+
+3. **Add Notification History Display**
+   - Subscribe to `notification_sent` events
+   - Append to history list (max 10 items in UI)
+   - Format: "2026-02-22 10:15 — Device Name (8% critical)"
+
+4. **Form Handling**
+   - On Save: Send `set_notification_preferences` command
+   - On Cancel: Close modal without saving (confirm if changes made)
+   - Keyboard: Tab through fields, Enter to save, Escape to cancel
+
+**Testing You Must Do**:
+- Unit: Frequency cap logic (mock time, test window expiration)
+- Integration: Create device at critical, set notifications ON, verify notification sent
+- Integration: Change frequency cap to 1 hour, trigger 2 notifications within 1 hour, verify only 1 sent
+- Integration: Disable device notifications, device goes critical, verify no notification
+- QA: Multi-device scenario (5 devices critical at same time, frequency caps enforced per device)
 
 ---
 
-## Code Quality Expectations
+## Story 4: Dark Mode / Theme Support
+
+### 4.1 Frontend: CSS Custom Properties
+
+**Create or Modify**: `/development/src/custom_components/vulcan_brownout/frontend/styles.css`
+
+Define CSS custom properties for all colors:
+
+```css
+/* Light Mode (Default) */
+:root,
+[data-theme="light"] {
+  --vb-bg-primary: #FFFFFF;
+  --vb-bg-card: #F5F5F5;
+  --vb-bg-divider: #E0E0E0;
+  --vb-text-primary: #212121;
+  --vb-text-secondary: #757575;
+  --vb-text-disabled: #BDBDBD;
+  --vb-color-critical: #F44336;
+  --vb-color-warning: #FF9800;
+  --vb-color-healthy: #4CAF50;
+  --vb-color-unavailable: #9E9E9E;
+  --vb-color-primary-action: #03A9F4;
+  --vb-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --vb-skeleton-bg: #E0E0E0;
+  --vb-skeleton-shimmer: #F5F5F5;
+}
+
+/* Dark Mode */
+[data-theme="dark"],
+[data-theme="dark-theme"] {
+  --vb-bg-primary: #1C1C1C;
+  --vb-bg-card: #2C2C2C;
+  --vb-bg-divider: #444444;
+  --vb-text-primary: #FFFFFF;
+  --vb-text-secondary: #B0B0B0;
+  --vb-text-disabled: #666666;
+  --vb-color-critical: #FF5252;       /* Brightened red */
+  --vb-color-warning: #FFB74D;        /* Lightened amber */
+  --vb-color-healthy: #66BB6A;        /* Lightened green */
+  --vb-color-unavailable: #BDBDBD;
+  --vb-color-primary-action: #03A9F4;
+  --vb-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --vb-skeleton-bg: #444444;
+  --vb-skeleton-shimmer: #555555;
+}
+
+/* Apply to all components */
+.battery-panel {
+  background-color: var(--vb-bg-primary);
+  color: var(--vb-text-primary);
+  border-color: var(--vb-bg-divider);
+}
+
+.battery-card {
+  background-color: var(--vb-bg-card);
+  color: var(--vb-text-primary);
+  box-shadow: var(--vb-shadow);
+}
+
+.battery-critical {
+  color: var(--vb-color-critical);
+}
+
+.battery-warning {
+  color: var(--vb-color-warning);
+}
+
+.battery-healthy {
+  color: var(--vb-color-healthy);
+}
+```
+
+**IMPORTANT**: Remove all hardcoded colors from CSS. Use `var(--vb-*)` everywhere.
+
+### 4.2 Frontend: Theme Detection
+
+**Modify**: `/development/src/custom_components/vulcan_brownout/frontend/vulcan-brownout-panel.js`
+
+Add theme detection method:
+
+```javascript
+detectTheme() {
+  // Method 1: HA's data-theme attribute (most reliable)
+  const haTheme = document.documentElement.getAttribute('data-theme');
+  if (haTheme === 'dark') return 'dark';
+  if (haTheme === 'light') return 'light';
+
+  // Method 2: CSS Media Query (OS preference)
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+
+  // Method 3: HA localStorage (fallback)
+  const stored = localStorage.getItem('ha_theme');
+  if (stored === 'dark' || stored === 'light') return stored;
+
+  // Default to light
+  return 'light';
+}
+```
+
+### 4.3 Frontend: Theme Listener
+
+Add MutationObserver to watch for theme changes:
+
+```javascript
+observeThemeChanges() {
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.attributeName === 'data-theme') {
+        const newTheme = document.documentElement.getAttribute('data-theme');
+        this.applyTheme(newTheme);
+      }
+    });
+  });
+
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme']
+  });
+}
+
+applyTheme(theme) {
+  // CSS custom properties already defined in styles.css
+  // Just ensure data-theme attribute is set on root
+  document.documentElement.setAttribute('data-theme', theme || 'light');
+  // Optionally force re-render if needed
+  this.requestUpdate();
+}
+```
+
+### 4.4 Frontend: Responsive Dark Mode Colors
+
+Ensure all status colors are readable on dark background:
+
+- Critical: #FF5252 (lightened red) — contrast 5.5:1 on #1C1C1C ✓
+- Warning: #FFB74D (lightened amber) — contrast 6.8:1 on #1C1C1C ✓
+- Healthy: #66BB6A (lightened green) — contrast 4.8:1 on #1C1C1C ✓ (AA)
+- Text: #FFFFFF (white) — contrast 19:1 on #1C1C1C ✓ (AAA)
+
+Use [WebAIM contrast checker](https://webaim.org/resources/contrastchecker/) to verify.
+
+**Testing You Must Do**:
+- Load panel in light mode, verify light colors
+- Load panel in dark mode, verify dark colors
+- Toggle HA theme while panel is open, verify smooth transition (no flashing)
+- Use contrast checker, verify all colors meet WCAG AA (4.5:1)
+- Mobile: Load on iPhone 12 in dark mode, verify readable
+
+---
+
+## Story 5: Deployment & Infrastructure
+
+### 5.1 Idempotent Deployment Script
+
+**Update**: `deploy.sh` (or similar)
+
+Make script safe to run multiple times:
+
+```bash
+#!/bin/bash
+set -e
+
+# Step 1: Validate .env variables
+if [ -z "$HASS_URL" ] || [ -z "$HASS_TOKEN" ]; then
+  echo "ERROR: Missing required .env variables"
+  echo "Required: HASS_URL, HASS_TOKEN"
+  exit 1
+fi
+
+# Step 2: Copy files (idempotent)
+mkdir -p releases/$(date +%s)
+rsync -av --delete ./src/ releases/$(date +%s)/
+
+# Step 3: Create symlink (safe to re-run)
+ln -sfn releases/$(date +%s) current
+
+# Step 4: Health check
+curl -f http://$HASS_URL/api/vulcan_brownout/health || exit 1
+
+# Step 5: Rollback if needed
+if [ $? -ne 0 ]; then
+  ln -sfn releases/previous current
+  echo "Rollback completed"
+  exit 1
+fi
+
+echo "Deployment successful"
+```
+
+### 5.2 Health Check Endpoint
+
+**Create New File**: `/development/src/custom_components/vulcan_brownout/health.py`
+
+Or add to `websocket_api.py`:
+
+```python
+async def health_check(hass):
+    """Health check for deployment validation."""
+    return {
+        'status': 'healthy',
+        'integration': 'vulcan_brownout',
+        'websocket_ready': True,
+        'battery_entities': len(battery_monitor.get_battery_entities()),
+        'notifications_ready': notification_manager is not None,
+        'timestamp': datetime.now().isoformat()
+    }
+```
+
+Register as HTTP GET endpoint:
+```python
+app.router.get('/api/vulcan_brownout/health', health_check)
+```
+
+### 5.3 Testing Deployment
+
+Test script 3+ times:
+
+```bash
+# Run 1
+./deploy.sh
+# Verify success
+
+# Run 2 (same version)
+./deploy.sh
+# Verify idempotent (no errors)
+
+# Run 3
+./deploy.sh
+# Verify idempotent (no errors)
+
+# Simulate failure
+# Modify health check to fail
+./deploy.sh
+# Verify rollback triggered
+# Verify previous version active
+```
+
+**Testing You Must Do**:
+- Run deploy script 3x in a row, verify all succeed with no errors
+- Deploy with missing .env variable, verify clear error message
+- Simulate health check failure, verify rollback triggered
+- Check git history: `git log -p -- .env` — should show nothing
+- Monitor HA logs post-deploy, check for errors
+
+---
+
+## Common Patterns in the Codebase
+
+### WebSocket Command Handler Pattern
+
+```python
+async def handle_command_name(hass, connection, msg):
+    """Handle vulcan-brownout/command_name command."""
+    try:
+        # Validate input
+        data = msg['data']
+        if 'required_field' not in data:
+            raise ValueError("Missing required_field")
+
+        # Process
+        result = await do_something(data)
+
+        # Send response
+        connection.send_message(
+            websocket_api.result_message(msg['id'], {
+                'status': 'success',
+                'data': result
+            })
+        )
+    except Exception as e:
+        _LOGGER.error(f"Error: {e}")
+        connection.send_message(
+            websocket_api.error_message(msg['id'], 'invalid_request', str(e))
+        )
+```
+
+### Lit Component Pattern (Frontend)
+
+```javascript
+class VulcanBrownoutPanel extends LitElement {
+  @property() hass;
+  @state() battery_devices = [];
+  @state() is_loading = false;
+
+  async connectedCallback() {
+    super.connectedCallback();
+    await this.load_devices();
+    this.subscribe_to_updates();
+  }
+
+  async load_devices() {
+    this.is_loading = true;
+    const response = await this.hass.callWS({
+      type: 'vulcan-brownout/query_devices',
+      data: { limit: 50, cursor: null }
+    });
+    this.battery_devices = response.devices;
+    this.is_loading = false;
+  }
+
+  render() {
+    return html`
+      <div class="battery-panel">
+        ${this.is_loading ? html`<div class="loading">Loading...</div>` : ''}
+        ${this.battery_devices.map(device => html`
+          <div class="battery-card">
+            ${device.device_name}: ${device.battery_level}%
+          </div>
+        `)}
+      </div>
+    `;
+  }
+}
+
+customElements.define('vulcan-brownout-panel', VulcanBrownoutPanel);
+```
+
+---
+
+## Code Review Criteria (for you to self-check before submitting PR)
 
 ### Python (Backend)
-
 - [ ] Type hints on all functions
 - [ ] Docstrings (what, args, returns, raises)
 - [ ] Error handling (try/except, log errors)
 - [ ] No blocking calls (all async)
 - [ ] HA logging: `_LOGGER.info()`, `.error()`, `.debug()`
-- [ ] Avoid print() statements (use logging)
-- [ ] Edge cases handled (None values, empty lists, etc.)
-- [ ] Performance considered (no N+1, no unnecessary loops)
+- [ ] Edge cases handled (None values, empty lists, invalid cursors)
+- [ ] Performance considered (no N+1 queries, efficient filtering)
 
 ### JavaScript (Frontend)
-
-- [ ] Lit conventions (properties, state, render, styles)
+- [ ] Lit conventions (properties, @state, render, styles)
 - [ ] No manual DOM manipulation (let Lit handle it)
 - [ ] Error handling (try/catch on promises)
 - [ ] Clean up subscriptions (disconnectedCallback)
-- [ ] CSS custom properties (for theming)
-- [ ] Performance considered (no re-renders on every keystroke)
+- [ ] CSS custom properties (for theming, no hardcoded colors)
+- [ ] Performance (no re-renders on every keystroke, debounce events)
 - [ ] Accessibility (ARIA labels, semantic HTML)
-- [ ] No console.log() in production code (use hass.notification)
 
 ### Testing
-
 - [ ] Unit tests: > 80% code coverage
 - [ ] Integration tests: Real HA instance
 - [ ] E2E tests: Full user flows
-- [ ] No skipped tests (x, skip, pending)
-- [ ] Tests are readable (good names, comments)
-- [ ] Tests pass locally and in CI
+- [ ] No console errors/warnings
+- [ ] Performance targets met
 
 ### Git
-
 - [ ] Commits are atomic (one logical change per commit)
-- [ ] Commit messages are descriptive
-- [ ] No merge commits (rebase before merge)
-- [ ] No large binary files
-- [ ] No secrets (API keys, tokens) committed
+- [ ] Commit messages descriptive (use story number + what changed)
+- [ ] No secrets in git history (`git log -p | grep -i password` returns nothing)
+- [ ] PR description includes acceptance criteria checklist
 
 ---
 
 ## Tools & Resources
 
 ### Home Assistant Development
-
 - **Dev Docs**: https://developers.home-assistant.io/
-- **Integration Template**: https://github.com/home-assistant/example_custom_component
 - **WebSocket API**: https://developers.home-assistant.io/docs/api/websocket/
 - **Test HA Instance**: Pre-provisioned at `ha.test.local:8123`
 
-### Frontend
-
-- **Lit Documentation**: https://lit.dev/
+### Frontend (Lit)
+- **Lit Docs**: https://lit.dev/
 - **HA Components**: https://github.com/home-assistant/frontend
-- **Lit Best Practices**: https://lit.dev/docs/composition/lifecycle/
 
 ### Debugging
-
-- **Chrome DevTools**: F12 (WebSocket inspector, console, performance)
-- **HA Dev Tools**: Services, States, Events (at `/dev-tools`)
-- **Logging**: Backend: `_LOGGER.debug()`, Frontend: `console.log()` (will be removed)
+- **Chrome DevTools**: F12 (Network, Console, Performance tabs)
+- **HA Dev Tools**: /dev-tools in HA UI
+- **Logging**: `_LOGGER.debug()` (Python), console.log() (JS, remove before merge)
 
 ---
 
 ## Critical Success Factors
 
-1. **Communication**: Ask questions early. Flag blockers immediately.
-2. **Testing**: Don't skip tests. QA will find bugs you should have caught.
-3. **Performance**: Real-time must feel real. < 500ms latency is critical.
-4. **Accessibility**: Test on real devices (mobile). Lighthouse ≥ 90.
-5. **Code Review**: Iterate with feedback. Don't defend, improve.
-6. **Documentation**: Write comments for "why", not "what". Code should be self-documenting for "what".
+1. **Read the Architecture Docs First** — Don't just code. Understand the design.
+2. **Test Thoroughly** — Don't skip tests. QA will find bugs you missed.
+3. **Performance Matters** — Real-time updates must feel real (< 500ms latency).
+4. **Accessibility is Non-Negotiable** — Dark mode, WCAG AA contrast, keyboard navigation.
+5. **No Secrets in Git** — Review git history before pushing.
+6. **Ask Early** — Blockers are your problem to solve, not Architect's.
 
 ---
 
-## Common Pitfalls to Avoid
+## Timeline
 
-1. **Polling Instead of Push**: Don't add periodic updates. Listen to events.
-2. **Hardcoded Colors**: Use `var(--error-color)`. Dark/light mode will break.
-3. **Blocking Calls**: No `requests.get()`. Use async/await.
-4. **State Mutation**: Don't modify `hass.states` directly.
-5. **Unhandled Promises**: Every promise should have .catch().
-6. **No Error Handling**: Every async call needs try/catch.
-7. **Skipped Tests**: Tests aren't optional. They're part of "done".
-8. **localStorage Issues**: Handle full/unavailable gracefully.
+- **Mon-Wed Week 1**: Stories 1-2 (filtering + pagination)
+- **Wed-Fri Week 1**: Stories 2-3 start (pagination ends, notifications begin)
+- **Mon-Tue Week 2**: Story 3 finishes (notifications complete)
+- **Wed-Fri Week 2**: Stories 4-5 (dark mode + deployment)
+- **Friday EOD**: All stories shipped, tested, merged to `develop`
 
----
-
-## Questions? Ask Early
-
-**Before you start**:
-- Read all architecture docs (system-design.md, ADRs)
-- Ask if anything is unclear
-
-**During development**:
-- Ask if you hit a blocker
-- Ask if you disagree with an ADR decision
-- Ask for code review early (don't wait until "done")
-
-**After features**:
-- Ask QA if acceptance unclear
-- Ask Architect if design decision conflicts
-
----
-
-## Timeline Pressure
-
-Sprint ends Friday, March 7th. No extensions.
-
-**Critical Path**:
-- Story 1 (Real-Time): Days 1-4 (must complete, blockers Story 2)
-- Story 2 (Thresholds): Days 5-9 (depends on Story 1)
-- Story 3 (Sort/Filter): Days 6-8 (independent of Stories 1-2)
-- Story 4 (Mobile): Days 9-10 (polish, all stories must be done)
-- Story 5 (Deployment): Days 9-10 (can happen in parallel)
-
-**If You Get Stuck**:
+If you get stuck on any story:
 1. Try for 30 minutes
-2. Ask for help
-3. Don't waste time struggling alone
+2. Ask for help (don't waste time struggling alone)
+3. Unblock others while architect helps you
 
 ---
 
 ## Final Thoughts
 
-Sprint 2 is ambitious. Five stories in 16 days is tight. But the architecture is solid, the design is clear, and you've got support.
+Sprint 3 is **ambitious but achievable**. You've done 2 sprints. You know the patterns. Trust the process.
 
-**You've built this before** (Sprint 1 was similar scope). You know Home Assistant patterns, you know Lit, you know our CI/CD. Trust the process.
+**The architecture is solid. The design is clear. You've got support.**
 
-**Ship it well. Code it clean. Test it thoroughly.**
+Ship it well. Code it clean. Test it thoroughly.
 
-Good luck. I'm cheering you on.
+I'm cheering you on.
 
 —FiremanDecko (Architect)
 
 ---
 
-## Handoff Checklist
-
-Before you say "done":
-
-- [ ] All 5 stories implemented
-- [ ] All acceptance criteria met
-- [ ] All code reviewed and approved
-- [ ] All tests passing (> 80% coverage)
-- [ ] QA sign-off for all stories
-- [ ] Zero critical bugs
-- [ ] No console errors/warnings
-- [ ] No secrets in git history
-- [ ] Documentation complete (ADRs, API docs, README)
-- [ ] Deployment tested (3+ idempotent runs)
-- [ ] Performance targets met (< 500ms real-time, < 50ms sort/filter)
-- [ ] Mobile & accessibility tested (Lighthouse ≥ 90)
-- [ ] Code on `develop` branch (not `main`)
-
-When all boxes are checked: **You're done.** Great work.
+**Prepared by**: FiremanDecko (Architect)
+**Date**: February 22, 2026
+**Status**: Ready for Implementation
