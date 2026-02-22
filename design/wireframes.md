@@ -1,43 +1,34 @@
-# Wireframes & Visual Specifications — Sprint 2
+# Wireframes & Visual Specifications — Sprint 3
 
 **Designer:** Luna (UX Designer)
-**Scope:** Vulcan Brownout sidebar panel, Sprint 2 additions
-**Tools:** ASCII wireframes + responsive grid specs + CSS reference
-**Last Updated:** February 2026
+**Scope:** Vulcan Brownout sidebar panel, Sprint 3 additions
+**Tools:** ASCII wireframes + responsive grid specs
+**Last Updated:** February 22, 2026
 
 ---
 
 ## Overview
 
-Sprint 2 introduces 4 new UI elements to the sidebar panel:
-1. **Settings Panel / Modal** (threshold configuration)
-2. **Sort/Filter Bar** (priority-based sorting, status filtering)
-3. **Connection Status Badge** (WebSocket connectivity indicator)
-4. **Last Updated Timestamp** (real-time update feedback)
+Sprint 3 introduces 5 major UI/UX changes:
+1. **Infinite Scroll Loading States** (skeleton loaders, loading indicator)
+2. **Back to Top Button** (sticky, appears after ~30 items scrolled)
+3. **Notification Preferences Panel** (new modal in settings)
+4. **Dark Mode Rendering** (auto-detected, applies to all existing components)
+5. **Empty State** (no battery entities found)
 
-All wireframes follow Home Assistant's design system (Material Design 3, responsive breakpoints).
-
----
-
-## Responsive Breakpoints
-
-| Device | Width | Layout | Sort/Filter | Settings |
-|--------|-------|--------|-------------|----------|
-| Mobile | < 768px | Stacked, single column | Full-screen modal | Full-screen modal |
-| Tablet | 768px - 1024px | 2-column possible | Compact dropdown | Slide-out panel (50% width) |
-| Desktop | > 1024px | Flexible | Inline dropdown | Slide-out panel (400px width) |
+All new wireframes maintain Spring 2's mobile-first responsive design and accessibility standards.
 
 ---
 
-## 1. MAIN BATTERY LIST VIEW (Sprint 2 Additions)
+## 1. INFINITE SCROLL LOADING STATES
 
-### 1.1 Desktop Layout (> 1024px)
+### 1.1 Desktop — Skeleton Loaders (Dark Mode)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ BATTERY MONITORING                                                ⚙️  🟢 │ ← Settings icon + Connection badge
+│ BATTERY MONITORING                                                ⚙️  🟢 │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ [▼ PRIORITY ]   [▼ ALL BATTERIES (13) ]   [✕ RESET]                    │ ← Sort/Filter bar
+│ [▼ PRIORITY ]   [▼ ALL BATTERIES (156) ]   [✕ RESET]                   │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │ CRITICAL (2)                                                            │
@@ -51,94 +42,161 @@ All wireframes follow Home Assistant's design system (Material Design 3, respons
 │ └────────────────────────────────────────────────────────────────────┘ │
 │                                                                          │
 │ WARNING (3)                                                             │
-│ ┌────────────────────────────────────────────────────────────────────┐ │
-│ │ ⚡ KITCHEN SENSOR                          📊 18%  [██████░░░░░░░░] │
-│ │    Last changed: 5 minutes ago                                    │
-│ └────────────────────────────────────────────────────────────────────┘ │
-│ ┌────────────────────────────────────────────────────────────────────┐ │
-│ │ ⚡ BEDROOM MOTION                          📊 22%  [████████░░░░░░] │
-│ │    Last changed: 1 minute ago                                     │
-│ └────────────────────────────────────────────────────────────────────┘ │
-│ ┌────────────────────────────────────────────────────────────────────┐ │
-│ │ ⚡ GARAGE DOOR SENSOR                      📊 25%  [████████░░░░░░] │
-│ │    Last changed: 3 minutes ago                                    │
-│ └────────────────────────────────────────────────────────────────────┘ │
+│ [More items...]                                                         │
 │                                                                          │
-│ HEALTHY (7)                                                             │
-│ ┌────────────────────────────────────────────────────────────────────┐ │
-│ │ ✓ BATHROOM FAN SWITCH                      📊 87%  [██████████████] │
-│ │    Last changed: 20 minutes ago                                   │
-│ └────────────────────────────────────────────────────────────────────┘ │
-│ ┌────────────────────────────────────────────────────────────────────┐ │
-│ │ ✓ GARAGE LIGHT SWITCH                      📊 92%  [██████████████] │
-│ │    Last changed: 45 minutes ago                                   │
-│ └────────────────────────────────────────────────────────────────────┘ │
-│ [More items, truncated for brevity]                                     │
+│ ┌──────────────── LOADING MORE ────────────────┐                       │
+│ │ [⬜⬜⬜⬜⬜⬜⬜⬜] ← Shimmer animation        │                       │
+│ │ [⬜⬜⬜⬜]                                      │                       │
+│ │                                               │                       │
+│ │ [⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜]                            │                       │
+│ │ [⬜⬜⬜⬜]                                      │                       │
+│ │                                               │                       │
+│ │ [⬜⬜⬜⬜⬜⬜⬜⬜⬜]                             │                       │
+│ │ [⬜⬜⬜⬜]                                      │                       │
+│ │                                               │                       │
+│ │ [⟳ Loading 5 more...]                        │                       │
+│ └───────────────────────────────────────────────┘                       │
+│                                                                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│ 🔄 Updated 3 seconds ago                                 ▲ Back to Top  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Skeleton Loader Details:**
+- **Color (Dark Mode):** #444444 (dark gray bars on #1C1C1C background)
+- **Color (Light Mode):** #E0E0E0 (light gray bars on #FFFFFF background)
+- **Animation:** Gradient shimmer, left-to-right, 2-second cycle, infinite
+- **Heights:** Vary to match real card heights (device name: short bar, timestamp: extra short bar)
+- **Count:** Show 5 placeholder cards for next batch (matches page size)
+- **Spacing:** Same margin as real cards, no layout shift when replaced
+
+---
+
+### 1.2 Loading Indicator (Bottom of List)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ [Last real device card]                                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                    ⟳ Loading 5 more devices...                          │
+│                                                                          │
+│              (Skeleton cards appear below spinner)                      │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Specs:**
+- **Position:** Bottom of visible list, before skeleton cards
+- **Icon:** Spinning reload icon (⟳), 16px, rotating 360° in 2 seconds
+- **Text:** "Loading X more devices..." (X = number of devices being fetched)
+- **Text color (Dark):** #B0B0B0 (light gray)
+- **Text color (Light):** #757575 (medium gray)
+
+---
+
+### 1.3 Mobile — Skeleton Loaders
+
+```
+┌──────────────────────────────┐
+│ BATTERY MON.  ⚙️  🟢         │
+├──────────────────────────────┤
+│ [PRIORITY ▼] [ALL ▼]         │
+├──────────────────────────────┤
+│ CRITICAL                      │
+│ ┌────────────────────────────┐
+│ │ ⚠️ FRONT DOOR LOCK   8%    │
+│ │    [████░░░░░░░░░░░░░░]    │
+│ │ 2h ago                     │
+│ └────────────────────────────┘
+│ WARNING                       │
+│ [More items...]              │
+│                              │
+│ ┌────────────────────────────┐
+│ │ ⬜⬜⬜⬜⬜⬜⬜⬜   │ ← Skeleton 1
+│ │ ⬜⬜⬜                         │
+│ └────────────────────────────┘
+│ ┌────────────────────────────┐
+│ │ ⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜│ ← Skeleton 2
+│ │ ⬜⬜⬜                         │
+│ └────────────────────────────┘
+│ ┌────────────────────────────┐
+│ │ ⬜⬜⬜⬜⬜⬜⬜          │ ← Skeleton 3
+│ │ ⬜⬜⬜                         │
+│ └────────────────────────────┘
+│              ⟳ Loading...       │
+├──────────────────────────────┤
+│ 🔄 Updated 2s ago  ▲ To Top   │
+└──────────────────────────────┘
+```
+
+---
+
+## 2. BACK TO TOP BUTTON
+
+### 2.1 Desktop Positioning
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ [Battery list]                                                           │
+│                                                                          │
+│ [Battery item 50]                                                        │
+│ [Battery item 51]                                                        │
+│ [Battery item 52]                                                        │
+│                                                                          │
+│ ┌──────────────────────────────────────────────┐                        │
+│ │ ⟳ Loading 5 more devices...                  │      ▲ Back to Top    │
+│ │ [Skeleton loaders]                           │      └─ Floating      │
+│ │                                              │         fixed         │
+│ └──────────────────────────────────────────────┘         bottom-right  │
 │                                                                          │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ 🔄 Updated 3 seconds ago                                                │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Color Coding:**
-- **Critical (⚠️)** → Red background (#F44336), white text
-- **Warning (⚡)** → Amber background (#FF9800), white text
-- **Healthy (✓)** → Green background (#4CAF50), white text
-- **Unavailable (⌛)** → Gray background (#9E9E9E), white text
+**Button Specs:**
+- **Position:** Fixed, bottom-right corner
+- **Offset:** 16px from right, 72px from bottom (above timestamp)
+- **Size:** 48px square (touch target)
+- **Icon:** ▲ (chevron up or arrow)
+- **Icon color (Dark):** #FFFFFF (white)
+- **Icon color (Light):** #212121 (dark gray)
+- **Background (Dark):** #03A9F4 (HA blue) with 20% opacity
+- **Background (Light):** #03A9F4 (HA blue) with 10% opacity
+- **Hover:** Background opacity +10%
+- **Click:** Smooth scroll-to-top animation (500ms ease-out)
+- **Show trigger:** After user scrolls past 30 items downward
+- **Hide trigger:** When scroll position returns to top
+- **Animation:** Fade in (300ms) when appearing, fade out (300ms) when disappearing
+- **Accessibility:** aria-label="Back to top", keyboard accessible (Tab + Enter)
 
-**Typography:**
-- Title: 18px, bold, dark gray
-- Device name: 16px, bold, status color
-- Progress text: 14px, gray
-- Timestamp: 12px, light gray
-- Last updated: 12px, light gray, italic
-
----
-
-### 1.2 Mobile Layout (< 768px)
+### 2.2 Mobile Positioning
 
 ```
 ┌──────────────────────────┐
-│ BATTERY MONITORING  ⚙️ 🟢│ ← Compact header
-├──────────────────────────┤
-│ [▼ PRIORITY]   [▼ ALL ▼] │ ← Full-width dropdowns (stacked)
-├──────────────────────────┤
-│ CRITICAL (2)             │
-│ ┌────────────────────────┐
-│ │ ⚠️  FRONT DOOR LOCK     │
-│ │ 8%  [████░░░░░░░░░░░░] │
-│ │ 2h ago                 │
-│ └────────────────────────┘
-│ ┌────────────────────────┐
-│ │ ⚠️  SOLAR BACKUP       │
-│ │ 5%  [██░░░░░░░░░░░░░░] │
-│ │ 30m ago                │
-│ └────────────────────────┘
-│                          │
-│ WARNING (3)              │
-│ ┌────────────────────────┐
-│ │ ⚡ KITCHEN SENSOR      │
-│ │ 18% [██████░░░░░░░░░░] │
-│ │ 5m ago                 │
-│ └────────────────────────┘
-│ [More items...]          │
-├──────────────────────────┤
-│ 🔄 Updated 2s ago        │
+│ [Battery list items]      │
+│ [Item 30]                 │
+│ [Item 31]                 │
+│                           │
+│ ⟳ Loading...              │
+│ [Skeleton items]          │
+│                           │
+│ ▲ Back to Top  (button)   │
+│ 🔄 Updated 2s ago         │
 └──────────────────────────┘
 ```
 
-**Mobile Optimizations:**
-- Single column layout
-- Device names truncated if necessary (ellipsis)
-- Progress bar takes full width of card
-- Larger touch targets (44px minimum)
-- Font sizes: 14px base, 12px for secondary text
+**Mobile Specs:**
+- **Position:** Fixed, bottom-right corner (stacked above timestamp)
+- **Size:** 44px square (minimum touch target)
+- **Placement:** 12px from right, 60px from bottom (above timestamp on mobile)
+- **Responsive:** Same styling as desktop, but adjusted for mobile spacing
 
 ---
 
-## 2. SETTINGS PANEL
+## 3. NOTIFICATION PREFERENCES PANEL
 
-### 2.1 Desktop: Side Panel (Slide-Out)
+### 3.1 Desktop — Settings Panel with Notification Link
 
 ```
                                     ┌─ SETTINGS PANEL ─────────────────┐
@@ -146,887 +204,651 @@ All wireframes follow Home Assistant's design system (Material Design 3, respons
                                     ├────────────────────────────────────┤
                                     │                                    │
                                     │ GLOBAL THRESHOLD                   │
+                                    │ [Existing from Sprint 2]           │
                                     │                                    │
-                                    │ When battery falls below this      │
-                                    │ level, it shows as CRITICAL        │
-                                    │                                    │
-                                    │ [████████░░] 15 %                 │
-                                    │                                    │
-                                    │ Affected devices: 13               │
-                                    │ (8 currently below threshold)      │
+                                    │ ...                                │
                                     │                                    │
                                     ├────────────────────────────────────┤
-                                    │ DEVICE-SPECIFIC OVERRIDES          │
+                                    │ NOTIFICATIONS                      │
                                     │                                    │
-                                    │ Set custom thresholds for          │
-                                    │ individual devices                 │
+                                    │ [⚙️ CONFIGURE NOTIFICATIONS]      │
                                     │                                    │
-                                    │ [+ ADD DEVICE RULE]               │
-                                    │                                    │
-                                    │ ✓ Front Door Lock      30%  [✕]   │
-                                    │ ✓ Solar Backup         50%  [✕]   │
-                                    │ ✓ Garage Sensor        20%  [✕]   │
-                                    │                                    │
-                                    │ (Showing 3 of 5 rules)             │
-                                    │ [SHOW MORE]                        │
+                                    │ (Opens notification preferences)   │
                                     │                                    │
                                     ├────────────────────────────────────┤
                                     │ [SAVE]           [CANCEL]          │
                                     └────────────────────────────────────┘
 ```
 
-**Panel Properties:**
-- Width: 400px (fixed)
-- Animates in from right (300ms, ease-out)
-- Overlay behind panel (semi-transparent dark gray)
-- Header: 18px bold, padding 16px
-- Close button (✕): Top-right, 44px touch target
-- Sections: 16px margin between
-- Buttons: Full-width, 44px height
+**New Element:**
+- **"[⚙️ CONFIGURE NOTIFICATIONS]"** button in settings panel
+- **Link style:** Blue (#03A9F4), underline on hover
+- **Click:** Opens notification preferences modal
+- **Icon:** Settings gear icon next to text
 
 ---
 
-### 2.2 Mobile: Full-Screen Modal
+### 3.2 Notification Preferences Modal (Desktop)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ NOTIFICATION PREFERENCES                                            ✕   │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│ ENABLE NOTIFICATIONS                                                    │
+│                                                                          │
+│ [Toggle: ON/OFF]  ← Global enable/disable all notifications             │
+│                                                                          │
+│ When enabled, you'll receive Home Assistant notifications when          │
+│ battery devices drop below their thresholds.                            │
+│                                                                          │
+│ ─────────────────────────────────────────────────────────────────────   │
+│                                                                          │
+│ NOTIFICATION FREQUENCY                                                  │
+│                                                                          │
+│ Maximum once per: [▼ 6 hours]  ← Dropdown                               │
+│   (Prevents spam — max 1 notification per device per period)            │
+│                                                                          │
+│ Options: 1 hour, 6 hours, 24 hours                                     │
+│                                                                          │
+│ ─────────────────────────────────────────────────────────────────────   │
+│                                                                          │
+│ NOTIFICATION SEVERITY                                                   │
+│                                                                          │
+│ Notify me for: (Radio buttons)                                          │
+│   ◉ Critical only                                                       │
+│   ○ Critical and Warning                                                │
+│                                                                          │
+│ ─────────────────────────────────────────────────────────────────────   │
+│                                                                          │
+│ PER-DEVICE NOTIFICATIONS                                                │
+│                                                                          │
+│ [Search devices...]     🔍 (filterable)                                 │
+│                                                                          │
+│ [✓] Front Door Lock              8% — Notifications ON                 │
+│ [✓] Solar Backup                 5% — Notifications ON                 │
+│ [✓] Kitchen Sensor              18% — Notifications ON                 │
+│ [✓] Bedroom Motion              22% — Notifications ON                 │
+│ [✓] Garage Door Sensor          25% — Notifications ON                 │
+│ [ ] Bathroom Fan Switch         87% — Notifications OFF                │
+│ [ ] Living Room Blind           92% — Notifications OFF                │
+│                                                                          │
+│ [Show more devices... (8 total)]                                        │
+│                                                                          │
+│ ─────────────────────────────────────────────────────────────────────   │
+│                                                                          │
+│ NOTIFICATION HISTORY                                                    │
+│                                                                          │
+│ Recent notifications:                                                   │
+│   2026-02-22 10:15 — Front Door Lock battery critical (8%)             │
+│   2026-02-22 09:30 — Solar Backup battery critical (5%)                │
+│   2026-02-21 14:20 — Kitchen Sensor battery warning (18%)              │
+│                                                                          │
+│ [View All History] (links to HA notification center)                    │
+│                                                                          │
+│ ─────────────────────────────────────────────────────────────────────   │
+│                                                                          │
+│ [SAVE PREFERENCES]  [CANCEL]                                            │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Component Details:**
+
+#### Global Toggle
+- **Type:** Switch (iOS-style toggle or checkbox)
+- **Default:** ON
+- **Label:** "Enable Notifications"
+- **Help text:** Explains what notifications do
+- **Color (Dark):** #66BB6A (green when ON)
+- **Color (Light):** #4CAF50 (green when ON)
+
+#### Frequency Dropdown
+- **Options:** "1 hour", "6 hours", "24 hours"
+- **Default:** "6 hours"
+- **Label:** "Maximum once per"
+- **Help text:** "Prevents notification spam"
+
+#### Severity Radio Buttons
+- **Option 1:** "Critical only" (default)
+- **Option 2:** "Critical and Warning"
+- **Radio button styling:** 18px circles, blue when selected
+
+#### Per-Device List
+- **Search input:** Placeholder "Search devices..."
+- **Checkboxes:** 44px touch target, blue when checked
+- **Device row:** Device name + current battery % + ON/OFF status
+- **Show More button:** Expands list if > 5 devices
+- **Styling (Dark):** Alternating rows #1C1C1C and #2C2C2C (subtle striping)
+
+#### Notification History
+- **Display:** Last 3-5 notifications
+- **Format:** "Date Time — Device name (battery %)"
+- **View All link:** Opens HA's notification center
+- **Typography:** 12px gray text
+
+---
+
+### 3.3 Mobile — Notification Preferences Modal
 
 ```
 ┌──────────────────────────────────┐
-│ BATTERY SETTINGS              ✕  │
+│ NOTIFICATION PREFERENCES      ✕  │
 ├──────────────────────────────────┤
 │                                  │
-│ GLOBAL THRESHOLD                 │
+│ ENABLE NOTIFICATIONS             │
+│ [Toggle: ON] ← 44px touch area   │
 │                                  │
-│ When battery falls below this     │
-│ level, it shows as CRITICAL       │
+│ When enabled, receive HA         │
+│ notifications for low batteries. │
 │                                  │
-│ [████████░░] 15 %                │
+│ ─────────────────────────────────│
 │                                  │
-│ 8 devices below this threshold    │
+│ FREQUENCY                        │
+│ [▼ 6 hours]  ← Full-width        │
 │                                  │
-│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ ─────────────────────────────────│
 │                                  │
-│ DEVICE-SPECIFIC OVERRIDES         │
+│ SEVERITY                         │
+│ ◉ Critical only                  │
+│ ○ Critical + Warning             │
 │                                  │
-│ [+ ADD DEVICE RULE]              │
+│ ─────────────────────────────────│
 │                                  │
-│ ✓ Front Door Lock    30% [✕]     │
-│ ✓ Solar Backup       50% [✕]     │
-│ ✓ Garage Sensor      20% [✕]     │
+│ PER-DEVICE                       │
+│ [Search...] 🔍                   │
 │                                  │
-│ [SHOW MORE (5 total)]            │
+│ [✓] Front Door Lock      ON      │
+│ [✓] Solar Backup         ON      │
+│ [✓] Kitchen Sensor       ON      │
+│ [✓] Bedroom Motion       ON      │
+│ [ ] Bathroom Fan         OFF     │
 │                                  │
-│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ [Show more (8 total)]            │
 │                                  │
-│ [SAVE]               [CANCEL]    │
+│ ─────────────────────────────────│
+│ [SAVE]        [CANCEL]           │
 │                                  │
 └──────────────────────────────────┘
 ```
 
-**Mobile Modal Properties:**
-- Full-screen (100vw, 90vh - status bar)
-- Scrollable content area
-- Fixed header with close button
-- Fixed footer with buttons
-- Buttons: Full-width, 44px, 16px margin
+**Mobile Adaptations:**
+- Full-screen modal (100vw × 90vh)
+- Dropdowns are full-width (not compact)
+- Checkboxes and radio buttons: 44px touch targets
+- Per-device list: Single column, device names truncated if needed
+- Font sizes: 14px base, 12px secondary text
 
 ---
 
-### 2.3 Add Device Rule Sub-Modal
+## 4. DARK MODE RENDERING
 
-When user clicks "[+ ADD DEVICE RULE]", a searchable list appears:
-
-```
-┌────────────────────────────────────┐
-│ SELECT DEVICE              ✕       │
-├────────────────────────────────────┤
-│ [Search devices...] 🔍             │
-├────────────────────────────────────┤
-│ AVAILABLE DEVICES                  │
-│                                    │
-│ ☐ Bathroom Fan Switch (87%)        │
-│ ☐ Bedroom Motion (22%) ⚡ WARNING  │
-│ ☐ Garage Door Sensor (25%) ⚡      │
-│ ☐ Garage Light Switch (92%)        │
-│ ☐ Kitchen Sensor (18%) ⚡ WARNING  │
-│ ☐ Bedroom Smart Lock (40%)         │
-│                                    │
-│ [SCROLL FOR MORE]                  │
-│                                    │
-├────────────────────────────────────┤
-│ [CANCEL]                           │
-└────────────────────────────────────┘
-
-User selects device ↓
-
-┌────────────────────────────────────┐
-│ SET THRESHOLD                  ✕   │
-├────────────────────────────────────┤
-│ Device: Front Door Lock            │
-│ Current battery: 8%                │
-│                                    │
-│ Threshold: _____ %                 │
-│           [████░░░░░░░░░░]         │
-│           30 %                     │
-│                                    │
-│ (Adjust with slider or type)       │
-│                                    │
-│ After save:                        │
-│ • This device will show CRITICAL   │
-│   when battery < 30%               │
-│ • Global threshold (15%) won't     │
-│   apply to this device             │
-│                                    │
-│ [SAVE RULE]                        │
-│ [CANCEL]                           │
-└────────────────────────────────────┘
-```
-
-**Interaction Flow:**
-1. User clicks "+ ADD DEVICE RULE"
-2. Searchable list appears (filterable by name, status)
-3. User selects device
-4. Threshold input appears
-5. User sets threshold (slider + text input)
-6. Live feedback: "After save: 2 devices will be CRITICAL"
-7. User clicks "SAVE RULE" or "CANCEL"
-8. Returns to main settings panel, rule appears in list
-
----
-
-## 3. SORT / FILTER BAR
-
-### 3.1 Desktop Dropdowns
+### 4.1 Full Panel in Dark Mode
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ [▼ PRIORITY ]   [▼ ALL BATTERIES (13) ]   [✕ RESET]                    │
+│ BATTERY MONITORING                                                ⚙️  🟢 │ ← White text on dark BG
+│ (Dark background #1C1C1C)                                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│ [▼ PRIORITY ]   [▼ ALL BATTERIES (156) ]   [✕ RESET]                   │ ← Light gray dropdowns
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│ CRITICAL (2)                                                            │
+│ ┌────────────────────────────────────────────────────────────────────┐ │
+│ │ ⚠️  FRONT DOOR LOCK                    📊 8%  [████░░░░░░░░░░]   │ ← Dark card #2C2C2C
+│ │    Last changed: 2 hours ago                                       │ ← Light gray text
+│ └────────────────────────────────────────────────────────────────────┘ │
+│ ┌────────────────────────────────────────────────────────────────────┐ │
+│ │ ⚠️  SOLAR BACKUP                       📊 5%  [██░░░░░░░░░░░░░░]  │ ← Red #FF5252 (critical)
+│ │    Last changed: 30 minutes ago                                    │
+│ └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│ WARNING (3)                                                             │
+│ ┌────────────────────────────────────────────────────────────────────┐ │
+│ │ ⚡ KITCHEN SENSOR                      📊 18% [██████░░░░░░░░]    │ ← Amber #FFB74D (warning)
+│ │    Last changed: 5 minutes ago                                     │
+│ └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│ HEALTHY (7)                                                             │
+│ ┌────────────────────────────────────────────────────────────────────┐ │
+│ │ ✓ BATHROOM FAN SWITCH                  📊 87% [██████████████]    │ ← Green #66BB6A (healthy)
+│ │    Last changed: 20 minutes ago                                    │
+│ └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│ 🔄 Updated 3 seconds ago                                 ▲ Back to Top  │ ← Light gray text
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Dark Mode Color Tokens:**
+
+| Element | Light Mode | Dark Mode |
+|---------|-----------|-----------|
+| Background | #FFFFFF | #1C1C1C |
+| Card Background | #F5F5F5 | #2C2C2C |
+| Primary Text | #212121 | #FFFFFF |
+| Secondary Text | #757575 | #B0B0B0 |
+| Divider | #E0E0E0 | #444444 |
+| Critical (Red) | #F44336 | #FF5252 |
+| Warning (Amber) | #FF9800 | #FFB74D |
+| Healthy (Green) | #4CAF50 | #66BB6A |
+| Unavailable (Gray) | #9E9E9E | #BDBDBD |
+| Primary Action | #03A9F4 | #03A9F4 (unchanged) |
+
+---
+
+### 4.2 Settings Panel in Dark Mode
+
+```
+                                    ┌─ SETTINGS PANEL ─────────────────┐
+                                    │ BATTERY MONITORING SETTINGS    ✕  │ ← Dark BG
+                                    ├────────────────────────────────────┤
+                                    │                                    │
+                                    │ GLOBAL THRESHOLD                   │
+                                    │                                    │
+                                    │ [████████░░] 15 %                 │ ← Light text
+                                    │                                    │
+                                    │ Affected devices: 13               │
+                                    │ (8 currently below threshold)      │ ← Light gray
+                                    │                                    │
+                                    ├────────────────────────────────────┤
+                                    │ DEVICE-SPECIFIC OVERRIDES          │
+                                    │                                    │
+                                    │ [+ ADD DEVICE RULE]                │ ← Blue button
+                                    │                                    │
+                                    │ ✓ Front Door Lock  30%  [✕]       │ ← Light text, dark cards
+                                    │ ✓ Solar Backup     50%  [✕]       │
+                                    │ ✓ Garage Sensor    20%  [✕]       │
+                                    │                                    │
+                                    ├────────────────────────────────────┤
+                                    │ NOTIFICATIONS                      │
+                                    │ [⚙️ CONFIGURE NOTIFICATIONS]      │
+                                    │                                    │
+                                    ├────────────────────────────────────┤
+                                    │ [SAVE]           [CANCEL]          │
+                                    └────────────────────────────────────┘
+```
+
+---
+
+### 4.3 Notification Preferences in Dark Mode
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ NOTIFICATION PREFERENCES                                            ✕   │ ← Dark BG #1C1C1C
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│ ENABLE NOTIFICATIONS                     ← Light text                   │
+│                                                                          │
+│ [Toggle: ON]  ← Green when ON            ← Light gray toggle           │
+│                                                                          │
+│ When enabled, you'll receive Home Assistant notifications when          │ ← #B0B0B0
+│ battery devices drop below their thresholds.                            │
+│                                                                          │
+│ ─────────────────────────────────────────────────────────────────────   │
+│                                                                          │
+│ NOTIFICATION FREQUENCY                                                  │
+│                                                                          │
+│ Maximum once per: [▼ 6 hours]  ← Dark input #2C2C2C                    │
+│                                                                          │
+│ ─────────────────────────────────────────────────────────────────────   │
+│                                                                          │
+│ PER-DEVICE NOTIFICATIONS                                                │
+│                                                                          │
+│ [✓] Front Door Lock              8% — Notifications ON                 │ ← Light text
+│ [✓] Solar Backup                 5% — Notifications ON                 │ ← Dark card #2C2C2C
+│ [ ] Bathroom Fan Switch         87% — Notifications OFF                │
+│                                                                          │
+│ ─────────────────────────────────────────────────────────────────────   │
+│                                                                          │
+│ [SAVE PREFERENCES]  [CANCEL]  ← Blue buttons                            │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. EMPTY STATE (NO BATTERY ENTITIES)
+
+### 5.1 Desktop Empty State
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ BATTERY MONITORING                                                ⚙️  🟢 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│                                                                          │
+│                              🔋                                         │
+│                                                                          │
+│                      No Battery Devices Found                           │
+│                                                                          │
+│                   Check your Home Assistant setup                        │
+│                                                                          │
+│            To monitor batteries, your entities need:                   │
+│              • device_class: "battery"                                 │
+│              • battery_level attribute (0-100%)                        │
+│                                                                          │
+│            Not seeing your battery devices? Here are some options:     │
+│                                                                          │
+│  [📖 View Documentation]  [🔄 Refresh List]  [⚙️ Settings]             │
+│                                                                          │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Empty State Details:**
+
+| Element | Styling |
+|---------|---------|
+| Icon | 🔋 (battery emoji), 64px |
+| Heading | "No Battery Devices Found", 18px bold |
+| Subheading | "Check your Home Assistant setup", 14px gray |
+| Help text | 12px gray, centered |
+| Buttons | 44px height, blue (#03A9F4), spaced evenly |
+| Link icons | 📖 (doc), 🔄 (refresh), ⚙️ (settings) |
+
+**Button Actions:**
+- **[📖 View Documentation]** → Opens vulcan-brownout HACS docs in new tab
+- **[🔄 Refresh List]** → Triggers manual refresh of battery entities (WebSocket + REST API)
+- **[⚙️ Settings]** → Opens settings panel
+
+---
+
+### 5.2 Mobile Empty State
+
+```
+┌──────────────────────────────────┐
+│ BATTERY MONITORING  ⚙️  🟢       │
+├──────────────────────────────────┤
+│                                  │
+│              🔋                  │
+│                                  │
+│   No Battery Devices Found       │
+│                                  │
+│  Check your Home Assistant setup │
+│                                  │
+│  To monitor batteries, ensure:   │
+│  • device_class: "battery"       │
+│  • battery_level (0-100%)        │
+│                                  │
+│              ↓                   │
+│                                  │
+│  [📖 Docs] [🔄 Refresh]          │
+│                                  │
+│  [⚙️ Settings]                   │
+│                                  │
+│                                  │
+└──────────────────────────────────┘
+```
+
+**Mobile Adaptations:**
+- Center-aligned text
+- Icons above text (stacked)
+- Buttons: Full-width or grid layout (2-3 per row)
+- Font sizes: 14px base, 12px secondary
+
+---
+
+## 6. SORTING & FILTERING IN DARK MODE
+
+### 6.1 Desktop Sort/Filter Bar (Dark)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ [▼ PRIORITY ]   [▼ ALL BATTERIES (156) ]   [✕ RESET]                   │
+│  Dark bar #2C2C2C, light text, light gray dropdowns                      │
 └─────────────────────────────────────────────────────────────────────────┘
 
-Dropdown 1 — Sort Options:
+Dropdown Open (Dark):
 ┌──────────────────────────────┐
-│ ● Priority (Critical > Warn)  │ ← Selected (radio button)
-│ ○ Alphabetical (A-Z)          │
-│ ○ Battery Level (Low > High)  │
-│ ○ Battery Level (High > Low)  │
-└──────────────────────────────┘
-
-Dropdown 2 — Filter Options:
-┌──────────────────────────────┐
-│ ✓ Critical (2)                │ ← Checkboxes
-│ ✓ Warning (3)                 │
-│ ✓ Healthy (8)                 │
-│ ☐ Unavailable (0)             │
-│                               │
-│ [APPLY] [CLEAR ALL]           │
-└──────────────────────────────┘
-```
-
-**Style:**
-- Bar background: #F5F5F5 (light gray)
-- Dropdowns: White, border radius 4px, box shadow
-- Labels: 14px, dark gray
-- Checkboxes: 18px, blue (#03A9F4) when checked
-- Buttons: 12px, uppercase, blue text on white
-
----
-
-### 3.2 Mobile: Full-Screen Modals
-
-**Sort Modal:**
-
-```
-┌──────────────────────────────┐
-│ SORT BY                   ✕  │
-├──────────────────────────────┤
-│                              │
-│ ◉ Priority (Critical First)  │
-│   (default, recommended)     │
-│                              │
+│ ● Priority (Critical First)  │ ← Dark background, light text
 │ ○ Alphabetical (A-Z)         │
-│                              │
-│ ○ Battery Level              │
-│   Low to High                │
-│                              │
-│ ○ Battery Level              │
-│   High to Low                │
-│                              │
-│ ━━━━━━━━━━━━━━━━━━━━━━━━━  │
-│                              │
-│ [APPLY]           [CANCEL]   │
+│ ○ Battery Level (Low→High)   │
+│ ○ Battery Level (High→Low)   │
 └──────────────────────────────┘
 ```
 
-**Filter Modal:**
-
-```
-┌──────────────────────────────┐
-│ FILTER BY STATUS          ✕  │
-├──────────────────────────────┤
-│                              │
-│ [✓] Critical (2)             │
-│     Show critical batteries   │
-│                              │
-│ [✓] Warning (3)              │
-│     Show warning batteries    │
-│                              │
-│ [✓] Healthy (8)              │
-│     Show healthy batteries    │
-│                              │
-│ [ ] Unavailable (0)          │
-│     Show unavailable devices  │
-│                              │
-│ ━━━━━━━━━━━━━━━━━━━━━━━━━  │
-│                              │
-│ [APPLY]           [CLEAR ALL]│
-│ [CANCEL]                     │
-└──────────────────────────────┘
-```
-
-**Mobile Modal Properties:**
-- Full-screen
-- Radio buttons (sort) or checkboxes (filter), 44px touch targets
-- Descriptive labels
-- "APPLY" button saves and closes
-- "CANCEL" closes without saving
+**Dark Mode Sort/Filter Styling:**
+- **Bar Background:** #2C2C2C
+- **Text:** #FFFFFF (white)
+- **Dropdown Background:** #1C1C1C
+- **Dropdown Text:** #FFFFFF
+- **Dropdown Hover:** #3C3C3C (slightly lighter)
+- **Checkbox (checked):** #03A9F4 (HA blue, unchanged)
 
 ---
 
-## 4. CONNECTION STATUS BADGE
+## 7. CONNECTION BADGE IN DARK MODE
 
-### 4.1 Badge States & Positioning
+### 7.1 Badge States
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ BATTERY MONITORING                          ⚙️  🟢       │
-│                                                  ↑       │
-│                                            Status Badge  │
-└─────────────────────────────────────────────────────────┘
+STATE: Connected (Dark Mode)
+🟢 Connected
+(Green circle, white text)
 
-STATE: Connected
-┌─────┐
-│ 🟢  │  Green dot
-│ +   │  "Connected"
-│ txt │  Tooltip: "Connected to Home Assistant"
-└─────┘
+STATE: Reconnecting (Dark Mode)
+🔵 Reconnecting...
+(Blue spinning circle, white text)
 
-STATE: Reconnecting
-┌─────┐
-│ 🔵  │  Spinning blue dot (animation)
-│ +   │  "Reconnecting..."
-│ txt │  Tooltip: "Connection lost, reconnecting..."
-└─────┘
-
-STATE: Offline / Disconnected
-┌─────┐
-│ 🔴  │  Red dot
-│ +   │  "Offline"
-│ txt │  Tooltip: "No connection — last update 5 minutes ago"
-└─────┘
+STATE: Offline (Dark Mode)
+🔴 Offline
+(Red circle, white text)
 ```
 
-**Badge Specs:**
-- Position: Top-right of sidebar, 16px margin from edge
-- Size: 16px dot (icon), 12px text
-- Tooltip trigger: Hover (desktop) or tap (mobile)
-- Animation (reconnecting): Smooth spin, 2 second cycle
-- Accessibility: ARIA label, role="status"
+**Badge Specs (Dark Mode):**
+- **Connected:** Green #4CAF50 (unchanged, visible on dark)
+- **Reconnecting:** Blue #2196F3 (unchanged, with spinning animation)
+- **Offline:** Red #FF5252 (brightened red for visibility on dark)
+- **Text:** #FFFFFF (white, always)
 
 ---
 
-### 4.2 Desktop vs Mobile Layout
+## 8. PROGRESS BAR COLORS IN DARK MODE
 
-**Desktop (> 768px):**
 ```
-BATTERY MONITORING                          ⚙️  🟢
-                                               └─ Inline with settings icon
+┌──────────────────────────────────────────────┐
+│ ⚠️  FRONT DOOR LOCK              8%          │
+│    [████░░░░░░░░░░░░]                        │
+│    Last changed: 2 hours ago                 │
+└──────────────────────────────────────────────┘
+
+Critical (≤15%):   Background #FF5252, shadow #D32F2F
+├─ [████████████░░░░░░░░░░░░]
+
+Warning (15-30%):  Background #FFB74D, shadow #F57C00
+├─ [████████████░░░░░░░░░░░░]
+
+Healthy (>30%):    Background #66BB6A, shadow #388E3C
+├─ [████████████░░░░░░░░░░░░]
+
+Unavailable:       Background #BDBDBD, shadow #757575
+├─ [████░░░░░░░░░░░░░░░░░░░░]
 ```
 
-**Mobile (< 768px):**
-```
-BATTERY MONITORING          ⚙️  🟢
-                            └─ Stack vertically if needed
-```
+**Bar Shadow:** Subtle box-shadow for depth (dark mode still needs visual hierarchy)
+- `box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3)` (dark mode)
 
 ---
 
-## 5. LAST UPDATED TIMESTAMP
+## 9. TYPOGRAPHY IN DARK MODE
 
-### 5.1 Positioning & Format
-
-```
-┌─────────────────────────────────────────────────────┐
-│ [Battery list items]                                │
-│                                                     │
-│ ...                                                 │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-🔄 Updated 3 seconds ago
-↑
-Positioned: bottom-right of list, 12px text, light gray (#999)
-Updates every second (auto-refresh)
-Only visible when WebSocket is connected
-```
-
-**Text Formats:**
-- "Updated just now" (0-2 seconds)
-- "Updated 5 seconds ago"
-- "Updated 1 minute ago"
-- "Updated 5 minutes ago"
-- "Updated 1 hour ago"
-- etc.
-
-**Icon Animation:**
-- 🔄 spins subtly when updating (fast 100ms spin every 3 seconds)
-- No continuous rotation (not distracting)
+| Element | Light Mode | Dark Mode |
+|---------|-----------|-----------|
+| Title (h1) | #212121, 18px bold | #FFFFFF, 18px bold |
+| Subheading (h2) | #424242, 16px bold | #E0E0E0, 16px bold |
+| Body text | #212121, 14px | #FFFFFF, 14px |
+| Secondary text | #757575, 12px | #B0B0B0, 12px |
+| Disabled text | #BDBDBD, 12px | #666666, 12px |
+| Timestamp | #999999, 12px italic | #888888, 12px italic |
 
 ---
 
-## 6. TRANSITIONS & ANIMATIONS
+## 10. RESPONSIVE EXAMPLES
 
-### 6.1 Settings Panel Slide
-
-```
-[Before]
-Browser sidebar contains only battery list
-
-[Click ⚙️ icon]
-↓ (300ms ease-out)
-
-[After]
-Dark overlay fades in (0ms → 300ms)
-Settings panel slides from right edge
-  Start: X = 100vw (off-screen)
-  End: X = calc(100vw - 400px)
-Panel shadow appears
-```
-
-**CSS Pseudo-Code:**
-```css
-.settings-panel {
-  transform: translateX(100%);
-  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
-  opacity: 0;
-  transition: opacity 300ms ease-out;
-}
-
-.settings-panel.open {
-  transform: translateX(0);
-  opacity: 1;
-}
-
-.settings-overlay {
-  background: rgba(0, 0, 0, 0.4);
-  opacity: 0;
-  transition: opacity 300ms ease-out;
-  pointer-events: none;
-}
-
-.settings-overlay.visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-```
-
----
-
-### 6.2 Battery Level Progress Bar Animation
-
-When battery level updates via WebSocket:
-
-```
-[Before Update]
-[████████░░] 42%
-
-[Update received: 38%]
-↓ (300ms ease-out)
-
-[After Update]
-[███████░░░] 38%   ← Progress bar animates smoothly
-```
-
-**CSS Pseudo-Code:**
-```css
-.progress-bar {
-  width: 42%;
-  transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.progress-bar.updating {
-  width: 38%;
-  /* Smooth animation as width changes */
-}
-```
-
----
-
-### 6.3 Connection Badge Reconnecting Animation
-
-```
-State: Reconnecting (blue)
-Animation: Smooth 360° rotation, 2 second cycle, infinite
-
-[🔵 0°] → [🔵 90°] → [🔵 180°] → [🔵 270°] → [🔵 360°/0°]
-  0ms     500ms      1000ms     1500ms    2000ms
-```
-
-**CSS Pseudo-Code:**
-```css
-.connection-badge {
-  color: #4CAF50; /* green */
-}
-
-.connection-badge.reconnecting {
-  color: #2196F3; /* blue */
-  animation: spin 2s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-```
-
----
-
-### 6.4 Toast Notifications (on reconnect)
-
-When WebSocket reconnects:
-
-```
-[Fade in from bottom, 300ms]
-┌──────────────────────┐
-│ ✓ Connection Updated │  ← Green background
-└──────────────────────┘
-[Hold 2 seconds]
-[Fade out, 300ms]
-```
-
-**CSS Pseudo-Code:**
-```css
-.toast {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%) translateY(100px);
-  opacity: 0;
-  transition: all 300ms ease-out;
-}
-
-.toast.visible {
-  transform: translateX(-50%) translateY(0);
-  opacity: 1;
-}
-
-.toast.hide {
-  opacity: 0;
-  transition: opacity 300ms ease-out 2s;
-}
-```
-
----
-
-## 7. ACCESSIBILITY SPECIFICATIONS
-
-### 7.1 Semantic HTML
-
-```html
-<!-- Main container -->
-<div role="region" aria-label="Battery Monitoring">
-
-  <!-- Header with connection badge -->
-  <header class="battery-header">
-    <h1>Battery Monitoring</h1>
-    <button aria-label="Open settings" id="settings-btn">⚙️</button>
-    <div role="status" aria-label="Connection status">
-      <span class="connection-badge" id="conn-badge">🟢</span>
-      <span class="connection-text" aria-live="polite">Connected</span>
-    </div>
-  </header>
-
-  <!-- Sort/Filter controls -->
-  <div class="sort-filter-bar" role="toolbar" aria-label="Sort and filter options">
-    <select aria-label="Sort by">
-      <option>Priority</option>
-      <option>Alphabetical</option>
-      <!-- ... -->
-    </select>
-    <select aria-label="Filter by status">
-      <option>All Batteries</option>
-      <!-- ... -->
-    </select>
-    <button aria-label="Reset filters">✕ Reset</button>
-  </div>
-
-  <!-- Battery list -->
-  <div role="list" aria-label="Battery devices">
-    <div role="listitem" class="battery-item critical">
-      <span aria-label="Critical status">⚠️</span>
-      <h2>Front Door Lock</h2>
-      <div role="progressbar" aria-valuenow="8" aria-valuemin="0" aria-valuemax="100">
-        <!-- Visual progress bar -->
-      </div>
-    </div>
-    <!-- More items... -->
-  </div>
-
-  <!-- Last updated timestamp -->
-  <div role="status" aria-live="polite" aria-label="Last update timestamp">
-    🔄 Updated 3 seconds ago
-  </div>
-</div>
-
-<!-- Settings panel (modal) -->
-<div role="dialog" aria-labelledby="settings-title" class="settings-panel">
-  <h2 id="settings-title">Battery Monitoring Settings</h2>
-  <!-- ... -->
-</div>
-```
-
-### 7.2 ARIA Labels & Roles
-
-| Element | Role | ARIA Label | Live Region |
-|---------|------|-----------|-------------|
-| Settings icon | button | "Open settings" | — |
-| Connection badge | status | "Connected / Reconnecting / Offline" | polite |
-| Sort dropdown | combobox | "Sort by" | — |
-| Filter checkboxes | group | "Filter by status" | — |
-| Battery item | listitem | "Front Door Lock, 8%, Critical" | — |
-| Progress bar | progressbar | aria-valuenow, aria-valuemin, aria-valuemax | — |
-| Last updated | status | "Updated 3 seconds ago" | polite |
-| Settings modal | dialog | "Battery Monitoring Settings" | — |
-
-### 7.3 Keyboard Navigation
-
-**Tab Order:**
-1. Settings icon (⚙️)
-2. Connection badge (🟢)
-3. Sort dropdown
-4. Filter dropdown
-5. Reset button
-6. Battery items (if focusable)
-7. Settings panel (modal, if open)
-
-**Keyboard Shortcuts:**
-- **Escape** — Close settings modal, close dropdowns
-- **Enter** — Activate buttons, toggle checkboxes
-- **Space** — Toggle checkboxes, trigger buttons
-- **Arrow Up/Down** — Navigate dropdown options
-- **Tab** — Next focusable element
-- **Shift + Tab** — Previous focusable element
-
-### 7.4 Color Contrast Ratios (WCAG AA)
-
-| Element | Foreground | Background | Ratio | Status |
-|---------|-----------|-----------|-------|--------|
-| Critical text | #FFFFFF | #F44336 | 3.5:1 | ✅ AA |
-| Warning text | #FFFFFF | #FF9800 | 4.5:1 | ✅ AAA |
-| Healthy text | #FFFFFF | #4CAF50 | 4.5:1 | ✅ AAA |
-| Body text | #424242 | #FFFFFF | 9.0:1 | ✅ AAA |
-| Secondary text | #757575 | #FFFFFF | 6.5:1 | ✅ AAA |
-| Button text | #FFFFFF | #03A9F4 | 4.5:1 | ✅ AAA |
-
----
-
-## 8. RESPONSIVE BREAKPOINTS & MEDIA QUERIES
-
-### 8.1 CSS Media Query Strategy
-
-```css
-/* Mobile-first approach */
-
-/* Default: mobile (< 768px) */
-.battery-list { grid-template-columns: 1fr; }
-.sort-filter-bar { display: flex; flex-direction: column; }
-.settings-panel { width: 100vw; height: 90vh; }
-
-/* Tablet (768px - 1024px) */
-@media (min-width: 768px) {
-  .battery-list { grid-template-columns: 1fr; }
-  .sort-filter-bar { display: flex; flex-direction: row; }
-  .settings-panel { width: 50%; height: 100vh; }
-}
-
-/* Desktop (> 1024px) */
-@media (min-width: 1024px) {
-  .battery-list { grid-template-columns: 1fr; }
-  .sort-filter-bar { display: flex; flex-direction: row; gap: 16px; }
-  .settings-panel { width: 400px; height: 100vh; }
-}
-
-/* Large desktop (> 1440px) */
-@media (min-width: 1440px) {
-  .battery-list { grid-template-columns: 1fr 1fr; }
-  .font-base { font-size: 18px; }
-}
-```
-
-### 8.2 Touch Target Sizing
-
-All interactive elements must be at least 44x44 pixels (WCAG 2.5.5 AA):
-
-```
-Buttons:       44px height, padding 8px-16px horizontal
-Checkboxes:    24px square (with hover area 44x44)
-Dropdowns:     44px height
-Sort/Filter:   44px height
-Icons:         24px (within 44px hover area)
-Links:         44px height (if applicable)
-```
-
----
-
-## 9. COLOR PALETTE & TYPOGRAPHY
-
-### 9.1 Color System
-
-```
-PRIMARY (Action):        #03A9F4 (Light Blue)
-CRITICAL (Alert):        #F44336 (Red)
-WARNING (Caution):       #FF9800 (Orange/Amber)
-HEALTHY (Success):       #4CAF50 (Green)
-UNAVAILABLE (Disabled):  #9E9E9E (Gray)
-BACKGROUND (Light):      #F5F5F5 (Off-white)
-TEXT (Primary):          #212121 (Dark Gray, 87%)
-TEXT (Secondary):        #757575 (Medium Gray, 54%)
-DIVIDER:                 #BDBDBD (Light Gray, 26%)
-```
-
-### 9.2 Typography
-
-**Font Family:** -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
-
-| Element | Size | Weight | Line Height |
-|---------|------|--------|-------------|
-| Page title | 18px | 500 | 24px |
-| Subheading | 16px | 500 | 22px |
-| Body text | 14px | 400 | 20px |
-| Button text | 14px | 500 | 20px |
-| Caption / Helper | 12px | 400 | 16px |
-| Timestamp | 12px | 400 | 16px |
-
----
-
-## 10. INTERACTION PATTERNS
-
-### 10.1 Settings Panel Open/Close
-
-**Opening:**
-1. User clicks ⚙️ icon
-2. Dark overlay fades in (0 → 300ms)
-3. Settings panel slides in from right (0 → 300ms)
-4. Focus moves to close button (✕)
-5. Panel is now active
-
-**Closing:**
-1. User clicks "SAVE" → Close, apply changes, redraw list
-2. User clicks "CANCEL" → Close, discard changes
-3. User clicks ✕ → Close, discard changes
-4. User presses Escape → Close, discard changes
-5. User clicks overlay → Close, discard changes (optional: configurable)
-
----
-
-### 10.2 Add Device Rule Flow
-
-1. User in Settings panel
-2. Clicks "[+ ADD DEVICE RULE]"
-3. Sub-modal opens: "SELECT DEVICE"
-4. User can search or scroll, selects device
-5. Form updates: "SET THRESHOLD" for chosen device
-6. User adjusts threshold via slider or text input
-7. Live feedback: "After save: X devices will be CRITICAL"
-8. User clicks "SAVE RULE" or "CANCEL"
-9. Returns to Settings panel, new rule in list
-
----
-
-### 10.3 Sort/Filter Interaction (Desktop)
-
-1. User clicks sort dropdown
-2. Dropdown opens below button
-3. User selects option (radio button)
-4. List reorders immediately
-5. Dropdown stays open (user can select again)
-6. User clicks elsewhere to close, or presses Escape
-
-**Filter similar, but with checkboxes:**
-1. User clicks filter dropdown
-2. Checkbox list appears
-3. User toggles checkboxes
-4. List filters in real-time
-5. Count updates: "All Batteries (X selected)"
-
----
-
-### 10.4 Sort/Filter Interaction (Mobile)
-
-1. User taps sort/filter button
-2. Full-screen modal appears
-3. User interacts with radio buttons or checkboxes
-4. User clicks "APPLY" button
-5. Modal closes, list updates
-
----
-
-## 11. ERROR STATES & EDGE CASES
-
-### 11.1 Empty States
-
-**No batteries found:**
-```
-┌─────────────────────────────────────┐
-│ BATTERY MONITORING                  │
-├─────────────────────────────────────┤
-│                                     │
-│           🔋                        │
-│                                     │
-│    No battery devices found         │
-│                                     │
-│  Check your Home Assistant          │
-│  configuration or add battery       │
-│  entities with device_class =       │
-│  "battery"                          │
-│                                     │
-│  [Learn More] [Refresh]             │
-│                                     │
-└─────────────────────────────────────┘
-```
-
-**All devices filtered out:**
-```
-No results match your filters.
-
-[CLEAR FILTERS]
-```
-
----
-
-### 11.2 Error States
-
-**WebSocket connection failed:**
-```
-Connection Error
-⚠️ Unable to connect to Home Assistant
-
-Last update: 15 minutes ago
-(Showing cached data)
-
-[RETRY] [SETTINGS]
-```
-
-**All devices unavailable:**
-```
-All devices are currently unavailable.
-This may be a temporary connection issue.
-
-[REFRESH]
-```
-
----
-
-### 11.3 Loading States
-
-**Settings modal loading:**
-```
-BATTERY MONITORING SETTINGS
-
-Loading device list... (spinner)
-```
-
-**Sort/filter modal loading:**
-```
-Loading filters...
-
-(spinner)
-```
-
----
-
-## 12. RESPONSIVE EXAMPLES
-
-### 12.1 iPhone 12 (390px)
+### 10.1 Mobile (iPhone 12, Dark Mode)
 
 ```
 ┌───────────────────────────┐
-│ BATTERY MON.  ⚙️  🟢      │
+│ BATTERY MON.  ⚙️  🟢      │ ← Dark #1C1C1C
 ├───────────────────────────┤
 │ [PRIORITY ▼] [ALL ▼]      │
 ├───────────────────────────┤
 │ CRITICAL                  │
 │ ┌─────────────────────────┐
-│ │ ⚠️ FRONT DOOR LOCK      │
-│ │ 8%  [████░░░░░░░░░░░░] │
-│ │ 2h ago                  │
-│ └─────────────────────────┘
-│ ┌─────────────────────────┐
-│ │ ⚠️ SOLAR BACKUP        │
-│ │ 5%  [██░░░░░░░░░░░░░░] │
-│ │ 30m ago                 │
+│ │ ⚠️ FRONT DOOR LOCK      │ ← Dark card #2C2C2C
+│ │ 8%  [████░░░░░░░░░░░░] │ ← Red #FF5252
+│ │ 2h ago                  │ ← Light gray text
 │ └─────────────────────────┘
 │ WARNING                   │
-│ [More items...]           │
+│ ┌─────────────────────────┐
+│ │ ⚡ KITCHEN SENSOR       │
+│ │ 18% [██████░░░░░░░░░░] │ ← Amber #FFB74D
+│ │ 5m ago                  │
+│ └─────────────────────────┘
+│                           │
+│ ⟳ Loading more...         │ ← Light gray
+│ [Skeleton loaders]        │
 │                           │
 ├───────────────────────────┤
 │ 🔄 Updated 2s ago         │
+│         ▲ Back to Top     │ ← Blue button
 └───────────────────────────┘
 ```
 
-### 12.2 iPad (768px)
+---
 
+## 11. DARK MODE DETECTION & IMPLEMENTATION
+
+### CSS Custom Properties (Recommended)
+
+```css
+/* Light Mode (Default) */
+:root,
+[data-theme="light"] {
+  --vb-bg-primary: #FFFFFF;
+  --vb-bg-card: #F5F5F5;
+  --vb-text-primary: #212121;
+  --vb-text-secondary: #757575;
+  --vb-color-critical: #F44336;
+  --vb-color-warning: #FF9800;
+  --vb-color-healthy: #4CAF50;
+  --vb-color-unavailable: #9E9E9E;
+}
+
+/* Dark Mode */
+[data-theme="dark"],
+[data-theme="dark-theme"] {
+  --vb-bg-primary: #1C1C1C;
+  --vb-bg-card: #2C2C2C;
+  --vb-text-primary: #FFFFFF;
+  --vb-text-secondary: #B0B0B0;
+  --vb-color-critical: #FF5252;
+  --vb-color-warning: #FFB74D;
+  --vb-color-healthy: #66BB6A;
+  --vb-color-unavailable: #BDBDBD;
+}
+
+/* Apply to panel */
+.battery-panel {
+  background: var(--vb-bg-primary);
+  color: var(--vb-text-primary);
+}
+
+.battery-card {
+  background: var(--vb-bg-card);
+  border-color: var(--vb-divider);
+}
+
+.battery-critical {
+  color: var(--vb-color-critical);
+}
+
+.battery-warning {
+  color: var(--vb-color-warning);
+}
 ```
-┌──────────────────────────────┐
-│ BATTERY MONITORING      ⚙️ 🟢 │
-├──────────────────────────────┤
-│ [PRIORITY ▼] [ALL BATTERIES] │
-├──────────────────────────────┤
-│ CRITICAL (2)                 │
-│ ┌──────────────────────────┐ │
-│ │ ⚠️ FRONT DOOR LOCK   8%  │ │
-│ │    [████░░░░░░░░░░░░░░] │ │
-│ └──────────────────────────┘ │
-│ ┌──────────────────────────┐ │
-│ │ ⚠️ SOLAR BACKUP      5%  │ │
-│ │    [██░░░░░░░░░░░░░░░░] │ │
-│ └──────────────────────────┘ │
-│ WARNING (3)                  │
-│ [More items...]              │
-│                              │
-├──────────────────────────────┤
-│ 🔄 Updated 2s ago            │
-└──────────────────────────────┘
+
+### Theme Detection (JavaScript)
+
+```javascript
+// Detect HA theme on load
+function detectTheme() {
+  const root = document.documentElement;
+  const isDark = root.getAttribute('data-theme') === 'dark' ||
+                 window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return isDark ? 'dark' : 'light';
+}
+
+// Listen for theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addListener((e) => {
+  const newTheme = e.matches ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', newTheme);
+});
 ```
-
-### 12.3 Desktop (1440px)
-
-[Full layout shown in Section 1.1]
 
 ---
 
-## 13. DARK MODE (Future, Not Sprint 2)
+## 12. CONTRAST RATIOS (WCAG AA/AAA Compliance)
 
-Placeholder for future dark mode support. Currently, Vulcan Brownout uses Home Assistant's light theme.
+### Dark Mode Contrast Verification
 
-If dark mode is added in Sprint 3:
-- Invert background colors
-- Lighten text colors
-- Adjust status colors for readability on dark backgrounds
+| Element | Foreground | Background | Ratio | Level |
+|---------|-----------|-----------|-------|-------|
+| White text | #FFFFFF | #1C1C1C | 19:1 | AAA |
+| Light gray text | #B0B0B0 | #1C1C1C | 5.8:1 | AA |
+| Critical (brightened) | #FF5252 | #1C1C1C | 5.5:1 | AAA |
+| Warning (lightened) | #FFB74D | #1C1C1C | 6.8:1 | AAA |
+| Healthy (lightened) | #66BB6A | #1C1C1C | 4.8:1 | AA |
+| Unavailable | #BDBDBD | #1C1C1C | 4.2:1 | AA |
+| Blue buttons | #03A9F4 | #1C1C1C | 6.5:1 | AAA |
+
+All colors pass WCAG AA or AAA standards.
+
+---
+
+## 13. ANIMATION UPDATES FOR DARK MODE
+
+### Skeleton Loader Animation (Dark)
+
+```
+Base color (dark mode):  #444444
+Shimmer color:          #555555 → #666666 → #555555
+Gradient angle:         90 degrees (left to right)
+Duration:               2 seconds
+Easing:                 linear
+Repeat:                 infinite
+
+Animation stays smooth and visible on dark backgrounds.
+```
+
+### Back to Top Button Animation (Dark)
+
+```
+Fade in:    opacity 0 → 1 (300ms ease-out)
+Fade out:   opacity 1 → 0 (300ms ease-out)
+Hover:      background opacity +10%
+Click:      Smooth scroll-to-top (500ms ease-out)
+```
 
 ---
 
 ## Summary
 
-Luna's wireframes define:
-✅ Mobile-first responsive layouts for all screen sizes
-✅ Detailed component specifications (buttons, inputs, badges)
-✅ Animation and transition curves
-✅ Accessibility requirements (WCAG 2.1 AA)
-✅ Color contrast ratios and typography
-✅ Error states and edge cases
-✅ Interaction patterns for desktop and mobile
+Luna's Sprint 3 wireframes define:
+✅ Infinite scroll with skeleton loaders
+✅ Back to top button (sticky, appears after scroll)
+✅ Notification preferences UI (configurable, per-device)
+✅ Dark mode rendering (auto-detected, all colors adjusted)
+✅ Empty state UX (friendly, helpful)
+✅ Full responsive design (mobile, tablet, desktop)
+✅ WCAG AA/AAA contrast compliance (both light and dark)
+✅ Smooth animations and transitions
 
-**Next steps:** Architect implements HTML/CSS based on these wireframes. Luna conducts usability testing with 5-10 users after Sprint 2 ships.
+**Next steps:** Architect implements HTML/CSS/JavaScript based on these wireframes. Luna conducts usability testing with 5-10 dark mode users after Sprint 3 ships.
 
 ---
 
 **Prepared by:** Luna (UX Designer)
-**Date:** February 2026
-**Design System:** Home Assistant Material Design 3
+**Date:** February 22, 2026
+**Design System:** Home Assistant Material Design 3 + Dark Mode

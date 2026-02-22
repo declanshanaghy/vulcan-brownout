@@ -4,8 +4,8 @@
   "codeowners": ["@vulcan-brownout-team"],
   "config_flow": true,
   "documentation": "https://github.com/vulcan-brownout/vulcan-brownout",
-  "homeassistant": "2023.12.0",
-  "version": "2.0.0",
+  "homeassistant": "2026.2.0",
+  "version": "3.0.0",
   "requirements": [],
   "issue_tracker": "https://github.com/vulcan-brownout/vulcan-brownout/issues",
   "panel_custom": [

@@ -13,15 +13,19 @@ from .const import (
     COMMAND_QUERY_DEVICES,
     COMMAND_SUBSCRIBE,
     COMMAND_SET_THRESHOLD,
+    COMMAND_GET_NOTIFICATION_PREFERENCES,
+    COMMAND_SET_NOTIFICATION_PREFERENCES,
     DOMAIN,
     MAX_PAGE_SIZE,
     BATTERY_THRESHOLD_MIN,
     BATTERY_THRESHOLD_MAX,
     MAX_DEVICE_RULES,
-    SORT_KEY_BATTERY_LEVEL,
+    SORT_KEY_PRIORITY,
     SORT_ORDER_ASC,
     SUPPORTED_SORT_KEYS,
     SUPPORTED_SORT_ORDERS,
+    NOTIFICATION_FREQUENCY_CAP_OPTIONS,
+    NOTIFICATION_SEVERITY_FILTER_OPTIONS,
 )
 from .battery_monitor import BatteryMonitor
 from .subscription_manager import WebSocketSubscriptionManager
@@ -34,14 +38,17 @@ def register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, handle_query_devices)
     websocket_api.async_register_command(hass, handle_subscribe)
     websocket_api.async_register_command(hass, handle_set_threshold)
+    websocket_api.async_register_command(hass, handle_get_notification_preferences)
+    websocket_api.async_register_command(hass, handle_set_notification_preferences)
 
 
 @websocket_api.websocket_command(
     {
         vol.Required("type"): COMMAND_QUERY_DEVICES,
-        vol.Optional("limit", default=20): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
+        vol.Optional("limit", default=50): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
         vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
-        vol.Optional("sort_key", default=SORT_KEY_BATTERY_LEVEL): vol.In(SUPPORTED_SORT_KEYS),
+        vol.Optional("cursor"): str,
+        vol.Optional("sort_key", default=SORT_KEY_PRIORITY): vol.In(SUPPORTED_SORT_KEYS),
         vol.Optional("sort_order", default=SORT_ORDER_ASC): vol.In(SUPPORTED_SORT_ORDERS),
     }
 )
@@ -49,7 +56,11 @@ def register_websocket_commands(hass: HomeAssistant) -> None:
 async def handle_query_devices(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: Dict[str, Any]
 ) -> None:
-    """Handle vulcan-brownout/query_devices WebSocket command."""
+    """Handle vulcan-brownout/query_devices WebSocket command.
+
+    Sprint 3: Updated to support cursor-based pagination with backward compatibility
+    for offset-based requests.
+    """
     try:
         # Get battery monitor service
         battery_monitor: BatteryMonitor = hass.data.get(DOMAIN)
@@ -62,15 +73,17 @@ async def handle_query_devices(
             return
 
         # Extract parameters (validated by schema)
-        limit = msg.get("limit", 20)
+        limit = msg.get("limit", 50)
         offset = msg.get("offset", 0)
-        sort_key = msg.get("sort_key", SORT_KEY_BATTERY_LEVEL)
+        cursor = msg.get("cursor")
+        sort_key = msg.get("sort_key", SORT_KEY_PRIORITY)
         sort_order = msg.get("sort_order", SORT_ORDER_ASC)
 
-        # Query devices
+        # Query devices (supports both cursor and offset pagination)
         result = await battery_monitor.query_devices(
             limit=limit,
             offset=offset,
+            cursor=cursor,
             sort_key=sort_key,
             sort_order=sort_order,
         )
@@ -271,8 +284,150 @@ async def handle_set_threshold(
         )
 
 
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): COMMAND_GET_NOTIFICATION_PREFERENCES,
+    }
+)
+@websocket_api.async_response
+async def handle_get_notification_preferences(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: Dict[str, Any]
+) -> None:
+    """Handle vulcan-brownout/get_notification_preferences WebSocket command.
+
+    Sprint 3: Retrieve current notification preferences and history.
+    """
+    try:
+        # Get notification manager
+        from .notification_manager import NotificationManager
+
+        notification_manager: NotificationManager = hass.data.get(
+            f"{DOMAIN}_notifications"
+        )
+        if notification_manager is None:
+            connection.send_error(
+                msg["id"],
+                "integration_not_loaded",
+                "Notification manager not initialized",
+            )
+            return
+
+        # Get preferences
+        prefs = notification_manager.get_notification_preferences()
+
+        # Send successful response
+        connection.send_result(msg["id"], prefs)
+
+    except Exception as e:
+        _LOGGER.error(f"Error handling get_notification_preferences command: {e}")
+        connection.send_error(
+            msg["id"],
+            "internal_error",
+            "Failed to get notification preferences",
+        )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): COMMAND_SET_NOTIFICATION_PREFERENCES,
+        vol.Required("enabled"): bool,
+        vol.Required("frequency_cap_hours"): vol.In(NOTIFICATION_FREQUENCY_CAP_OPTIONS),
+        vol.Required("severity_filter"): vol.In(NOTIFICATION_SEVERITY_FILTER_OPTIONS),
+        vol.Optional("per_device"): dict,
+    }
+)
+@websocket_api.async_response
+async def handle_set_notification_preferences(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: Dict[str, Any]
+) -> None:
+    """Handle vulcan-brownout/set_notification_preferences WebSocket command.
+
+    Sprint 3: Update notification preferences and validate them.
+    """
+    try:
+        # Get notification manager
+        from .notification_manager import NotificationManager
+
+        notification_manager: NotificationManager = hass.data.get(
+            f"{DOMAIN}_notifications"
+        )
+        if notification_manager is None:
+            connection.send_error(
+                msg["id"],
+                "integration_not_loaded",
+                "Notification manager not initialized",
+            )
+            return
+
+        # Extract parameters
+        enabled = msg.get("enabled", True)
+        frequency_cap_hours = msg.get("frequency_cap_hours", 6)
+        severity_filter = msg.get("severity_filter", "critical_only")
+        per_device = msg.get("per_device", {})
+
+        # Validate and update preferences
+        await notification_manager.set_notification_preferences(
+            enabled=enabled,
+            frequency_cap_hours=frequency_cap_hours,
+            severity_filter=severity_filter,
+            per_device=per_device,
+        )
+
+        # Update config entry
+        battery_monitor: BatteryMonitor = hass.data.get(DOMAIN)
+        if battery_monitor and battery_monitor.config_entry:
+            new_options = dict(battery_monitor.config_entry.options)
+            new_options["notification_preferences"] = {
+                "enabled": enabled,
+                "frequency_cap_hours": frequency_cap_hours,
+                "severity_filter": severity_filter,
+                "per_device": per_device,
+            }
+            hass.config_entries.async_update_entry(
+                battery_monitor.config_entry,
+                options=new_options,
+            )
+
+        # Send successful response
+        connection.send_result(
+            msg["id"],
+            {
+                "message": "Notification preferences updated",
+                "enabled": enabled,
+                "frequency_cap_hours": frequency_cap_hours,
+                "severity_filter": severity_filter,
+            },
+        )
+
+        # Broadcast status update to all subscribers
+        subscription_manager: WebSocketSubscriptionManager = hass.data.get(
+            f"{DOMAIN}_subscriptions"
+        )
+        if subscription_manager:
+            subscription_manager.broadcast_status(
+                status="connected",
+                threshold=battery_monitor.global_threshold if battery_monitor else 15,
+                device_rules=battery_monitor.device_rules if battery_monitor else {},
+                device_statuses=battery_monitor.get_device_statuses() if battery_monitor else {},
+            )
+
+    except ValueError as e:
+        _LOGGER.warning(f"Validation error in set_notification_preferences: {e}")
+        connection.send_error(msg["id"], "invalid_notification_preferences", str(e))
+    except Exception as e:
+        _LOGGER.error(f"Error handling set_notification_preferences command: {e}")
+        connection.send_error(
+            msg["id"],
+            "internal_error",
+            "Failed to set notification preferences",
+        )
+
+
 async def send_status_event(hass: HomeAssistant, status: str = "connected") -> None:
-    """Send status event to all connected WebSocket clients."""
+    """Send status event to all connected WebSocket clients.
+
+    Sprint 3: Includes theme and notification status.
+    """
     try:
         battery_monitor: BatteryMonitor = hass.data.get(DOMAIN)
         subscription_manager: WebSocketSubscriptionManager = hass.data.get(

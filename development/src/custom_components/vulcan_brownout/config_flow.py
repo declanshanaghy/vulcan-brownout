@@ -13,6 +13,8 @@ from .const import (
     BATTERY_THRESHOLD_MIN,
     BATTERY_THRESHOLD_MAX,
     MAX_DEVICE_RULES,
+    NOTIFICATION_FREQUENCY_CAP_OPTIONS,
+    NOTIFICATION_SEVERITY_FILTER_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,6 +40,12 @@ class VulcanBrownoutConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 options={
                     "global_threshold": BATTERY_THRESHOLD_DEFAULT,
                     "device_rules": {},
+                    "notification_preferences": {
+                        "enabled": True,
+                        "frequency_cap_hours": 6,
+                        "severity_filter": "critical_only",
+                        "per_device": {},
+                    },
                 },
             )
 
@@ -94,12 +102,22 @@ class VulcanBrownoutOptionsFlow(config_entries.OptionsFlow):
                     },
                 )
 
-            # Return options (device rules managed via WebSocket in Sprint 2)
+            # Return options (device rules managed via WebSocket in Sprint 2+)
+            # Sprint 3: Notification preferences also managed via WebSocket modal
             return self.async_create_entry(
                 title="Threshold Settings",
                 data={
                     "global_threshold": global_threshold,
                     "device_rules": self.config_entry.options.get("device_rules", {}),
+                    "notification_preferences": self.config_entry.options.get(
+                        "notification_preferences",
+                        {
+                            "enabled": True,
+                            "frequency_cap_hours": 6,
+                            "severity_filter": "critical_only",
+                            "per_device": {},
+                        },
+                    ),
                 },
             )
 

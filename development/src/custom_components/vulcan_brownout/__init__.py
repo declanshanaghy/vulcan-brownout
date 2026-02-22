@@ -18,6 +18,7 @@ from .const import (
 from .battery_monitor import BatteryMonitor
 from .websocket_api import register_websocket_commands, send_status_event
 from .subscription_manager import WebSocketSubscriptionManager
+from .notification_manager import NotificationManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +44,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Create and initialize WebSocket subscription manager
         subscription_manager = WebSocketSubscriptionManager(hass)
         hass.data[f"{DOMAIN}_subscriptions"] = subscription_manager
+
+        # Create and initialize notification manager (Sprint 3)
+        notification_manager = NotificationManager(hass)
+        await notification_manager.async_setup(entry)
+        hass.data[f"{DOMAIN}_notifications"] = notification_manager
 
         # Register WebSocket command handlers
         register_websocket_commands(hass)
@@ -112,7 +118,10 @@ async def _on_battery_state_changed(
     entity_id: str,
     new_state: Any,
 ) -> None:
-    """Handle battery entity state changes."""
+    """Handle battery entity state changes.
+
+    Sprint 3: Also checks for notifications if battery drops below threshold.
+    """
     try:
         # Update battery monitor
         await battery_monitor.on_state_changed(entity_id, new_state)
@@ -121,6 +130,19 @@ async def _on_battery_state_changed(
         if battery_monitor._is_battery_entity(entity_id) and entity_id in battery_monitor.entities:
             device = battery_monitor.entities[entity_id]
             status = battery_monitor.get_status_for_device(device)
+
+            # Sprint 3: Check if notification should be sent
+            notification_manager: NotificationManager = hass.data.get(
+                f"{DOMAIN}_notifications"
+            )
+            if notification_manager and device.available:
+                device_name = device.device_name or entity_id
+                await notification_manager.check_and_send_notification(
+                    entity_id=entity_id,
+                    status=status,
+                    battery_level=device.battery_level,
+                    device_name=device_name,
+                )
 
             # Only broadcast if there are active subscriptions
             if subscription_manager.get_subscription_count() > 0:
@@ -182,6 +204,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Remove data
         hass.data.pop(DOMAIN, None)
         hass.data.pop(f"{DOMAIN}_subscriptions", None)
+        hass.data.pop(f"{DOMAIN}_notifications", None)  # Sprint 3
 
         _LOGGER.info("Vulcan Brownout integration unloaded")
         return True

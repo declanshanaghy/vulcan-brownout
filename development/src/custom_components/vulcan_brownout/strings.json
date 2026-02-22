@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Configure Vulcan Brownout",
-        "description": "No configuration needed. Battery devices are auto-discovered from Home Assistant."
+        "description": "No configuration needed. Battery devices are auto-discovered from Home Assistant. Device thresholds and notification preferences can be configured in the integration panel."
       }
     },
     "abort": {
@@ -14,7 +14,7 @@
     "step": {
       "init": {
         "title": "Battery Threshold Settings",
-        "description": "Configure battery level thresholds for status classification.",
+        "description": "Configure battery level thresholds for status classification. Fine-grained notification settings are available in the integration panel.",
         "data": {
           "global_threshold": "Global Battery Threshold (%)"
         }

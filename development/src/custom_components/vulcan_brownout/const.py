@@ -1,7 +1,7 @@
 """Constants for the Vulcan Brownout integration."""
 
 DOMAIN = "vulcan_brownout"
-VERSION = "2.0.0"
+VERSION = "3.0.0"
 
 # Battery monitoring thresholds and defaults
 BATTERY_THRESHOLD_DEFAULT = 15
@@ -12,10 +12,13 @@ BATTERY_THRESHOLD_MAX = 100
 COMMAND_QUERY_DEVICES = "vulcan-brownout/query_devices"
 COMMAND_SUBSCRIBE = "vulcan-brownout/subscribe"
 COMMAND_SET_THRESHOLD = "vulcan-brownout/set_threshold"
+COMMAND_GET_NOTIFICATION_PREFERENCES = "vulcan-brownout/get_notification_preferences"
+COMMAND_SET_NOTIFICATION_PREFERENCES = "vulcan-brownout/set_notification_preferences"
 EVENT_DEVICE_CHANGED = "vulcan-brownout/device_changed"
 EVENT_DEVICE_REMOVED = "vulcan-brownout/device_removed"
 EVENT_STATUS = "vulcan-brownout/status"
 EVENT_THRESHOLD_UPDATED = "vulcan-brownout/threshold_updated"
+EVENT_NOTIFICATION_SENT = "vulcan-brownout/notification_sent"
 
 # Device class to filter by
 BATTERY_DEVICE_CLASS = "battery"
@@ -24,11 +27,23 @@ BATTERY_DEVICE_CLASS = "battery"
 MAX_PAGE_SIZE = 100
 DEFAULT_PAGE_SIZE = 20
 
-# Supported sort keys
+# Sort keys
+SORT_KEY_PRIORITY = "priority"
+SORT_KEY_ALPHABETICAL = "alphabetical"
+SORT_KEY_LEVEL_ASC = "level_asc"
+SORT_KEY_LEVEL_DESC = "level_desc"
+
+# Legacy sort keys (Sprint 2 — mapped to new keys in battery_monitor.py)
 SORT_KEY_BATTERY_LEVEL = "battery_level"
 SORT_KEY_AVAILABLE = "available"
 SORT_KEY_DEVICE_NAME = "device_name"
-SUPPORTED_SORT_KEYS = [SORT_KEY_BATTERY_LEVEL, SORT_KEY_AVAILABLE, SORT_KEY_DEVICE_NAME]
+LEGACY_SORT_KEYS = [SORT_KEY_BATTERY_LEVEL, SORT_KEY_AVAILABLE, SORT_KEY_DEVICE_NAME]
+
+# All supported sort keys (new + legacy for backward compatibility)
+SUPPORTED_SORT_KEYS = [
+    SORT_KEY_PRIORITY, SORT_KEY_ALPHABETICAL, SORT_KEY_LEVEL_ASC, SORT_KEY_LEVEL_DESC,
+    SORT_KEY_BATTERY_LEVEL, SORT_KEY_AVAILABLE, SORT_KEY_DEVICE_NAME,
+]
 
 # Sort orders
 SORT_ORDER_ASC = "asc"
@@ -59,6 +74,11 @@ SUBSCRIPTION_KEEPALIVE_INTERVAL = 30  # seconds
 
 # Device rule limits
 MAX_DEVICE_RULES = 10
+
+# Notification preferences
+NOTIFICATION_FREQUENCY_CAP_OPTIONS = [1, 2, 6, 12, 24]  # hours
+NOTIFICATION_SEVERITY_FILTER_OPTIONS = ["all", "critical_only", "critical_and_warning"]
+NOTIFICATION_HISTORY_MAX_SIZE = 20
 
 # API endpoints
 HEALTH_CHECK_ENDPOINT = "/api/vulcan_brownout/health"

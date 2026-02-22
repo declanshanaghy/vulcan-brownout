@@ -187,6 +187,56 @@ class WebSocketSubscriptionManager:
         for subscription_id in dead_subscriptions:
             self.unsubscribe(subscription_id)
 
+    def broadcast_notification_sent(
+        self,
+        timestamp: str,
+        entity_id: str,
+        device_name: str,
+        battery_level: float,
+        status: str,
+        message: str,
+        notification_id: str,
+    ) -> None:
+        """Broadcast notification_sent event to all subscribers.
+
+        Sprint 3: New event for notification history UI updates.
+
+        Args:
+            timestamp: ISO8601 timestamp when notification was sent
+            entity_id: Battery entity that triggered notification
+            device_name: Friendly device name
+            battery_level: Battery % at time of notification
+            status: Device status (critical or warning)
+            message: Full notification message
+            notification_id: HA persistent_notification ID
+        """
+        message_obj = {
+            "type": "vulcan-brownout/notification_sent",
+            "data": {
+                "timestamp": timestamp,
+                "entity_id": entity_id,
+                "device_name": device_name,
+                "battery_level": battery_level,
+                "status": status,
+                "message": message,
+                "notification_id": notification_id,
+            },
+        }
+
+        dead_subscriptions = []
+        for subscription_id, subscription in self.subscribers.items():
+            try:
+                subscription.connection.send_message(message_obj)
+            except Exception as e:
+                _LOGGER.warning(
+                    f"Failed to send notification event to subscription {subscription_id}: {e}"
+                )
+                dead_subscriptions.append(subscription_id)
+
+        # Clean up dead subscriptions
+        for subscription_id in dead_subscriptions:
+            self.unsubscribe(subscription_id)
+
     def broadcast_status(
         self,
         status: str,
@@ -195,6 +245,8 @@ class WebSocketSubscriptionManager:
         device_statuses: Optional[Dict[str, int]] = None,
     ) -> None:
         """Broadcast status update to all subscribers.
+
+        Sprint 3: Updated to version 3.0.0, includes theme and notification status.
 
         Args:
             status: Connection status (connected/disconnected/error)
@@ -206,10 +258,12 @@ class WebSocketSubscriptionManager:
             "type": "vulcan-brownout/status",
             "data": {
                 "status": status,
-                "version": "2.0.0",
+                "version": "3.0.0",
                 "threshold": threshold,
                 "threshold_rules": device_rules,
                 "device_statuses": device_statuses or {},
+                "theme": "light",  # Default to light, frontend will detect
+                "notifications_enabled": True,  # Default, updated from preferences
             },
         }
 
