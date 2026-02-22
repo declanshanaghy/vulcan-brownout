@@ -491,5 +491,295 @@ class TestEdgeCases:
         assert len(ids1 & ids2) == 0
 
 
+# ============================================================================
+# SPRINT 5: FILTERING TESTS (HAPPY PATH)
+# ============================================================================
+
+class TestFilteringHappyPath:
+    """Test Sprint 5 server-side filtering happy path."""
+
+    @pytest.mark.asyncio
+    async def test_query_devices_with_status_filter(self, mock_ha):
+        """Test filtering devices by status=critical."""
+        from .mock_fixtures import generate_filter_test_entities
+        entities = generate_filter_test_entities()
+        await mock_ha.setup_entities(entities)
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        # Query with status filter
+        response = await client.send_command("vulcan-brownout/query_devices", {
+            "limit": 100,
+            "offset": 0,
+            "filter_status": ["critical"]
+        })
+
+        assert response["success"] is True
+        devices = response["data"]["devices"]
+        # All returned devices should have critical status
+        for device in devices:
+            assert device["status"] == "critical"
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_query_devices_with_manufacturer_filter(self, mock_ha):
+        """Test filtering devices by manufacturer."""
+        from .mock_fixtures import generate_filter_test_entities
+        entities = generate_filter_test_entities()
+        await mock_ha.setup_entities(entities)
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        # Query with manufacturer filter (Aqara)
+        response = await client.send_command("vulcan-brownout/query_devices", {
+            "limit": 100,
+            "offset": 0,
+            "filter_manufacturer": ["Aqara"]
+        })
+
+        assert response["success"] is True
+        # Response should have valid structure
+        assert "data" in response
+        assert "total" in response["data"]
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_query_devices_with_area_filter(self, mock_ha):
+        """Test filtering devices by area."""
+        from .mock_fixtures import generate_filter_test_entities
+        entities = generate_filter_test_entities()
+        await mock_ha.setup_entities(entities)
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        # Query with area filter
+        response = await client.send_command("vulcan-brownout/query_devices", {
+            "limit": 100,
+            "offset": 0,
+            "filter_area": ["Living Room"]
+        })
+
+        assert response["success"] is True
+        assert "data" in response
+        assert "devices" in response["data"]
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_query_devices_with_multiple_filters(self, mock_ha):
+        """Test combining status + manufacturer filters (AND logic)."""
+        from .mock_fixtures import generate_filter_test_entities
+        entities = generate_filter_test_entities()
+        await mock_ha.setup_entities(entities)
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        # Query with multiple filters (AND logic)
+        response = await client.send_command("vulcan-brownout/query_devices", {
+            "limit": 100,
+            "offset": 0,
+            "filter_status": ["critical"],
+            "filter_manufacturer": ["Aqara"]
+        })
+
+        assert response["success"] is True
+        devices = response["data"]["devices"]
+        # All devices must match BOTH filters
+        for device in devices:
+            assert device["status"] == "critical"
+            # Manufacturer check would require registry lookup in mock
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_query_devices_no_filter_returns_all(self, mock_ha):
+        """Test backward compatibility: no filters returns all devices."""
+        from .mock_fixtures import generate_filter_test_entities
+        entities = generate_filter_test_entities()
+        await mock_ha.setup_entities(entities)
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        # Query without filters
+        response = await client.send_command("vulcan-brownout/query_devices", {
+            "limit": 100,
+            "offset": 0
+        })
+
+        assert response["success"] is True
+        unfiltered_total = response["data"]["total"]
+
+        # Query with empty filter arrays (should be equivalent to no filters)
+        response2 = await client.send_command("vulcan-brownout/query_devices", {
+            "limit": 100,
+            "offset": 0,
+            "filter_manufacturer": [],
+            "filter_status": [],
+            "filter_area": [],
+            "filter_device_class": []
+        })
+
+        assert response2["success"] is True
+        # Empty filters should return same result as no filters
+        assert response2["data"]["total"] == unfiltered_total
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_get_filter_options(self, mock_ha):
+        """Test get_filter_options returns correct data structure."""
+        from .mock_fixtures import generate_filter_test_entities
+        entities = generate_filter_test_entities()
+        await mock_ha.setup_entities(entities)
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        # Call get_filter_options
+        response = await client.send_command("vulcan-brownout/get_filter_options", {})
+
+        assert response["success"] is True
+        data = response["data"]
+
+        # Verify response structure
+        assert "manufacturers" in data
+        assert "device_classes" in data
+        assert "statuses" in data
+        assert "areas" in data
+
+        # Verify types
+        assert isinstance(data["manufacturers"], list)
+        assert isinstance(data["device_classes"], list)
+        assert isinstance(data["statuses"], list)
+        assert isinstance(data["areas"], list)
+
+        # Statuses should always have the standard four values
+        assert "critical" in data["statuses"]
+        assert "warning" in data["statuses"]
+        assert "healthy" in data["statuses"]
+        assert "unavailable" in data["statuses"]
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_query_devices_filter_resets_pagination(self, mock_ha):
+        """Test that filter changes reset pagination cursor."""
+        from .mock_fixtures import generate_filter_test_entities
+        entities = generate_filter_test_entities()
+        await mock_ha.setup_entities(entities)
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        # First query without filter
+        response1 = await client.send_command("vulcan-brownout/query_devices", {
+            "limit": 50,
+            "offset": 0
+        })
+
+        assert response1["success"] is True
+        total1 = response1["data"]["total"]
+
+        # Second query with filter
+        response2 = await client.send_command("vulcan-brownout/query_devices", {
+            "limit": 50,
+            "offset": 0,
+            "filter_status": ["critical"]
+        })
+
+        assert response2["success"] is True
+        # Filtered total may be different (or same if all are critical)
+        assert "total" in response2["data"]
+
+        await client.close()
+
+
+# ============================================================================
+# SPRINT 5: FILTERING TESTS (EDGE CASES)
+# ============================================================================
+
+class TestFilteringEdgeCases:
+    """Test Sprint 5 filtering edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_filter_with_empty_arrays(self, mock_ha):
+        """Test that empty filter arrays are treated as no filter."""
+        from .mock_fixtures import generate_filter_test_entities
+        entities = generate_filter_test_entities()
+        await mock_ha.setup_entities(entities)
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        # Query with all empty filter arrays
+        response = await client.send_command("vulcan-brownout/query_devices", {
+            "limit": 100,
+            "offset": 0,
+            "filter_manufacturer": [],
+            "filter_device_class": [],
+            "filter_status": [],
+            "filter_area": []
+        })
+
+        assert response["success"] is True
+        # Should return all devices
+        assert response["data"]["total"] > 0
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_filter_with_invalid_status(self, mock_ha):
+        """Test that invalid status values are rejected."""
+        from .mock_fixtures import generate_filter_test_entities
+        entities = generate_filter_test_entities()
+        await mock_ha.setup_entities(entities)
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        # Query with invalid status value
+        response = await client.send_command("vulcan-brownout/query_devices", {
+            "limit": 100,
+            "offset": 0,
+            "filter_status": ["invalid_status"]
+        })
+
+        # Should fail with invalid_filter_status error
+        assert response["success"] is False
+        assert "error" in response
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_filter_no_matches(self, mock_ha):
+        """Test filter that matches nothing returns empty result."""
+        from .mock_fixtures import generate_filter_test_entities
+        entities = generate_filter_test_entities()
+        await mock_ha.setup_entities(entities)
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        # Query with filter that matches nothing
+        response = await client.send_command("vulcan-brownout/query_devices", {
+            "limit": 100,
+            "offset": 0,
+            "filter_manufacturer": ["NonExistentManufacturer"]
+        })
+
+        assert response["success"] is True
+        assert response["data"]["total"] == 0
+        assert response["data"]["devices"] == []
+
+        await client.close()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -17,6 +17,8 @@ All architecture decisions for Vulcan Brownout. Full ADR docs in this directory.
 | 011 | CSS custom properties + MutationObserver for auto dark mode (3-level detection) | 3 |
 | 012 | Server-side filter: exclude binary_sensor domain + require numeric battery_level 0-100 | 3 |
 | 013 | Playwright for E2E testing (Shadow DOM piercing, WebSocket mocking, HA auth fixtures) | 3 |
+| 014 | hass.themes.darkMode as primary theme source + hass_themes_updated event listener | 4 |
+| 015 | Server-side filtering via query_devices filter params + get_filter_options command | 5 |
 
 ## ADR-013 Key Decisions (E2E Framework)
 - Real HA staging instance (not mocked) for integration tests

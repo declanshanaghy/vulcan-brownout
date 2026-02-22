@@ -532,3 +532,550 @@ graph TD
 - [ ] Test error state display + retry button
 - [ ] Test dark/light mode switch via `hass.themes.darkMode`
 - [ ] Verify color contrast (WCAG AA) in both themes
+
+---
+
+# Wireframes — Sprint 5
+
+**By**: Luna (UX) | **Status**: IN PROGRESS | **Date**: 2026-02-22
+
+Sprint 5 adds five new wireframes covering the Simple Filtering feature: filter bar, filter dropdown, active chips, mobile bottom sheet, and the filtered empty state.
+
+---
+
+## Wireframe 12: Filter Bar Layout (Desktop)
+
+The filter bar renders below the header and above the device list on desktop (>= 768px). It replaces and extends the existing sort/filter control bar. Four labeled dropdown trigger buttons appear side by side. Active buttons are visually accented. A chip row conditionally appears below when at least one filter is active.
+
+```mermaid
+graph TD
+    classDef filterBarBg fill:#F0F0F0,stroke:#E0E0E0,color:#212121
+    classDef filterBtnInactive fill:#FFFFFF,stroke:#BDBDBD,color:#212121
+    classDef filterBtnActive fill:#03A9F4,stroke:#0288D1,color:#FFFFFF
+    classDef chipRowBg fill:#E3F2FD,stroke:#90CAF9,color:#0D47A1
+    classDef sortBtn fill:#FFFFFF,stroke:#BDBDBD,color:#212121
+
+    PanelContainer["PANEL CONTAINER (flex column)"]
+
+    Header["HEADER (56px)<br/>🔋 Battery Monitoring | Connected 🟢 | ⚙️ | 🔔"]
+
+    FilterBar["FILTER BAR ROW (48px, --vb-bg-secondary background)<br/>border-bottom: 1px solid --vb-border-color<br/>padding: 0 16px | display: flex | gap: 8px | align-items: center"]
+
+    SortBtn["[▼ Sort: Priority]<br/>(44px height, left-aligned)"]
+    MfrBtn["[Manufacturer ▼]<br/>(44px height, inactive)"]
+    ClassBtn["[Device Class ▼]<br/>(44px height, inactive)"]
+    StatusBtn["[Status ▼]<br/>(44px height, inactive)"]
+    RoomBtn["[Room (2) ▼]<br/>(44px height, ACTIVE — accent fill)"]
+
+    ChipRow["CHIP ROW (conditionally rendered, 40px height)<br/>padding: 4px 16px | display: flex | gap: 8px | overflow-x: auto<br/>Visible when any filter active — slides in 200ms"]
+
+    Chip1["[Room: Living Room  x]<br/>(32px height, pill shape)"]
+    Chip2["[Room: Kitchen  x]<br/>(32px height, pill shape)"]
+    ClearAll["[Clear all]<br/>(text link, 32px touch target)"]
+
+    DeviceList["DEVICE LIST CONTAINER (scrollable, flex 1)"]
+
+    PanelContainer --> Header
+    PanelContainer --> FilterBar
+    FilterBar --> SortBtn
+    FilterBar --> MfrBtn
+    FilterBar --> ClassBtn
+    FilterBar --> StatusBtn
+    FilterBar --> RoomBtn
+    PanelContainer --> ChipRow
+    ChipRow --> Chip1
+    ChipRow --> Chip2
+    ChipRow --> ClearAll
+    PanelContainer --> DeviceList
+
+    class FilterBar filterBarBg
+    class SortBtn sortBtn
+    class MfrBtn filterBtnInactive
+    class ClassBtn filterBtnInactive
+    class StatusBtn filterBtnInactive
+    class RoomBtn filterBtnActive
+    class ChipRow chipRowBg
+    class Chip1 chipRowBg
+    class Chip2 chipRowBg
+```
+
+### Filter Bar — Spacing & Sizing Rules
+
+```mermaid
+graph LR
+    classDef spec fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+
+    FilterBarSpecs["FILTER BAR SPECS"]
+    Height["Row height: 48px"]
+    Padding["Horizontal padding: 16px"]
+    Gap["Gap between buttons: 8px"]
+    BtnHeight["Button height: 44px (min touch target)"]
+    BtnPadding["Button padding: 0 12px"]
+    BtnRadius["Button border-radius: 4px"]
+    ActiveStyle["Active button: --vb-filter-active-bg fill, white text"]
+    InactiveStyle["Inactive button: white bg, 1px border --vb-border-color"]
+
+    ChipRowSpecs["CHIP ROW SPECS"]
+    ChipHeight["Chip height: 32px"]
+    ChipPadding["Chip padding: 0 8px"]
+    ChipRadius["Chip border-radius: 16px (pill)"]
+    ChipFont["Chip font-size: 12px"]
+    ChipGap["Gap between chips: 8px"]
+    XButton["[x] button: 16px icon, 28px touch target via padding"]
+
+    FilterBarSpecs --> Height
+    FilterBarSpecs --> Padding
+    FilterBarSpecs --> Gap
+    FilterBarSpecs --> BtnHeight
+    FilterBarSpecs --> BtnPadding
+    FilterBarSpecs --> BtnRadius
+    FilterBarSpecs --> ActiveStyle
+    FilterBarSpecs --> InactiveStyle
+
+    ChipRowSpecs --> ChipHeight
+    ChipRowSpecs --> ChipPadding
+    ChipRowSpecs --> ChipRadius
+    ChipRowSpecs --> ChipFont
+    ChipRowSpecs --> ChipGap
+    ChipRowSpecs --> XButton
+
+    class FilterBarSpecs spec
+    class ChipRowSpecs spec
+```
+
+---
+
+## Wireframe 13: Filter Dropdown (Expanded State)
+
+When a filter trigger button is clicked, a positioned dropdown panel opens below it. The dropdown is not a native `<select>` — it is a custom `<div>` panel with a checkbox list for multi-select. This wireframe shows the "Room" dropdown expanded with two values checked.
+
+```mermaid
+graph TD
+    classDef dropdownContainer fill:#FFFFFF,stroke:#E0E0E0,color:#212121
+    classDef dropdownHeader fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+    classDef checkboxItem fill:#FFFFFF,stroke:none,color:#212121
+    classDef checkboxChecked fill:#E3F2FD,stroke:#90CAF9,color:#0D47A1
+    classDef loadingState fill:#F5F5F5,stroke:#E0E0E0,color:#9E9E9E
+    classDef errorState fill:#FFF3E0,stroke:#FF9800,color:#E65100
+
+    TriggerBtn["[Room (2) ▼]<br/>(trigger button, active state)"]
+
+    Dropdown["DROPDOWN PANEL<br/>position: absolute | top: 100% | left: 0<br/>min-width: 220px | max-height: 300px<br/>background: --vb-bg-primary<br/>border: 1px solid --vb-border-color<br/>border-radius: 4px<br/>box-shadow: 0 4px 12px rgba(0,0,0,0.15)<br/>overflow-y: auto | z-index: 100"]
+
+    DropdownHeader["DROPDOWN HEADER (40px)<br/>Label: 'Room'<br/>padding: 0 12px<br/>font-weight: bold | font-size: 12px | text-transform: uppercase"]
+
+    Item1["☑ Living Room<br/>(checked — accent background)"]
+    Item2["☑ Kitchen<br/>(checked — accent background)"]
+    Item3["☐ Bedroom<br/>(unchecked)"]
+    Item4["☐ Bathroom<br/>(unchecked)"]
+    Item5["☐ Office<br/>(unchecked)"]
+    Item6["☐ Garage<br/>(unchecked)"]
+
+    DropdownFooter["DROPDOWN FOOTER (optional)<br/>2 of 6 selected"]
+
+    LoadingState["LOADING STATE (while fetching options)<br/>● Loading... (shimmer placeholder)"]
+
+    ErrorState["ERROR STATE (if fetch fails)<br/>⚠️ Unable to load options  [Retry]"]
+
+    TriggerBtn --> Dropdown
+    Dropdown --> DropdownHeader
+    Dropdown --> Item1
+    Dropdown --> Item2
+    Dropdown --> Item3
+    Dropdown --> Item4
+    Dropdown --> Item5
+    Dropdown --> Item6
+    Dropdown --> DropdownFooter
+
+    class Dropdown dropdownContainer
+    class DropdownHeader dropdownHeader
+    class Item1 checkboxChecked
+    class Item2 checkboxChecked
+    class Item3 checkboxItem
+    class Item4 checkboxItem
+    class Item5 checkboxItem
+    class Item6 checkboxItem
+    class LoadingState loadingState
+    class ErrorState errorState
+```
+
+### Dropdown — Interaction States
+
+```mermaid
+stateDiagram-v2
+    [*] --> Closed: Trigger button rendered
+
+    Closed --> Opening: User clicks trigger button
+    Opening --> LoadingOptions: If filter options not yet cached
+    LoadingOptions --> OptionsReady: get_filter_options response received
+    LoadingOptions --> OptionsError: Fetch failed
+    OptionsError --> OptionsReady: User clicks [Retry], fetch succeeds
+    Opening --> OptionsReady: Options already cached from earlier fetch
+
+    OptionsReady --> Open: Dropdown panel visible, checkboxes rendered
+
+    Open --> ItemToggled: User clicks a checkbox item
+    ItemToggled --> Open: Checkbox state toggles, chip row updated
+
+    Open --> Closing: Outside click OR Escape key OR trigger re-click
+    Closing --> Closed: Dropdown hidden, trigger button reflects selection count
+
+    Closed --> [*]
+```
+
+### Dropdown — Positioning Rules
+
+```mermaid
+graph LR
+    classDef rule fill:#F0F0F0,stroke:#E0E0E0,color:#212121
+
+    Positioning["DROPDOWN POSITIONING"]
+    Default["Default: position absolute, top=100% of trigger, left=0"]
+    Overflow["Right overflow: if dropdown right edge > viewport right, align to right edge of trigger"]
+    Bottom["Bottom overflow: if dropdown bottom > viewport bottom, open upward (top auto, bottom=100%)"]
+    ZIndex["z-index: 100 (above device list, below modal overlays)"]
+    Width["min-width: matches trigger button width (min 200px)"]
+    MaxHeight["max-height: 300px, overflow-y: auto for long lists"]
+
+    Positioning --> Default
+    Positioning --> Overflow
+    Positioning --> Bottom
+    Positioning --> ZIndex
+    Positioning --> Width
+    Positioning --> MaxHeight
+
+    class Default rule
+    class Overflow rule
+    class Bottom rule
+    class ZIndex rule
+    class Width rule
+    class MaxHeight rule
+```
+
+---
+
+## Wireframe 14: Active Filter Chips Row
+
+The chip row renders below the filter bar row and is conditionally present (not just hidden) when at least one filter value is active. Each chip represents one selected filter value. Multiple chips appear when multiple values are selected. A "Clear all" text link appears at the end of the chip row.
+
+```mermaid
+graph TD
+    classDef chipRowContainer fill:#E3F2FD,stroke:#90CAF9,color:#0D47A1
+    classDef chip fill:#E3F2FD,stroke:#90CAF9,color:#0D47A1
+    classDef clearAllBtn fill:none,stroke:none,color:#0288D1
+    classDef chipLabel fill:none,stroke:none,color:#0D47A1
+    classDef xBtn fill:none,stroke:none,color:#0D47A1
+
+    ChipRow["CHIP ROW CONTAINER<br/>display: flex | flex-wrap: nowrap | overflow-x: auto<br/>padding: 6px 16px | gap: 8px | align-items: center<br/>background: --vb-bg-primary<br/>border-bottom: 1px solid --vb-border-color<br/>animation: slideDown 200ms ease-out on appear<br/>animation: slideUp 200ms ease-in on remove"]
+
+    ChipA["CHIP: Manufacturer: Aqara<br/>[ Manufacturer: Aqara  × ]<br/>height: 32px | padding: 0 8px | border-radius: 16px<br/>background: --vb-filter-chip-bg<br/>border: 1px solid --vb-filter-chip-border"]
+
+    ChipB["CHIP: Room: Living Room<br/>[ Room: Living Room  × ]"]
+
+    ChipC["CHIP: Room: Kitchen<br/>[ Room: Kitchen  × ]"]
+
+    ChipD["CHIP: Status: Critical<br/>[ Status: Critical  × ]"]
+
+    ClearAll["[ Clear all ]<br/>text link style | color: --vb-color-accent<br/>min-width: 44px touch target via padding<br/>margin-left: auto (right-aligned)"]
+
+    ChipRow --> ChipA
+    ChipRow --> ChipB
+    ChipRow --> ChipC
+    ChipRow --> ChipD
+    ChipRow --> ClearAll
+
+    class ChipRow chipRowContainer
+    class ChipA chip
+    class ChipB chip
+    class ChipC chip
+    class ChipD chip
+    class ClearAll clearAllBtn
+```
+
+### Chip Row — Anatomy of a Single Chip
+
+```mermaid
+graph LR
+    classDef chipPart fill:#E3F2FD,stroke:#90CAF9,color:#0D47A1
+    classDef xPart fill:#BBDEFB,stroke:#90CAF9,color:#0D47A1
+
+    Chip["Chip Element (32px height, pill)"]
+    CategoryLabel["Category prefix (12px, medium weight)<br/>e.g., 'Manufacturer: '"]
+    ValueLabel["Value (12px, regular weight)<br/>e.g., 'Aqara'"]
+    Separator["  (non-breaking space)"]
+    XButton["[×] remove button (16px icon)<br/>padding: 4px (extends touch target)<br/>aria-label: 'Remove Manufacturer: Aqara filter'"]
+
+    Chip --> CategoryLabel
+    Chip --> ValueLabel
+    Chip --> Separator
+    Chip --> XButton
+
+    class Chip chipPart
+    class CategoryLabel chipPart
+    class ValueLabel chipPart
+    class XButton xPart
+```
+
+### Chip Row — Scroll Behavior (Overflow)
+
+```mermaid
+graph TD
+    classDef scroll fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+
+    ScrollNote["CHIP ROW OVERFLOW BEHAVIOR"]
+    Rule1["flex-wrap: nowrap — chips never wrap to second line"]
+    Rule2["overflow-x: auto — chip row scrolls horizontally when chips overflow viewport"]
+    Rule3["scrollbar-width: thin (desktop) | hidden on mobile (touch scroll)"]
+    Rule4["Clear all is NOT pinned — it scrolls with the chip row on overflow"]
+    Rule5["On very wide viewports, chip row is left-aligned, not stretched"]
+
+    ScrollNote --> Rule1
+    ScrollNote --> Rule2
+    ScrollNote --> Rule3
+    ScrollNote --> Rule4
+    ScrollNote --> Rule5
+
+    class Rule1 scroll
+    class Rule2 scroll
+    class Rule3 scroll
+    class Rule4 scroll
+    class Rule5 scroll
+```
+
+---
+
+## Wireframe 15: Mobile Filter Bottom Sheet
+
+On mobile (< 768px), the four individual filter dropdowns are replaced by a single "Filter" button. Tapping it opens a full-width bottom sheet that slides up from the bottom of the viewport. The sheet presents all four filter categories as accordion sections. Changes inside the sheet are staged and not applied until the user taps "Apply Filters".
+
+```mermaid
+graph TD
+    classDef mobileHeader fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef filterBarMobile fill:#F0F0F0,stroke:#E0E0E0,color:#212121
+    classDef filterBtnMobile fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef overlay fill:#000000,stroke:none,color:#FFF,opacity:0.5
+    classDef sheetContainer fill:#FFFFFF,stroke:#E0E0E0,color:#212121
+    classDef sheetHeader fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+    classDef accordionSection fill:#FFFFFF,stroke:#E0E0E0,color:#212121
+    classDef accordionExpanded fill:#F0F7FF,stroke:#90CAF9,color:#0D47A1
+    classDef sheetFooter fill:#FFFFFF,stroke:#E0E0E0,color:#212121
+    classDef applyBtn fill:#03A9F4,stroke:#0288D1,color:#FFF
+
+    MobilePanel["MOBILE PANEL (100% width)"]
+
+    MobileHeader["HEADER (56px)"]
+
+    MobileFilterBar["MOBILE FILTER BAR (48px)<br/>display: flex | align-items: center | padding: 0 16px"]
+    SortDropdown["[▼ Sort: Priority]<br/>(left side)"]
+    FilterBtn["[Filter (3) ▼]<br/>(right side, badge shows 3 active)<br/>background: --vb-filter-active-bg (accent)<br/>color: white"]
+
+    Overlay["OVERLAY<br/>position: fixed | inset: 0<br/>background: rgba(0,0,0,0.5)<br/>z-index: 200<br/>fade in 200ms"]
+
+    BottomSheet["BOTTOM SHEET CONTAINER<br/>position: fixed | bottom: 0 | left: 0 | right: 0<br/>max-height: 85vh | overflow-y: auto<br/>background: --vb-bg-primary<br/>border-radius: 16px 16px 0 0<br/>box-shadow: 0 -4px 20px rgba(0,0,0,0.2)<br/>z-index: 201<br/>animation: slideUp 300ms ease-out"]
+
+    SheetHeader["SHEET HEADER (sticky, 56px)<br/>display: flex | align-items: center | padding: 0 16px<br/>border-bottom: 1px solid --vb-border-color"]
+    SheetTitle["'Filters' (18px, bold, flex-1)"]
+    ClearAllLink["[Clear All]<br/>(text link, color: --vb-color-accent)"]
+    CloseBtn["[X]<br/>(44px touch target)"]
+
+    SheetBody["SHEET BODY (scrollable)"]
+
+    AccMfr["ACCORDION: Manufacturer (collapsed)<br/>[Manufacturer ▶]<br/>height: 48px | padding: 0 16px"]
+    AccClass["ACCORDION: Device Class (collapsed)<br/>[Device Class ▶]<br/>height: 48px | padding: 0 16px"]
+    AccStatus["ACCORDION: Status (expanded)<br/>[Status ▼]<br/>─────────────────<br/>☑ Critical (accent bg)<br/>☐ Warning<br/>☑ Healthy (accent bg)<br/>☐ Unavailable"]
+    AccRoom["ACCORDION: Room (collapsed)<br/>[Room ▶]<br/>height: 48px | padding: 0 16px"]
+
+    SheetFooter["SHEET FOOTER (sticky, 64px)<br/>padding: 8px 16px<br/>border-top: 1px solid --vb-border-color"]
+    ApplyBtn["[Apply Filters]<br/>full-width primary button<br/>height: 48px | border-radius: 4px"]
+
+    MobilePanel --> MobileHeader
+    MobilePanel --> MobileFilterBar
+    MobileFilterBar --> SortDropdown
+    MobileFilterBar --> FilterBtn
+    MobilePanel --> Overlay
+    MobilePanel --> BottomSheet
+
+    BottomSheet --> SheetHeader
+    SheetHeader --> SheetTitle
+    SheetHeader --> ClearAllLink
+    SheetHeader --> CloseBtn
+    BottomSheet --> SheetBody
+    SheetBody --> AccMfr
+    SheetBody --> AccClass
+    SheetBody --> AccStatus
+    SheetBody --> AccRoom
+    BottomSheet --> SheetFooter
+    SheetFooter --> ApplyBtn
+
+    class MobileHeader mobileHeader
+    class MobileFilterBar filterBarMobile
+    class SortDropdown filterBarMobile
+    class FilterBtn filterBtnMobile
+    class Overlay overlay
+    class BottomSheet sheetContainer
+    class SheetHeader sheetHeader
+    class AccMfr accordionSection
+    class AccClass accordionSection
+    class AccStatus accordionExpanded
+    class AccRoom accordionSection
+    class SheetFooter sheetHeader
+    class ApplyBtn applyBtn
+```
+
+### Mobile Bottom Sheet — Accordion Item Anatomy
+
+```mermaid
+graph LR
+    classDef collapsed fill:#FFFFFF,stroke:#E0E0E0,color:#212121
+    classDef expanded fill:#F0F7FF,stroke:#90CAF9,color:#0D47A1
+    classDef checkboxRow fill:#FFFFFF,stroke:none,color:#212121
+    classDef checkboxChecked fill:#E3F2FD,stroke:#90CAF9,color:#0D47A1
+
+    Collapsed["COLLAPSED ACCORDION ITEM (48px)<br/>[ Category Label         (N selected) ▶ ]<br/>border-bottom: 1px solid --vb-border-color<br/>padding: 0 16px | display: flex | align-items: center"]
+
+    Expanded["EXPANDED ACCORDION ITEM<br/>[ Category Label         (N selected) ▼ ]<br/>─────────────────────────────<br/>Checkbox list (44px per row)"]
+
+    CheckRow1["[ ☐  Option A ]  (44px height, unchecked)"]
+    CheckRow2["[ ☑  Option B ]  (44px height, checked, accent bg)"]
+    CheckRow3["[ ☐  Option C ]  (44px height, unchecked)"]
+
+    Collapsed -->|User taps header| Expanded
+    Expanded --> CheckRow1
+    Expanded --> CheckRow2
+    Expanded --> CheckRow3
+    Expanded -->|User taps header again| Collapsed
+
+    class Collapsed collapsed
+    class Expanded expanded
+    class CheckRow1 checkboxRow
+    class CheckRow2 checkboxChecked
+    class CheckRow3 checkboxRow
+```
+
+### Mobile Bottom Sheet — Stage vs. Apply Logic
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Sheet as Bottom Sheet
+    participant Panel as Panel JS
+
+    User->>Sheet: Taps "Filter" button
+    Panel->>Sheet: Open sheet, copy current active filters to staged state
+    Sheet->>Sheet: Render staged state in accordion checkboxes
+
+    User->>Sheet: Checks "Manufacturer: Aqara" checkbox
+    Sheet->>Sheet: Update staged state only (no API call)
+
+    User->>Sheet: Unchecks "Status: Healthy"
+    Sheet->>Sheet: Update staged state only
+
+    User->>Sheet: Taps "Apply Filters"
+    Sheet->>Panel: Commit staged filters as new active filters
+    Panel->>Panel: Update chip row, reset cursor
+    Panel->>Panel: Save to localStorage
+    Panel->>Panel: Issue query_devices with new filters
+    Sheet->>Sheet: Close (slide down 300ms)
+
+    User->>Sheet: Taps [X] without applying
+    Sheet->>Sheet: Discard staged state
+    Sheet->>Sheet: Close (slide down 300ms)
+    Panel->>Panel: No change to active filters or device list
+```
+
+---
+
+## Wireframe 16: Empty State with Active Filters
+
+When the server returns zero devices because the active filters match nothing, a dedicated filtered empty state is shown. This is visually and contextually different from the "no battery devices at all" empty state (Wireframe 6). The battery icon is replaced with a filter/funnel icon. Copy explains that filters are the cause. The single CTA clears all filters.
+
+```mermaid
+graph TD
+    classDef container fill:#FFFFFF,stroke:#E0E0E0,color:#212121
+    classDef filterIconStyle fill:none,stroke:none,color:#9E9E9E
+    classDef titleStyle fill:none,stroke:none,color:#212121
+    classDef subtitleStyle fill:none,stroke:none,color:#757575
+    classDef clearBtn fill:#03A9F4,stroke:#0288D1,color:#FFF
+
+    FilterBar["FILTER BAR (still visible with active chips)<br/>Chip row: [ Manufacturer: Aqara × ] [ Room: Garage × ] | [Clear all]"]
+
+    Divider["─────────────────────────────────"]
+
+    FilteredEmptyState["FILTERED EMPTY STATE CONTAINER<br/>display: flex | flex-direction: column | align-items: center<br/>padding: 48px 24px | text-align: center"]
+
+    FilterIcon["FILTER ICON (48px)<br/>(funnel/filter SVG icon, color: --vb-text-secondary)<br/>margin-bottom: 16px"]
+
+    EmptyTitle["No devices match your filters.<br/>(18px, bold, --vb-text-primary)<br/>margin-bottom: 8px"]
+
+    EmptySubtitle["Try removing one or more filters,<br/>or clear all filters to see the full device list.<br/>(14px, --vb-text-secondary)<br/>max-width: 320px | margin-bottom: 24px"]
+
+    ClearFiltersBtn["[ Clear Filters ]<br/>primary button style<br/>height: 44px | padding: 0 24px<br/>font-size: 14px"]
+
+    FilteredEmptyState --> FilterIcon
+    FilteredEmptyState --> EmptyTitle
+    FilteredEmptyState --> EmptySubtitle
+    FilteredEmptyState --> ClearFiltersBtn
+
+    FilterBar --> Divider
+    Divider --> FilteredEmptyState
+
+    class FilteredEmptyState container
+    class FilterIcon filterIconStyle
+    class EmptyTitle titleStyle
+    class EmptySubtitle subtitleStyle
+    class ClearFiltersBtn clearBtn
+```
+
+### Filtered Empty State vs. No-Devices Empty State — Comparison
+
+```mermaid
+graph LR
+    classDef noDevices fill:#FFF3E0,stroke:#FFB74D,color:#212121
+    classDef filtered fill:#E3F2FD,stroke:#90CAF9,color:#212121
+
+    NoDevices["WIREFRAME 6: No Battery Devices<br/>─────────────────<br/>Icon: 🔋 Battery (48px)<br/>Title: No battery entities found<br/>Subtitle: Check battery_level attribute...<br/>CTAs: [Docs] [Refresh] [Settings]<br/>Cause: No battery devices in HA<br/>Filter bar: N/A (no filters active)"]
+
+    Filtered["WIREFRAME 16: Filtered — No Results<br/>─────────────────<br/>Icon: Funnel/Filter (48px, grey)<br/>Title: No devices match your filters.<br/>Subtitle: Try removing filters...<br/>CTA: [Clear Filters] (single button)<br/>Cause: Filters too restrictive<br/>Filter bar: Visible with active chip row"]
+
+    NoDevices <--> Filtered
+
+    class NoDevices noDevices
+    class Filtered filtered
+```
+
+---
+
+## Sprint 5 Design Consistency Additions
+
+The following rules extend the existing Design Consistency Rules for all filter UI components:
+
+1. **Filter bar**: Always visible when devices exist; hidden only on the no-devices empty state (Wireframe 6)
+2. **Chip row**: Conditionally rendered (not just hidden) — removed from DOM when no filters active to avoid empty space
+3. **Dropdown z-index**: 100 (above device list cards, below modal overlays at z-index 200+)
+4. **Bottom sheet z-index**: 201 (above overlay at 200)
+5. **Filter options**: All four categories (manufacturer, device_class, status, area) populated dynamically; hardcoded values never used
+6. **Active filter count**: Filter trigger buttons show `(N)` suffix when N > 0 values selected
+7. **Staging on mobile**: Bottom sheet always stages — never applies mid-selection to avoid UX disruption
+8. **Chip category prefix**: Always shows category name before value for clarity (`Room: Living Room`, not just `Living Room`)
+
+---
+
+## Sprint 5 Implementation Checklist (for Architect)
+
+- [ ] Implement filter bar row with four dropdown trigger buttons (desktop)
+- [ ] Implement mobile filter bar with single "Filter" button
+- [ ] Implement dropdown panels (positioned, custom div, not native select)
+- [ ] Implement checkbox lists inside dropdowns (multi-select per category)
+- [ ] Implement chip row as separate conditionally-rendered DOM element
+- [ ] Implement chip [x] removal and "Clear all" functionality
+- [ ] Implement chip row slide-in/slide-out animation (200ms)
+- [ ] Implement mobile bottom sheet (slide-up 300ms, overlay, accordion sections)
+- [ ] Implement staged filter state in bottom sheet vs. committed filter state
+- [ ] Implement "Apply Filters" and discard-on-close behavior for bottom sheet
+- [ ] Implement filtered empty state (Wireframe 16) distinct from no-devices state (Wireframe 6)
+- [ ] Apply new CSS custom properties (--vb-bg-secondary, --vb-filter-chip-*, --vb-filter-active-*, --vb-overlay-bg)
+- [ ] Verify all filter UI elements meet 44px touch target minimum
+- [ ] Verify WCAG AA contrast on chips, dropdown items, and filter trigger buttons in both themes
+- [ ] Test dropdown positioning (right-edge overflow and bottom-edge overflow correction)
+- [ ] Test chip row horizontal scroll on narrow viewports
+- [ ] Test bottom sheet accordion expand/collapse on real mobile device

@@ -26,6 +26,8 @@ def generate_test_entities(count: int = 150) -> List[Dict[str, Any]]:
             "entity_id": entity_id,
             "state": str(battery_level),
             "friendly_name": f"Critical Battery Device {i}",
+            "manufacturer": "IKEA",
+            "area_name": "Living Room",
             "attributes": {
                 "device_class": "battery",
                 "unit_of_measurement": "%",
@@ -44,6 +46,8 @@ def generate_test_entities(count: int = 150) -> List[Dict[str, Any]]:
             "entity_id": entity_id,
             "state": str(battery_level),
             "friendly_name": f"Warning Battery Device {i}",
+            "manufacturer": "Aqara",
+            "area_name": "Kitchen",
             "attributes": {
                 "device_class": "battery",
                 "unit_of_measurement": "%",
@@ -55,6 +59,8 @@ def generate_test_entities(count: int = 150) -> List[Dict[str, Any]]:
 
     # Healthy state entities (>25% battery)
     healthy_count = count - critical_count - warning_count - 10  # Reserve 10 for special cases
+    manufacturers = ["Philips", "IKEA", "Aqara", "Sonoff"]
+    areas = ["Bedroom", "Living Room", "Kitchen", "Office"]
     for i in range(healthy_count):
         entity_id = f"sensor.battery_healthy_{i:03d}"
         battery_level = 25 + (i % 75)  # 25-99%
@@ -62,6 +68,8 @@ def generate_test_entities(count: int = 150) -> List[Dict[str, Any]]:
             "entity_id": entity_id,
             "state": str(battery_level),
             "friendly_name": f"Healthy Battery Device {i}",
+            "manufacturer": manufacturers[i % len(manufacturers)],
+            "area_name": areas[i % len(areas)],
             "attributes": {
                 "device_class": "battery",
                 "unit_of_measurement": "%",
@@ -78,6 +86,8 @@ def generate_test_entities(count: int = 150) -> List[Dict[str, Any]]:
             "entity_id": entity_id,
             "state": "unavailable",
             "friendly_name": f"Unavailable Battery Device {i}",
+            "manufacturer": "Aqara",
+            "area_name": "Bedroom",
             "attributes": {
                 "device_class": "battery",
                 "unit_of_measurement": "%",
@@ -91,6 +101,8 @@ def generate_test_entities(count: int = 150) -> List[Dict[str, Any]]:
         "entity_id": "sensor.battery_max",
         "state": "100",
         "friendly_name": "Fully Charged Battery",
+        "manufacturer": "Philips",
+        "area_name": "Office",
         "attributes": {
             "device_class": "battery",
             "unit_of_measurement": "%",
@@ -99,6 +111,61 @@ def generate_test_entities(count: int = 150) -> List[Dict[str, Any]]:
         },
         "available": True,
     })
+
+    return entities
+
+
+def generate_filter_test_entities(count: int = 50) -> List[Dict[str, Any]]:
+    """Generate test entities with diverse manufacturers, areas, and statuses for filter testing.
+
+    Args:
+        count: Number of test entities to generate (default 50)
+
+    Returns:
+        List of entity dictionaries with manufacturer and area_name fields
+    """
+    entities: List[Dict[str, Any]] = []
+
+    manufacturers = ["Aqara", "Philips", "IKEA", "Sonoff"]
+    areas = ["Living Room", "Kitchen", "Bedroom", "Office"]
+
+    # Generate entities with diverse manufacturer/area/status combinations
+    for i in range(count):
+        manufacturer = manufacturers[i % len(manufacturers)]
+        area = areas[i % len(areas)]
+
+        # Vary battery levels to get different statuses
+        if i % 5 == 0:
+            battery_level = 5 + (i % 10)  # 5-15% -> critical
+            status = "critical"
+        elif i % 5 == 1:
+            battery_level = 15 + (i % 10)  # 15-25% -> warning
+            status = "warning"
+        elif i % 5 == 2:
+            battery_level = 30 + (i % 70)  # 30-99% -> healthy
+            status = "healthy"
+        elif i % 5 == 3:
+            battery_level = 50 + (i % 50)  # 50-99% -> healthy
+            status = "healthy"
+        else:
+            battery_level = 0  # unavailable
+            status = "unavailable"
+
+        entity_id = f"sensor.filter_test_{i:03d}_battery"
+        entities.append({
+            "entity_id": entity_id,
+            "state": str(battery_level) if battery_level > 0 else "unavailable",
+            "friendly_name": f"Filter Test Device {i} ({manufacturer})",
+            "manufacturer": manufacturer,
+            "area_name": area,
+            "attributes": {
+                "device_class": "battery",
+                "unit_of_measurement": "%",
+                "icon": "mdi:battery",
+                "battery_level": battery_level if battery_level > 0 else None,
+            },
+            "available": battery_level > 0,
+        })
 
     return entities
 

@@ -7,7 +7,7 @@ from datetime import datetime
 
 from homeassistant.core import HomeAssistant, State
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.helpers import entity_registry as er, device_registry as dr
+from homeassistant.helpers import entity_registry as er, device_registry as dr, area_registry as ar
 
 from .const import (
     BATTERY_DEVICE_CLASS,
@@ -294,6 +294,180 @@ class BatteryMonitor:
             f"rules={len(self.device_rules)}"
         )
 
+    def _get_entity_manufacturer(self, entity_id: str) -> Optional[str]:
+        """Get manufacturer name for a battery entity via device_registry.
+
+        Sprint 5: Used for server-side manufacturer filtering.
+
+        Returns:
+            Manufacturer string, or None if entity has no device or device has no manufacturer.
+        """
+        try:
+            entity_registry = er.async_get(self.hass)
+            entry = entity_registry.entities.get(entity_id)
+            if not entry or not entry.device_id:
+                return None
+            device_registry = dr.async_get(self.hass)
+            device = device_registry.async_get(entry.device_id)
+            if device and device.manufacturer:
+                return device.manufacturer
+        except Exception:
+            pass
+        return None
+
+    def _get_entity_area_name(self, entity_id: str) -> Optional[str]:
+        """Get area name for a battery entity via area_registry.
+
+        Sprint 5: Used for server-side area filtering.
+
+        Lookup priority:
+        1. Entity's own area_id (entity_registry.entities[entity_id].area_id)
+        2. Entity's device area_id (device_registry.async_get(device_id).area_id)
+        3. None (entity has no area assignment)
+
+        Returns:
+            Area name string, or None if no area assigned or area has no name.
+        """
+        try:
+            entity_registry = er.async_get(self.hass)
+            area_reg = ar.async_get(self.hass)
+            entry = entity_registry.entities.get(entity_id)
+            if not entry:
+                return None
+
+            area_id = entry.area_id
+            if not area_id and entry.device_id:
+                device_registry = dr.async_get(self.hass)
+                device = device_registry.async_get(entry.device_id)
+                if device:
+                    area_id = device.area_id
+
+            if area_id:
+                area = area_reg.async_get_area(area_id)
+                if area and area.name:
+                    return area.name
+        except Exception:
+            pass
+        return None
+
+    def _apply_filters(
+        self,
+        devices: List[Tuple],
+        filter_manufacturer: Optional[List[str]] = None,
+        filter_device_class: Optional[List[str]] = None,
+        filter_status: Optional[List[str]] = None,
+        filter_area: Optional[List[str]] = None,
+    ) -> List[Tuple]:
+        """Apply server-side filters to device list.
+
+        Sprint 5: Implements AND-across-categories, OR-within-category filter logic.
+        Filter application order: filter → sort → paginate.
+
+        Args:
+            devices: List of (BatteryEntity, status_str) tuples (pre-sort, pre-paginate)
+            filter_manufacturer: OR filter — include devices matching any value. None = no filter.
+            filter_device_class: OR filter — include devices matching any value. None = no filter.
+            filter_status: OR filter — include devices matching any status. None = no filter.
+            filter_area: OR filter — include devices whose area name matches any value. None = no filter.
+
+        Returns:
+            Filtered list of (BatteryEntity, status_str) tuples.
+        """
+        # Fast path: no active filters
+        if not any([filter_manufacturer, filter_device_class, filter_status, filter_area]):
+            return devices
+
+        result = []
+        for entity, status in devices:
+            # AND across categories: skip device if it fails ANY active filter category
+            if filter_manufacturer:
+                manufacturer = self._get_entity_manufacturer(entity.entity_id)
+                if manufacturer not in filter_manufacturer:
+                    continue
+
+            if filter_device_class:
+                device_class = entity.state.attributes.get("device_class", "")
+                if device_class not in filter_device_class:
+                    continue
+
+            if filter_status:
+                if status not in filter_status:
+                    continue
+
+            if filter_area:
+                area_name = self._get_entity_area_name(entity.entity_id)
+                if area_name not in filter_area:
+                    continue
+
+            result.append((entity, status))
+
+        return result
+
+    async def get_filter_options(self) -> Dict[str, Any]:
+        """Return available filter values derived from tracked battery entities.
+
+        Sprint 5: Called by get_filter_options WebSocket command handler.
+
+        Reads device_registry, area_registry, and entity_registry.
+        Only returns values that are actually present in tracked battery entities.
+
+        Returns:
+            Dict with manufacturers, device_classes, areas, statuses keys.
+        """
+        from .const import MAX_FILTER_OPTIONS, SUPPORTED_STATUSES
+
+        try:
+            entity_registry = er.async_get(self.hass)
+            device_registry = dr.async_get(self.hass)
+            area_reg = ar.async_get(self.hass)
+
+            manufacturers: set = set()
+            device_classes: set = set()
+            area_ids_seen: Dict[str, str] = {}  # area_id → area_name
+
+            for entity_id, battery_entity in self.entities.items():
+                # Collect manufacturer
+                entry = entity_registry.entities.get(entity_id)
+                if entry and entry.device_id:
+                    device = device_registry.async_get(entry.device_id)
+                    if device and device.manufacturer:
+                        manufacturers.add(device.manufacturer)
+
+                # Collect device_class
+                device_class = battery_entity.state.attributes.get("device_class")
+                if device_class:
+                    device_classes.add(device_class)
+
+                # Collect area
+                if entry:
+                    area_id = entry.area_id
+                    if not area_id and entry.device_id:
+                        device = device_registry.async_get(entry.device_id)
+                        if device:
+                            area_id = device.area_id
+                    if area_id and area_id not in area_ids_seen:
+                        area = area_reg.async_get_area(area_id)
+                        if area and area.name:
+                            area_ids_seen[area_id] = area.name
+
+            # Build sorted areas list
+            areas = [
+                {"id": area_id, "name": name}
+                for area_id, name in area_ids_seen.items()
+            ]
+            areas.sort(key=lambda a: a["name"])
+
+            return {
+                "manufacturers": sorted(list(manufacturers))[:MAX_FILTER_OPTIONS],
+                "device_classes": sorted(list(device_classes))[:MAX_FILTER_OPTIONS],
+                "areas": areas[:MAX_FILTER_OPTIONS],
+                "statuses": SUPPORTED_STATUSES,
+            }
+
+        except Exception as e:
+            _LOGGER.error(f"Error building filter options: {e}")
+            raise
+
     @staticmethod
     def encode_cursor(last_changed: str, entity_id: str) -> str:
         """Encode cursor to base64 string.
@@ -341,11 +515,17 @@ class BatteryMonitor:
         cursor: Optional[str] = None,
         sort_key: str = SORT_KEY_PRIORITY,
         sort_order: str = SORT_ORDER_ASC,
+        filter_manufacturer: Optional[List[str]] = None,
+        filter_device_class: Optional[List[str]] = None,
+        filter_status: Optional[List[str]] = None,
+        filter_area: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Query and return paginated, sorted battery devices with status.
 
         Sprint 3: Supports both offset-based (legacy) and cursor-based pagination.
         Cursor-based pagination is recommended for stability with large result sets.
+
+        Sprint 5: Added server-side filtering by manufacturer, device_class, status, and area.
 
         Args:
             limit: Number of items to return (1-100)
@@ -353,6 +533,10 @@ class BatteryMonitor:
             cursor: Base64-encoded cursor for cursor-based pagination
             sort_key: Sort method (priority, alphabetical, level_asc, level_desc)
             sort_order: Sort direction (asc, desc)
+            filter_manufacturer: Optional list of manufacturer names to filter by (OR logic)
+            filter_device_class: Optional list of device classes to filter by (OR logic)
+            filter_status: Optional list of statuses to filter by (OR logic)
+            filter_area: Optional list of area names to filter by (OR logic)
 
         Returns:
             Dict with devices, total, has_more, next_cursor, device_statuses
@@ -381,6 +565,15 @@ class BatteryMonitor:
             (entity, self.get_status_for_device(entity))
             for entity in self.entities.values()
         ]
+
+        # Sprint 5: Apply server-side filters BEFORE sort and pagination
+        devices = self._apply_filters(
+            devices,
+            filter_manufacturer=filter_manufacturer,
+            filter_device_class=filter_device_class,
+            filter_status=filter_status,
+            filter_area=filter_area,
+        )
 
         # Sort devices
         if sort_key == SORT_KEY_PRIORITY:

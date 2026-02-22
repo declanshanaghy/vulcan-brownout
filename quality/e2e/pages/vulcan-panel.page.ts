@@ -31,6 +31,11 @@ export class VulcanBrownoutPanel {
   readonly emptyState: Locator;
   readonly backToTopButton: Locator;
   readonly sortMenu: Locator;
+  readonly filterBar: Locator;
+  readonly filterChips: Locator;
+  readonly filterDropdown: Locator;
+  readonly clearAllFilters: Locator;
+  readonly filteredEmptyState: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -46,6 +51,11 @@ export class VulcanBrownoutPanel {
     this.emptyState = this.panel.locator('.empty-state');
     this.backToTopButton = this.panel.locator('.back-to-top');
     this.sortMenu = this.page.locator('[data-test="sort-menu"]');
+    this.filterBar = this.panel.locator('.filter-bar');
+    this.filterChips = this.panel.locator('.filter-chip');
+    this.filterDropdown = this.panel.locator('.filter-dropdown');
+    this.clearAllFilters = this.panel.locator('[data-test="clear-all-filters"]');
+    this.filteredEmptyState = this.panel.locator('.filtered-empty-state');
   }
 
   /**
@@ -330,5 +340,79 @@ export class VulcanBrownoutPanel {
     await expect(this.title).toBeVisible();
     await expect(this.settingsButton).toBeVisible();
     await expect(this.notificationButton).toBeVisible();
+  }
+
+  /**
+   * Check if filter bar is visible
+   */
+  async isFilterBarVisible(): Promise<boolean> {
+    return (await this.filterBar.count()) > 0;
+  }
+
+  /**
+   * Open a filter dropdown by category name
+   */
+  async openFilterDropdown(category: string): Promise<void> {
+    const button = this.panel.locator(`button[data-test="filter-${category.toLowerCase()}"]`);
+    await button.click();
+    await this.page.waitForTimeout(300);
+  }
+
+  /**
+   * Select a filter value in a dropdown
+   */
+  async selectFilter(category: string, value: string): Promise<void> {
+    const checkbox = this.panel.locator(
+      `[data-test="filter-${category.toLowerCase()}"] input[value="${value}"]`
+    );
+    await checkbox.check();
+    await this.page.waitForTimeout(300);
+  }
+
+  /**
+   * Remove a specific filter chip
+   */
+  async removeFilterChip(category: string, value: string): Promise<void> {
+    const chip = this.panel.locator(
+      `[data-test="filter-chip-${category.toLowerCase()}-${value}"]`
+    );
+    const removeBtn = chip.locator('[data-test="remove-chip"]');
+    await removeBtn.click();
+    await this.page.waitForTimeout(300);
+  }
+
+  /**
+   * Clear all filters
+   */
+  async clearAllFiltersAction(): Promise<void> {
+    await this.clearAllFilters.click();
+    await this.page.waitForTimeout(300);
+  }
+
+  /**
+   * Get count of active filters
+   */
+  async getActiveFilterCount(): Promise<number> {
+    return (await this.filterChips.all()).length;
+  }
+
+  /**
+   * Check if filtered empty state is visible
+   */
+  async isFilteredEmptyStateVisible(): Promise<boolean> {
+    return (await this.filteredEmptyState.count()) > 0;
+  }
+
+  /**
+   * Get active filter chips as text
+   */
+  async getActiveFilterChips(): Promise<string[]> {
+    const chips = await this.filterChips.all();
+    const texts: string[] = [];
+    for (const chip of chips) {
+      const text = await chip.textContent();
+      if (text) texts.push(text.trim());
+    }
+    return texts;
   }
 }

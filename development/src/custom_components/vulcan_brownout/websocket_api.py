@@ -15,6 +15,7 @@ from .const import (
     COMMAND_SET_THRESHOLD,
     COMMAND_GET_NOTIFICATION_PREFERENCES,
     COMMAND_SET_NOTIFICATION_PREFERENCES,
+    COMMAND_GET_FILTER_OPTIONS,
     DOMAIN,
     MAX_PAGE_SIZE,
     BATTERY_THRESHOLD_MIN,
@@ -24,6 +25,7 @@ from .const import (
     SORT_ORDER_ASC,
     SUPPORTED_SORT_KEYS,
     SUPPORTED_SORT_ORDERS,
+    SUPPORTED_STATUSES,
     NOTIFICATION_FREQUENCY_CAP_OPTIONS,
     NOTIFICATION_SEVERITY_FILTER_OPTIONS,
 )
@@ -40,6 +42,7 @@ def register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, handle_set_threshold)
     websocket_api.async_register_command(hass, handle_get_notification_preferences)
     websocket_api.async_register_command(hass, handle_set_notification_preferences)
+    websocket_api.async_register_command(hass, handle_get_filter_options)
 
 
 @websocket_api.websocket_command(
@@ -50,6 +53,12 @@ def register_websocket_commands(hass: HomeAssistant) -> None:
         vol.Optional("cursor"): vol.Any(str, None),
         vol.Optional("sort_key", default=SORT_KEY_PRIORITY): vol.In(SUPPORTED_SORT_KEYS),
         vol.Optional("sort_order", default=SORT_ORDER_ASC): vol.In(SUPPORTED_SORT_ORDERS),
+        vol.Optional("filter_manufacturer", default=[]): [str],
+        vol.Optional("filter_device_class", default=[]): [str],
+        vol.Optional("filter_status", default=[]): vol.All(
+            [vol.In(SUPPORTED_STATUSES)],
+        ),
+        vol.Optional("filter_area", default=[]): [str],
     }
 )
 @websocket_api.async_response
@@ -79,6 +88,16 @@ async def handle_query_devices(
         sort_key = msg.get("sort_key", SORT_KEY_PRIORITY)
         sort_order = msg.get("sort_order", SORT_ORDER_ASC)
 
+        # Sprint 5: Extract filter params; normalize empty list to None (= no filter)
+        def _normalize_filter(value):
+            """Convert empty list to None; non-empty list passes through."""
+            return value if value else None
+
+        filter_manufacturer = _normalize_filter(msg.get("filter_manufacturer", []))
+        filter_device_class = _normalize_filter(msg.get("filter_device_class", []))
+        filter_status = _normalize_filter(msg.get("filter_status", []))
+        filter_area = _normalize_filter(msg.get("filter_area", []))
+
         # Query devices (supports both cursor and offset pagination)
         result = await battery_monitor.query_devices(
             limit=limit,
@@ -86,6 +105,10 @@ async def handle_query_devices(
             cursor=cursor,
             sort_key=sort_key,
             sort_order=sort_order,
+            filter_manufacturer=filter_manufacturer,
+            filter_device_class=filter_device_class,
+            filter_status=filter_status,
+            filter_area=filter_area,
         )
 
         # Send successful response
@@ -420,6 +443,42 @@ async def handle_set_notification_preferences(
             msg["id"],
             "internal_error",
             "Failed to set notification preferences",
+        )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): COMMAND_GET_FILTER_OPTIONS,
+    }
+)
+@websocket_api.async_response
+async def handle_get_filter_options(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: Dict[str, Any]
+) -> None:
+    """Handle vulcan-brownout/get_filter_options WebSocket command.
+
+    Sprint 5: Returns available filter values (manufacturers, device_classes, areas, statuses)
+    derived from the actual battery entities in the user's HA installation.
+    """
+    try:
+        battery_monitor: BatteryMonitor = hass.data.get(DOMAIN)
+        if battery_monitor is None:
+            connection.send_error(
+                msg["id"],
+                "integration_not_loaded",
+                "Vulcan Brownout integration not loaded",
+            )
+            return
+
+        result = await battery_monitor.get_filter_options()
+        connection.send_result(msg["id"], result)
+
+    except Exception as e:
+        _LOGGER.error(f"Error handling get_filter_options command: {e}")
+        connection.send_error(
+            msg["id"],
+            "internal_error",
+            "Failed to get filter options",
         )
 
 

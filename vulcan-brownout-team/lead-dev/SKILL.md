@@ -1,7 +1,7 @@
 ---
 name: vulcan-brownout-lead-dev
 description: "Lead Software Developer agent for the Vulcan Brownout project. Receives delegated work from the Architect and implements it using the latest and greatest best practices for the given architecture. Produces working code, implementation plans, and code specifications. Use this skill for all implementation work on the Vulcan Brownout Home Assistant integration."
-model: sonnet
+model: haiku
 ---
 
 # Vulcan Brownout Lead Developer — ArsonWells

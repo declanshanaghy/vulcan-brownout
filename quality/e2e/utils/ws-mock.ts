@@ -126,13 +126,41 @@ export class WebSocketMock {
   }
 
   /**
-   * Mock vulcan-brownout/query_devices response
+   * Mock vulcan-brownout/query_devices response with optional filtering
    */
   mockQueryDevices(devices: Device[]): void {
     this.registerHandler('vulcan-brownout/query_devices', (data) => {
-      // Calculate device_statuses
+      let filtered = devices;
+
+      // Apply filters if provided
+      if (data.filter_manufacturer && data.filter_manufacturer.length > 0) {
+        filtered = filtered.filter(d =>
+          data.filter_manufacturer.includes(d.manufacturer)
+        );
+      }
+
+      if (data.filter_device_class && data.filter_device_class.length > 0) {
+        // All test devices have device_class 'battery'
+        filtered = filtered.filter(d =>
+          data.filter_device_class.includes('battery')
+        );
+      }
+
+      if (data.filter_status && data.filter_status.length > 0) {
+        filtered = filtered.filter(d =>
+          data.filter_status.includes(d.status)
+        );
+      }
+
+      if (data.filter_area && data.filter_area.length > 0) {
+        filtered = filtered.filter(d =>
+          data.filter_area.includes(d.area_name)
+        );
+      }
+
+      // Calculate device_statuses for filtered results
       const statuses = { critical: 0, warning: 0, healthy: 0, unavailable: 0 };
-      devices.forEach(d => {
+      filtered.forEach(d => {
         statuses[d.status as keyof typeof statuses]++;
       });
 
@@ -141,7 +169,7 @@ export class WebSocketMock {
         type: 'result',
         success: true,
         result: {
-          devices,
+          devices: filtered,
           device_statuses: statuses,
           next_cursor: null,
           has_more: false,
@@ -262,6 +290,30 @@ export class WebSocketMock {
       type: 'result',
       success: true,
       threshold: data.threshold || threshold,
+    }));
+  }
+
+  /**
+   * Mock get_filter_options response
+   */
+  mockGetFilterOptions(options?: any): void {
+    const defaultOptions = {
+      manufacturers: ['Aqara', 'Philips', 'IKEA', 'Sonoff'],
+      device_classes: ['battery'],
+      areas: [
+        { id: 'living_room', name: 'Living Room' },
+        { id: 'kitchen', name: 'Kitchen' },
+        { id: 'bedroom', name: 'Bedroom' },
+        { id: 'office', name: 'Office' },
+      ],
+      statuses: ['critical', 'warning', 'healthy', 'unavailable'],
+    };
+
+    this.registerHandler('vulcan-brownout/get_filter_options', (data) => ({
+      id: data.id,
+      type: 'result',
+      success: true,
+      result: options || defaultOptions,
     }));
   }
 

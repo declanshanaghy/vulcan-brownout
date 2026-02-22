@@ -1,125 +1,157 @@
-# Sprint 3 Implementation — COMPLETE
-# Component Test Infrastructure — COMPLETE
+# Sprint 5: Simple Filtering — Implementation Plan
 
-**By**: ArsonWells | **Version**: 3.0.0 | **Status**: COMPLETE, in QA
-
-## What Was Built
-
-### New Files
-- `notification_manager.py` (289 lines) — Threshold monitoring, frequency caps, HA notification service
-
-### Modified Files
-- `const.py` — Version 3.0.0, notification constants, sort keys
-- `battery_monitor.py` — Entity filtering (_is_battery_entity), cursor pagination (encode/decode_cursor)
-- `websocket_api.py` — Cursor-based query_devices, get/set_notification_preferences commands
-- `subscription_manager.py` — broadcast_notification_sent()
-- `__init__.py` — NotificationManager integration, state_changed event hook
-- `config_flow.py` — notification_preferences in ConfigEntry.options
-- `manifest.json` — Version 3.0.0, HA requirement 2026.2.0
-- `strings.json` — Updated descriptions
-- `vulcan-brownout-panel.js` — Complete Sprint 3 rewrite (450+ lines): infinite scroll, skeleton loaders, back-to-top, notification modal, dark mode CSS variables, MutationObserver
-
-## Performance Results
-
-| Operation | Target | Actual |
-|-----------|--------|--------|
-| Initial load (50 items) | <1s | 250ms |
-| Scroll fetch | <500ms | 180ms |
-| Notification delivery | <2s | 80ms |
-| Theme detection | <50ms | 15ms |
-| Pagination 200 devices | <500ms | 120ms |
-
-## Known Limitations
-1. Health check endpoint: stub only, deferred to DevOps
-2. Notification history: 20 items in memory (no persistent backend)
-3. Per-device frequency cap: global override only, no custom cap per-device in UI
-
-## Backward Compatibility
-- Offset-based clients still work (legacy support)
-- Config Entry: notification_preferences field optional
-- API v3.0.0: cursor is breaking change for offset-based clients
+**Status**: Completed
+**Date**: 2026-02-22
+**Developer**: ArsonWells (Lead)
 
 ---
 
-## Component Test Infrastructure
+## Executive Summary
 
-**Date**: 2026-02-22 | **Owner**: ArsonWells | **Status**: Complete
+Sprint 5 implements server-side filtering of battery devices by manufacturer, device class, status, and room/area. This document summarizes what was implemented, file-by-file.
 
-### Architecture Overview
+The implementation follows ADR-015 (Server-Side Filtering Architecture) and the delegation brief provided by FiremanDecko (Architect).
 
-Two complementary test modes with identical black-box interfaces:
+---
 
-1. **Component Test Mode** (Automated, GitHub Actions)
-   - Mock HA server in Docker with WebSocket + REST stubs
-   - Hardcoded test constants (no secrets)
-   - Full error injection capability
-   - Runs on every push/PR in ~2 minutes
+## Backend Implementation (Python)
 
-2. **Integration Test Mode** (Manual, existing)
-   - Real HA instance with .env credentials
-   - Same test interface as component mode
-   - Runs manually or on schedule
+### 1. `const.py` — New Filter Constants
 
-### Files Added
+**Added**:
+- `COMMAND_GET_FILTER_OPTIONS = "vulcan-brownout/get_filter_options"` — New WebSocket command
+- Filter key constants: `FILTER_KEY_MANUFACTURER`, `FILTER_KEY_DEVICE_CLASS`, `FILTER_KEY_STATUS`, `FILTER_KEY_AREA`
+- `SUPPORTED_FILTER_KEYS` list
+- `MAX_FILTER_OPTIONS = 20` — Maximum values per category
+- `VERSION = "5.0.0"` — Bumped from 3.0.0
 
-**Mock HA Server**:
-- `.github/docker/mock_ha/server.py` (440 lines) — async WebSocket server with HA auth protocol, REST endpoints, error injection control
-- `.github/docker/mock_ha/fixtures.py` (115 lines) — 150+ test entities spanning critical/warning/healthy/unavailable states
-- `.github/docker/mock_ha/requirements.txt` — aiohttp, websockets, pytest dependencies
-- `.github/docker/mock_ha/Dockerfile` — Python 3.11-slim container with health check
+---
 
-**Docker Compose**:
-- `.github/docker-compose.yml` — Spins up mock HA + component test runner, waits for health check
+### 2. `battery_monitor.py` — Filter Methods
 
-**Test Suite**:
-- `quality/scripts/test_component_integration.py` (360 lines) — Happy-path tests for query_devices, subscribe, set_threshold; error injection tests for auth failures, timeouts, malformed responses, empty state, invalid rules; edge case tests for pagination, sorting, large offsets
-- `quality/scripts/mock_fixtures.py` (140 lines) — Fixture generation utilities (small, large, empty fixtures)
+**Imports Added**: `area_registry as ar`
 
-**Configuration**:
-- `.env.example` — Template for integration test mode credentials
-- `.github/workflows/component-tests.yml` — GH Actions workflow: lint (flake8 + mypy) + component tests on every push/PR
+**New Private Methods**:
+1. `_get_entity_manufacturer(entity_id)` — Lookup manufacturer from device_registry
+2. `_get_entity_area_name(entity_id)` — Lookup area with priority: entity area_id → device area_id
+3. `_apply_filters(devices, filter_manufacturer, filter_device_class, filter_status, filter_area)` — AND-across-categories, OR-within-category logic
+4. `async get_filter_options()` — Return available filter values from tracked entities
 
-### Test Coverage
+**Updated Methods**:
+- `query_devices()` signature expanded with filter params
+- Filters applied BEFORE sort and pagination
+- `total` reflects filtered count
 
-**Happy Path** (24 tests):
-- query_devices: basic, pagination, sorting, device_statuses, structure
-- subscribe: basic, multiple subscriptions
-- set_threshold: global, device rules, combined
+---
 
-**Error Injection** (7 tests):
-- Authentication failures (inject N failures)
-- Auth timeout (very short timeout)
-- Response delays (200ms+ delay)
-- Malformed JSON responses
-- Empty entity list
-- Invalid device rules
-- Threshold out of range
+### 3. `websocket_api.py` — Filter Support
 
-**Edge Cases** (4 tests):
-- Max page size (100)
-- Zero offset
-- Large offset (beyond total)
-- Sorting stability across pages
+**Imports Updated**: Added `COMMAND_GET_FILTER_OPTIONS`, `SUPPORTED_STATUSES`
 
-### Key Features
+**`handle_query_devices` Updates**:
+- Schema accepts optional filter params
+- `filter_status` validated against SUPPORTED_STATUSES
+- Params normalized (empty [] → None)
+- Passed to `battery_monitor.query_devices()`
 
-1. **Mock HA Server**:
-   - Full HA WebSocket auth handshake (auth_required → auth_ok)
-   - Query devices with pagination, sorting, status calculation
-   - Subscribe/set_threshold commands
-   - Mock control endpoint for test configuration
+**New Handler**: `handle_get_filter_options()`
+- Returns result from `battery_monitor.get_filter_options()`
+- No parameters required
 
-2. **Error Injection API**:
-   - `POST /mock/control` for test setup
-   - Control response delays, auth failures, malformed responses, connection drops
-   - Load custom entity sets
+---
 
-3. **No GitHub Secrets**: Component tests use hardcoded constants only (HA_URL=http://localhost:8123, HA_TOKEN=test-token-constant)
+### 4. `manifest.json`
+- Version bumped to `5.0.0`
 
-4. **Performance**: Full component test suite runs in <3 minutes including Docker build and startup
+---
 
-### Known Limitations
+### 5. `.github/docker/mock_ha/server.py` — Filter Support
 
-1. Mock server is lightweight (not full HA feature parity) — sufficient for testing vulcan_brownout contract
-2. No persistent storage in mock HA — entities reset between tests
-3. Connection drop injection simulates mid-message drops (limited latency simulation)
+**Mock Entity Data**: Added `manufacturer` and `area` fields
+
+**Updates**:
+- Added `get_filter_options` command handler
+- `_handle_query_devices()` applies filters before pagination
+- `_mock_control` accepts manufacturer/area in entity data
+
+---
+
+## Frontend Implementation (JavaScript)
+
+### `vulcan-brownout-panel.js` — Complete Filter UI
+
+**Constants Added**:
+- Filter category labels and storage key
+- Mobile breakpoint threshold
+
+**Reactive Properties Added** (7 new):
+- `active_filters` — Current applied filters
+- `staged_filters` — Mobile sheet staging copy
+- `filter_options` — Cached response
+- `filter_options_loading`, `filter_options_error`
+- `show_filter_dropdown`, `show_mobile_filter_sheet`
+
+**Filter Management** (10 new methods):
+- localStorage persistence: `_load_filters_from_localstorage()`, `_save_filters_to_localstorage()`
+- Filter changes: `_on_filter_changed()`, `_remove_filter_chip()`, `_clear_all_filters()`
+- Desktop: `_toggle_filter_value()`, `_open/close_filter_dropdown()`
+- Mobile: `_open_mobile_filter_sheet()`, `_apply/cancel_mobile_filters()`, `_toggle_staged_filter_value()`
+- Data fetch: `_load_filter_options()`, `_retry_filter_options()`
+- Helpers: `_has_active_filters()`, `_active_filter_count()`, `_is_filtered_empty_state()`
+
+**Render Helpers** (5 new methods):
+1. `_render_filter_bar()` — Desktop buttons or mobile single button
+2. `_render_filter_dropdown(category)` — Checkbox list
+3. `_render_chip_row()` — Active filter chips with remove buttons
+4. `_render_mobile_filter_sheet()` — Bottom sheet UI
+5. `_render_filtered_empty_state()` — No-results empty state
+
+**CSS Added** (~150 lines):
+- Filter bar, buttons, dropdowns
+- Chip row and chips
+- Mobile bottom sheet
+- Animations (slideUp, chipRowIn)
+
+**Lifecycle Updates**:
+- Constructor loads filters from localStorage
+- `connectedCallback()` fetches filter options and sets up listeners
+- `disconnectedCallback()` cleans up listeners
+
+**Device Query Updates**:
+- `_load_devices()` and `_load_next_page()` include filter params
+
+---
+
+## Backward Compatibility
+
+✓ Fully backward compatible
+- All filter params optional
+- Existing calls work unchanged
+- Old clients don't call `get_filter_options`
+
+---
+
+## Files Modified
+
+### Backend
+- `const.py` — +19 lines
+- `battery_monitor.py` — +217 lines
+- `websocket_api.py` — +38 lines
+- `manifest.json` — 1 line
+- `.github/docker/mock_ha/server.py` — +72 lines
+
+### Frontend
+- `vulcan-brownout-panel.js` — +500+ lines
+
+---
+
+## Validation
+
+All code compiles successfully:
+- Python: `py_compile` check passed
+- JavaScript: `node -c` syntax check passed
+- No new dependencies
+
+---
+
+**End of Implementation Plan**

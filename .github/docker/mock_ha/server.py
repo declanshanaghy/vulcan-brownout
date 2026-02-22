@@ -207,6 +207,8 @@ class MockHAServer:
             await self._handle_subscribe(ws, command)
         elif command_type == "vulcan-brownout/set_threshold":
             await self._handle_set_threshold(ws, command)
+        elif command_type == "vulcan-brownout/get_filter_options":
+            await self._handle_get_filter_options(ws, command)
         else:
             logger.warning(f"Unknown command type: {command_type}")
             if msg_id:
@@ -224,7 +226,7 @@ class MockHAServer:
 
         Args:
             ws: WebSocket connection
-            command: Command with limit, offset, sort parameters
+            command: Command with limit, offset, sort parameters and optional filters (Sprint 5)
         """
         msg_id = command.get("id")
         limit = min(command.get("limit", 50), 100)
@@ -235,6 +237,12 @@ class MockHAServer:
             logger.info("Sending malformed JSON response")
             await ws.send(b"{invalid json")
             return
+
+        # Sprint 5: Extract filter params
+        filter_manufacturer = command.get("filter_manufacturer") or []
+        filter_device_class = command.get("filter_device_class") or []
+        filter_status = command.get("filter_status") or []
+        filter_area = command.get("filter_area") or []
 
         # Build device list from entity data
         devices = []
@@ -262,6 +270,8 @@ class MockHAServer:
                     "device_name": entity.get("friendly_name", entity_id),
                     "available": available,
                     "status": status,
+                    "manufacturer": entity.get("manufacturer"),
+                    "area": entity.get("area"),
                     "attributes": entity.get("attributes", {}),
                     "last_changed": entity.get("last_changed"),
                     "last_updated": entity.get("last_updated"),
@@ -269,6 +279,17 @@ class MockHAServer:
             except (ValueError, TypeError):
                 logger.warning(f"Could not parse device {entity_id}")
                 continue
+
+        # Sprint 5: Apply server-side filters (AND across categories, OR within)
+        if filter_manufacturer:
+            devices = [d for d in devices if d.get("manufacturer") in filter_manufacturer]
+        if filter_device_class:
+            devices = [d for d in devices
+                       if d.get("attributes", {}).get("device_class") in filter_device_class]
+        if filter_status:
+            devices = [d for d in devices if d.get("status") in filter_status]
+        if filter_area:
+            devices = [d for d in devices if d.get("area") in filter_area]
 
         # Apply pagination
         total = len(devices)
@@ -365,6 +386,40 @@ class MockHAServer:
         })
 
         logger.info(f"Threshold updated: global={global_threshold}, rules={len(device_rules)}")
+
+    async def _handle_get_filter_options(
+        self, ws: web.WebSocketResponse, command: Dict[str, Any]
+    ) -> None:
+        """Handle vulcan-brownout/get_filter_options command.
+
+        Sprint 5: Returns available filter values derived from entity data.
+        """
+        msg_id = command.get("id")
+
+        manufacturers = sorted(list({
+            e["manufacturer"]
+            for e in self.entity_data.values()
+            if e.get("manufacturer")
+        }))
+
+        areas_set = sorted(list({
+            e["area"]
+            for e in self.entity_data.values()
+            if e.get("area")
+        }))
+        areas = [{"id": name.lower().replace(" ", "_"), "name": name} for name in areas_set]
+
+        await ws.send_json({
+            "type": "result",
+            "id": msg_id,
+            "success": True,
+            "data": {
+                "manufacturers": manufacturers[:20],
+                "device_classes": ["battery"],
+                "areas": areas[:20],
+                "statuses": ["critical", "warning", "healthy", "unavailable"],
+            },
+        })
 
     async def _get_states(self, request: web.Request) -> web.Response:
         """GET /api/states - return all entities."""
@@ -477,6 +532,8 @@ class MockHAServer:
                         "friendly_name": entity.get("friendly_name", entity_id),
                         "attributes": entity.get("attributes", {}),
                         "available": entity.get("available", True),
+                        "manufacturer": entity.get("manufacturer"),
+                        "area": entity.get("area"),
                         "last_changed": datetime.utcnow().isoformat() + "Z",
                         "last_updated": datetime.utcnow().isoformat() + "Z",
                     }

@@ -11,6 +11,8 @@ export interface Device {
   status: 'critical' | 'warning' | 'healthy' | 'unavailable';
   last_changed: string;
   last_updated: string;
+  manufacturer?: string;
+  area_name?: string;
 }
 
 export interface DeviceListResponse {
@@ -40,6 +42,8 @@ export function generateDevice(overrides?: Partial<Device>): Device {
   const batteryLevel = Math.floor(Math.random() * 100);
   const available = Math.random() > 0.1;
   const status = getStatusFromBattery(batteryLevel, available);
+  const manufacturers = ['Aqara', 'Philips', 'IKEA', 'Sonoff'];
+  const areas = ['Living Room', 'Kitchen', 'Bedroom', 'Office'];
 
   return {
     entity_id: `sensor.device_${id}_battery`,
@@ -49,6 +53,8 @@ export function generateDevice(overrides?: Partial<Device>): Device {
     status,
     last_changed: new Date(Date.now() - Math.random() * 86400000).toISOString(),
     last_updated: new Date(Date.now() - Math.random() * 3600000).toISOString(),
+    manufacturer: manufacturers[Math.floor(Math.random() * manufacturers.length)],
+    area_name: areas[Math.floor(Math.random() * areas.length)],
     ...overrides,
   };
 }
@@ -63,6 +69,8 @@ export function generateDeviceList(
 ): Device[] {
   const devices: Device[] = [];
   const startId = pageNum * perPage;
+  const manufacturers = ['Aqara', 'Philips', 'IKEA', 'Sonoff'];
+  const areas = ['Living Room', 'Kitchen', 'Bedroom', 'Office'];
 
   for (let i = 0; i < perPage; i++) {
     const id = startId + i;
@@ -84,6 +92,8 @@ export function generateDeviceList(
       status: getStatusFromBattery(batteryLevel, available),
       last_changed: new Date(Date.now() - Math.random() * 86400000).toISOString(),
       last_updated: new Date(Date.now() - Math.random() * 3600000).toISOString(),
+      manufacturer: manufacturers[i % manufacturers.length],
+      area_name: areas[i % areas.length],
     });
   }
 
@@ -190,5 +200,45 @@ export function generateMixedBatteryDevices(count: number = 10): Device[] {
       })
     );
   }
+  return devices;
+}
+
+/**
+ * Generate filter test devices with diverse manufacturers and areas
+ */
+export function generateFilterTestDevices(count: number = 30): Device[] {
+  const devices: Device[] = [];
+  const manufacturers = ['Aqara', 'Philips', 'IKEA', 'Sonoff'];
+  const areas = ['Living Room', 'Kitchen', 'Bedroom', 'Office'];
+
+  for (let i = 0; i < count; i++) {
+    let batteryLevel = 50 + Math.floor(Math.random() * 50);
+    let status: Device['status'] = 'healthy';
+
+    // Distribute some critical and warning devices
+    if (i % 5 === 0) {
+      batteryLevel = Math.floor(Math.random() * 10);
+      status = 'critical';
+    } else if (i % 5 === 1) {
+      batteryLevel = 10 + Math.floor(Math.random() * 10);
+      status = 'warning';
+    } else if (i % 5 === 4) {
+      batteryLevel = 0;
+      status = 'unavailable';
+    }
+
+    devices.push({
+      entity_id: `sensor.filter_test_${i}_battery`,
+      device_name: `Filter Test Device ${i}`,
+      battery_level: batteryLevel,
+      available: status !== 'unavailable',
+      status,
+      last_changed: new Date(Date.now() - Math.random() * 86400000).toISOString(),
+      last_updated: new Date(Date.now() - Math.random() * 3600000).toISOString(),
+      manufacturer: manufacturers[i % manufacturers.length],
+      area_name: areas[i % areas.length],
+    });
+  }
+
   return devices;
 }

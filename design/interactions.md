@@ -653,3 +653,637 @@ Window width changes via resize event or orientation change.
 - [ ] Keyboard navigation works (Tab, Enter, Escape)
 - [ ] Screen reader announces states, errors, theme changes
 - [ ] Mobile layout responsive and touch-friendly
+
+---
+
+# Interaction Specs — Sprint 5
+
+**By**: Luna (UX) | **Status**: IN PROGRESS | **Date**: 2026-02-22
+
+Sprint 5 adds three new interaction specs covering the Simple Filtering feature: filter selection and application, filter chip management, and dynamic filter population from the backend.
+
+---
+
+## Interaction 11: Filter Selection & Application
+
+### Trigger
+1. **Desktop**: User clicks any filter trigger button (Manufacturer, Device Class, Status, Room) in the filter bar
+2. **Mobile**: User taps the "Filter" button in the mobile filter bar, then checks options in the bottom sheet and taps "Apply Filters"
+
+### Behavior
+
+**Desktop Dropdown Flow:**
+1. User clicks a filter trigger button (e.g., "Room")
+2. If filter options not yet cached, show loading state inside dropdown while `get_filter_options` response is awaited
+3. Dropdown panel opens below the trigger button, showing a checkbox list of available values
+4. User checks one or more values (e.g., "Living Room", "Kitchen")
+5. Checked items are immediately reflected in trigger button label (e.g., "Room (2)")
+6. Dropdown closes on outside click or Escape key press
+7. On close, the active filter state is updated immediately:
+   - Active filter chips appear in the chip row
+   - Cursor is reset to null
+   - `query_devices` is called with new filter params
+   - localStorage is updated with new filter state
+
+**Mobile Bottom Sheet Flow:**
+1. User taps "Filter" button — bottom sheet slides up (300ms)
+2. Panel copies current active filters into staged state for the sheet
+3. Accordion sections show all four categories; user expands and checks values
+4. Changes accumulate in staged state (no immediate API call)
+5. User taps "Apply Filters" button in sticky footer:
+   - Staged state becomes active filter state
+   - Sheet closes (slides down, 300ms)
+   - Chip row updates, cursor resets, `query_devices` called, localStorage updated
+6. User taps [X] or outside overlay:
+   - Staged state is discarded
+   - Sheet closes with no changes to active filters or device list
+
+### Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Panel as Panel JS
+    participant LS as localStorage
+    participant WS as HA WebSocket API
+
+    Note over User,WS: Desktop dropdown flow
+    User->>Panel: Click "Room" filter trigger button
+    alt Filter options not yet cached
+        Panel->>WS: get_filter_options (if not already fetched)
+        WS-->>Panel: { manufacturers, device_classes, areas, statuses }
+        Panel->>Panel: Cache filter options
+    end
+    Panel->>Panel: Open dropdown, render checkbox list
+
+    User->>Panel: Check "Living Room"
+    Panel->>Panel: Add "Living Room" to room filter array
+    Panel->>Panel: Update trigger label to "Room (1)"
+
+    User->>Panel: Check "Kitchen"
+    Panel->>Panel: Add "Kitchen" to room filter array
+    Panel->>Panel: Update trigger label to "Room (2)"
+
+    User->>Panel: Click outside dropdown
+    Panel->>Panel: Close dropdown
+    Panel->>Panel: Render chips: [Room: Living Room x] [Room: Kitchen x]
+    Panel->>Panel: Reset cursor to null
+    Panel->>LS: Save { area: ["Living Room", "Kitchen"] } to vulcan_brownout_filters
+    Panel->>WS: query_devices({ filter_area: ["Living Room","Kitchen"], cursor: null })
+    WS-->>Panel: Filtered devices (total: N, has_more: bool, next_cursor: ...)
+    Panel->>Panel: Replace device list with filtered results
+```
+
+### Mobile Filter Application Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Sheet as Bottom Sheet
+    participant Panel as Panel JS
+    participant LS as localStorage
+    participant WS as HA WebSocket API
+
+    User->>Panel: Tap "Filter" button (mobile)
+    Panel->>Sheet: Open bottom sheet (slideUp 300ms)
+    Panel->>Sheet: Copy active_filters to staged_filters
+
+    User->>Sheet: Expand "Manufacturer" accordion
+    Sheet->>Sheet: Show checkbox list (cached or newly fetched options)
+
+    User->>Sheet: Check "Aqara"
+    Sheet->>Sheet: Update staged_filters.manufacturer = ["Aqara"]
+    Note over Sheet: No API call yet — staging only
+
+    User->>Sheet: Tap "Apply Filters"
+    Sheet->>Panel: Commit staged_filters as active_filters
+    Sheet->>Sheet: Close (slideDown 300ms)
+    Panel->>Panel: Update chip row
+    Panel->>Panel: Reset cursor to null
+    Panel->>LS: Save updated vulcan_brownout_filters
+    Panel->>WS: query_devices({ filter_manufacturer: ["Aqara"], cursor: null })
+    WS-->>Panel: Filtered device list
+    Panel->>Panel: Replace device list
+
+    User->>Sheet: Tap [X] (discard)
+    Sheet->>Sheet: Discard staged_filters
+    Sheet->>Sheet: Close (slideDown 300ms)
+    Note over Panel: No change to active_filters, device list, or localStorage
+```
+
+### States
+
+```mermaid
+stateDiagram-v2
+    [*] --> NoFiltersActive: Panel loaded, filters empty
+
+    NoFiltersActive --> DropdownOpen: User clicks filter trigger (desktop)
+    DropdownOpen --> LoadingOptions: Options not cached
+    LoadingOptions --> DropdownReady: Options received
+    LoadingOptions --> DropdownError: Fetch failed
+    DropdownError --> LoadingOptions: User clicks [Retry]
+    DropdownOpen --> DropdownReady: Options already cached
+
+    DropdownReady --> ItemToggled: User checks/unchecks item
+    ItemToggled --> DropdownReady: Checkbox state updated, label updated
+    DropdownReady --> FiltersApplying: Dropdown closes (outside click / Escape)
+
+    NoFiltersActive --> BottomSheetOpen: User taps "Filter" (mobile)
+    BottomSheetOpen --> FiltersStaged: User checks items in sheet
+    FiltersStaged --> FiltersApplying: User taps "Apply Filters"
+    FiltersStaged --> NoFiltersActive: User taps [X] or outside (discard)
+
+    FiltersApplying --> FetchingFiltered: Cursor reset, query_devices called
+    FetchingFiltered --> FiltersActive: Filtered results returned (devices > 0)
+    FetchingFiltered --> FilteredEmpty: Filtered results returned (devices = 0)
+
+    FiltersActive --> DropdownOpen: User adjusts filter
+    FiltersActive --> ChipRemoved: User clicks [x] on chip
+    FiltersActive --> AllFiltersCleared: User clicks "Clear all"
+
+    FilteredEmpty --> AllFiltersCleared: User clicks "Clear Filters" CTA
+    ChipRemoved --> FetchingFiltered: Cursor reset, query_devices with updated filters
+    AllFiltersCleared --> FetchingFiltered: Cursor reset, query_devices with no filters
+    FetchingFiltered --> NoFiltersActive: No filters active, all devices shown
+```
+
+### Animations/Transitions
+- **Dropdown open**: No animation — dropdown appears immediately (opacity 1, no slide)
+- **Dropdown close**: No animation — dropdown disappears immediately on outside click
+- **Chip row slide-in**: `max-height: 0 → 48px`, `opacity: 0 → 1`, 200ms ease-out, when first filter applied
+- **Chip row slide-out**: `max-height: 48px → 0`, `opacity: 1 → 0`, 200ms ease-in, when last filter cleared
+- **Bottom sheet open**: `transform: translateY(100%) → translateY(0)`, 300ms ease-out
+- **Bottom sheet close**: `transform: translateY(0) → translateY(100%)`, 300ms ease-in
+- **Overlay fade**: `opacity: 0 → 0.5`, 200ms ease-out on open; `opacity: 0.5 → 0`, 200ms ease-in on close
+- **Device list refresh**: Skeleton loaders appear while filtered query is in flight; new results fade in (200ms)
+
+### Edge Cases
+1. **Filter options fetch fails**: Show `⚠️ Unable to load filter options [Retry]` inside dropdown (not a page-level error)
+2. **All values in a category checked**: Equivalent to no filter on that category (show all) — backend must treat `filter_area: [all area values]` same as omitting the param
+3. **Filter category has no options**: Show "No options available" inside dropdown; disable the trigger button
+4. **Filter change during active pagination**: Cancel in-flight `query_devices` (if possible) and issue new request with updated filters and null cursor
+5. **localStorage unavailable**: Silently skip persistence; filters still apply for the current session
+6. **User rapidly opens and closes dropdowns**: Debounce dropdown-triggered `query_devices` calls (300ms) to avoid redundant API calls
+7. **Filter applied with zero results**: Show filtered empty state (Wireframe 16), not the no-devices empty state (Wireframe 6)
+8. **Mobile sheet open during device list fetch**: Sheet open is independent; ongoing fetch continues in background
+
+### Accessibility
+- **Dropdown trigger**: `aria-expanded="true/false"`, `aria-haspopup="listbox"`, `aria-label="Filter by Room, 2 selected"` (when active)
+- **Dropdown panel**: `role="listbox"` (or `role="group"` with label), `aria-multiselectable="true"`
+- **Checkbox items**: `role="option"` inside listbox, `aria-checked="true/false"`, keyboard: Space toggles, arrow keys navigate
+- **Bottom sheet**: `role="dialog"`, `aria-modal="true"`, `aria-label="Filter options"`
+- **Bottom sheet accordion headers**: `role="button"`, `aria-expanded="true/false"`, keyboard: Enter/Space expands/collapses
+- **"Apply Filters" button**: `aria-label="Apply N filter selections"` (N = number of staged changes)
+- **Filter trigger badge count**: `aria-label` updated to reflect current selection count (e.g., "Room filter, 2 values selected")
+- **Focus management**: On dropdown open, focus moves to first unchecked item; on close, focus returns to trigger button. On bottom sheet open, focus moves to first accordion header; on close, focus returns to "Filter" button.
+- **Escape key**: Closes open dropdown or bottom sheet, discards staged changes on mobile
+
+---
+
+## Interaction 12: Filter Chip Management
+
+### Trigger
+1. **Add chip**: A filter value is selected (via dropdown or mobile sheet apply)
+2. **Remove chip**: User clicks [x] on a chip
+3. **Clear all**: User clicks "Clear all" text link in chip row
+4. **Clear via empty state**: User clicks "[Clear Filters]" button in filtered empty state
+
+### Behavior
+
+**Adding a Chip:**
+1. When a filter value is selected and applied, a chip appears in the chip row
+2. If the chip row was not visible, it slides into view (200ms)
+3. Chip format: `[Category: Value  x]`
+4. Chips appear in category order: Manufacturer → Device Class → Status → Room
+5. Within a category, chips appear in the order values were selected
+
+**Removing a Single Chip:**
+1. User clicks [x] on a chip
+2. Chip is removed from the DOM (no animation, immediate)
+3. The corresponding value is removed from `active_filters[category]`
+4. If no chips remain in that category, the filter trigger button label reverts to the category name (inactive style)
+5. localStorage is updated
+6. Cursor resets to null
+7. `query_devices` is called with updated filter params
+8. If chip row becomes empty, it slides out (200ms)
+
+**Clearing All Filters:**
+1. User clicks "Clear all" in chip row OR "[Clear Filters]" in filtered empty state
+2. All chips are removed simultaneously
+3. Chip row slides out (200ms)
+4. All filter trigger buttons revert to inactive style with category-name-only labels
+5. `active_filters` is reset to `{ manufacturer: [], device_class: [], status: [], area: [] }`
+6. localStorage is updated with empty filter state
+7. Cursor resets to null
+8. `query_devices` is called with no filter params
+9. Full unfiltered device list is returned and rendered
+
+### Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ChipRow as Chip Row
+    participant Panel as Panel JS
+    participant LS as localStorage
+    participant WS as HA WebSocket API
+
+    Note over User,WS: Remove single chip
+    User->>ChipRow: Clicks [x] on "Room: Kitchen" chip
+    ChipRow->>Panel: Remove "Kitchen" from area filter
+    Panel->>Panel: Update active_filters.area = ["Living Room"] (Kitchen removed)
+    Panel->>Panel: Remove "Room: Kitchen" chip from DOM
+    Panel->>Panel: Update "Room" trigger label to "Room (1)"
+    Panel->>LS: Save updated active_filters
+    Panel->>Panel: Reset cursor to null
+    Panel->>WS: query_devices({ filter_area: ["Living Room"], cursor: null })
+    WS-->>Panel: Updated filtered results
+    Panel->>Panel: Replace device list
+
+    Note over User,WS: Clear all filters
+    User->>ChipRow: Clicks "Clear all"
+    ChipRow->>Panel: Reset all active_filters to empty arrays
+    Panel->>Panel: Remove all chips from DOM
+    Panel->>Panel: Slide out chip row (200ms)
+    Panel->>Panel: All filter trigger buttons → inactive style
+    Panel->>LS: Save empty active_filters
+    Panel->>Panel: Reset cursor to null
+    Panel->>WS: query_devices(no filter params, cursor: null)
+    WS-->>Panel: Full unfiltered device list
+    Panel->>Panel: Replace device list
+```
+
+### Chip Lifecycle State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> NoChips: No filters active
+
+    NoChips --> ChipRowAppears: First filter value selected
+    ChipRowAppears --> ChipRowVisible: Slide-in animation 200ms complete
+
+    ChipRowVisible --> ChipAdded: Additional filter value selected
+    ChipAdded --> ChipRowVisible: New chip rendered
+
+    ChipRowVisible --> ChipRemoved: User clicks [x] on a chip
+    ChipRemoved --> ChipRowVisible: Chip removed, more chips remain
+    ChipRemoved --> ChipRowDisappears: Last chip removed (all filters cleared)
+
+    ChipRowVisible --> AllCleared: User clicks "Clear all" or filtered empty state CTA
+    AllCleared --> ChipRowDisappears: All chips removed simultaneously
+
+    ChipRowDisappears --> NoChips: Slide-out animation 200ms complete
+
+    NoChips --> [*]
+```
+
+### Chip Ordering Logic
+
+```mermaid
+graph LR
+    classDef order fill:#F0F0F0,stroke:#E0E0E0,color:#212121
+
+    Order["CHIP DISPLAY ORDER"]
+    Cat1["1. Manufacturer chips (in selection order)"]
+    Cat2["2. Device Class chips (in selection order)"]
+    Cat3["3. Status chips (in fixed order: Critical, Warning, Healthy, Unavailable)"]
+    Cat4["4. Room chips (in selection order)"]
+    ClearAll["5. 'Clear all' link (always last, right-aligned)"]
+
+    Order --> Cat1
+    Order --> Cat2
+    Order --> Cat3
+    Order --> Cat4
+    Order --> ClearAll
+
+    class Cat1 order
+    class Cat2 order
+    class Cat3 order
+    class Cat4 order
+    class ClearAll order
+```
+
+### Chip Persistence Logic
+
+```mermaid
+graph TD
+    classDef storage fill:#E8F5E9,stroke:#A5D6A7,color:#1B5E20
+
+    LSKey["localStorage key: 'vulcan_brownout_filters'"]
+    Schema["Schema: { manufacturer: string[], device_class: string[], status: string[], area: string[] }"]
+    OnChange["Written on every filter change (add chip, remove chip, clear all)"]
+    OnLoad["Read on panel connectedCallback() BEFORE first query_devices call"]
+    RestoreChips["Restored filter state applied to UI: chips rendered, trigger labels updated"]
+    RestoreQuery["Restored filters included in very first query_devices call (no unfiltered flash)"]
+
+    LSKey --> Schema
+    Schema --> OnChange
+    Schema --> OnLoad
+    OnLoad --> RestoreChips
+    OnLoad --> RestoreQuery
+
+    class LSKey storage
+    class Schema storage
+    class OnChange storage
+    class OnLoad storage
+    class RestoreChips storage
+    class RestoreQuery storage
+```
+
+### Edge Cases
+1. **Chip [x] clicked during active fetch**: Queue the removal; apply after current fetch resolves. Do not issue two simultaneous `query_devices` calls.
+2. **"Clear all" clicked from filtered empty state**: Both the filtered empty state CTA and the chip row "Clear all" link must be functionally identical.
+3. **Chip row overflow on narrow viewport**: Chip row scrolls horizontally. "Clear all" scrolls with the row (not pinned). Screen reader users can still reach "Clear all" via Tab.
+4. **localStorage full**: Silently skip the write; filter state still applies for the current session. Do not show an error.
+5. **Very long category or value name**: Chip text truncates with ellipsis at 160px max-width; full value shown in `title` tooltip and `aria-label`.
+6. **Filter value no longer exists in HA**: If a persisted filter value (e.g., a deleted room) is restored from localStorage and not present in `get_filter_options` response, silently drop that value from active filters and do not render a chip for it.
+
+### Accessibility
+- **Chip [x] button**: `aria-label="Remove Room: Kitchen filter"` (not just "x" or "remove")
+- **Chip row container**: `aria-label="Active filters"`, `role="group"`
+- **"Clear all" button**: `aria-label="Clear all active filters"`
+- **Keyboard**: Tab moves through chips in order; within a chip, Tab moves from chip label area to [x] button; Enter/Space on [x] removes the chip
+- **Screen reader announcement**: When a chip is added, announce "Room: Kitchen filter added" via aria-live="polite". When removed, announce "Room: Kitchen filter removed". When all cleared, announce "All filters cleared".
+- **Focus after chip removal**: Focus moves to the next chip in the row (or "Clear all" if it was the last chip). If chip row is removed entirely, focus returns to the filter trigger button for that category.
+
+---
+
+## Interaction 13: Dynamic Filter Population
+
+### Trigger
+1. **On panel load**: After WebSocket connection is established in `connectedCallback()`, before the first `query_devices` call
+2. **On retry**: User clicks [Retry] inside a failed dropdown
+
+### Behavior
+
+**Initial Load:**
+1. Panel connects to HA WebSocket (`connectedCallback()`)
+2. Panel calls `vulcan-brownout/get_filter_options` WebSocket command
+3. While awaiting response, filter trigger buttons show a loading state (subtle spinner or dimmed label)
+4. Response arrives with `{ manufacturers, device_classes, areas, statuses }`
+5. Panel caches the response in memory (`this._filter_options`) for the session
+6. Filter trigger buttons are enabled; dropdowns are now populated
+7. Filter options fetch completes before or in parallel with the first `query_devices` call. The first `query_devices` call must wait for filter options only if localStorage-restored filters reference values that need validation.
+8. On mobile, the "Filter" button is enabled after options are received
+
+**Dropdown Open (options already cached):**
+1. Dropdown opens immediately — no fetch needed
+2. Checkbox list renders from cached `this._filter_options[category]`
+
+**Dropdown Open (options fetch failed and not yet cached):**
+1. Show error state inside dropdown: `⚠️ Unable to load options [Retry]`
+2. User clicks [Retry] → re-issue `get_filter_options` → on success, render checkbox list
+
+**Filter Options Schema:**
+```json
+{
+  "manufacturers": ["Aqara", "Hue", "IKEA", "Sonoff"],
+  "device_classes": ["battery"],
+  "areas": [
+    { "id": "area_001", "name": "Living Room" },
+    { "id": "area_002", "name": "Kitchen" },
+    { "id": "area_003", "name": "Bedroom" }
+  ],
+  "statuses": ["critical", "warning", "healthy", "unavailable"]
+}
+```
+
+### Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant Panel as Panel JS
+    participant Cache as this._filter_options
+    participant WS as HA WebSocket API
+    participant UI as Filter Bar UI
+
+    Panel->>Panel: connectedCallback() fires
+    Panel->>WS: get_filter_options (type: "vulcan-brownout/get_filter_options")
+    Panel->>UI: Show filter buttons in loading state (dimmed / spinner)
+
+    alt Fetch succeeds
+        WS-->>Panel: { manufacturers, device_classes, areas, statuses }
+        Panel->>Cache: Store filter options
+        Panel->>UI: Enable filter trigger buttons, options ready
+        Panel->>Panel: Proceed with first query_devices (with restored filters)
+    else Fetch fails
+        WS-->>Panel: Error response
+        Panel->>UI: Show filter buttons in error state
+        Panel->>Panel: Proceed with first query_devices (without filter options)
+        Note over Panel,UI: Dropdowns will show error state when opened
+    end
+
+    Note over Panel,WS: Later: user opens dropdown
+    Panel->>Cache: Read cached filter options for category
+    alt Options cached
+        Cache-->>Panel: Options available
+        Panel->>UI: Render checkbox list in dropdown immediately
+    else Options not cached (fetch had failed)
+        Panel->>UI: Show error state in dropdown [Retry]
+        Note over Panel: User clicks [Retry]
+        Panel->>WS: get_filter_options (retry)
+        WS-->>Panel: { manufacturers, device_classes, areas, statuses }
+        Panel->>Cache: Store filter options
+        Panel->>UI: Render checkbox list in dropdown
+    end
+```
+
+### Filter Population State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> FetchPending: connectedCallback() fires, get_filter_options sent
+
+    FetchPending --> FetchSuccess: Response received with options
+    FetchPending --> FetchError: Request failed or timed out
+
+    FetchSuccess --> OptionsCached: Options stored in this._filter_options
+    OptionsCached --> DropdownsEnabled: All filter triggers enabled
+
+    FetchError --> DropdownsErrorState: Filter triggers show error state
+    DropdownsErrorState --> RetryPending: User clicks [Retry] in dropdown
+    RetryPending --> FetchSuccess: Retry succeeds
+    RetryPending --> DropdownsErrorState: Retry fails again
+
+    DropdownsEnabled --> DropdownOpen: User opens a dropdown
+    DropdownOpen --> CheckboxListRendered: Cached options rendered as checkboxes
+
+    DropdownsEnabled --> [*]
+```
+
+### Filter Options Freshness
+
+```mermaid
+graph TD
+    classDef fresh fill:#E8F5E9,stroke:#A5D6A7,color:#1B5E20
+    classDef stale fill:#FFF3E0,stroke:#FFB74D,color:#E65100
+
+    Policy["FILTER OPTIONS FRESHNESS POLICY"]
+    CacheScope["Cached for the session (in-memory only, not localStorage)"]
+    NoRefresh["Not automatically refreshed during the session"]
+    NewDevice["If user adds a new device/room to HA: options will be stale until panel reload"]
+    StaleHandling["Stale options: user may see manufacturer/room from old data — acceptable tradeoff"]
+    PanelReload["Panel reload (navigation away + back) fetches fresh options"]
+    NoRealtime["No real-time update of filter options required (not a real-time concern)"]
+
+    Policy --> CacheScope
+    Policy --> NoRefresh
+    Policy --> NewDevice
+    Policy --> StaleHandling
+    Policy --> PanelReload
+    Policy --> NoRealtime
+
+    class CacheScope fresh
+    class PanelReload fresh
+    class NoRefresh stale
+    class StaleHandling stale
+```
+
+### Filter Categories — Backend Data Sources
+
+```mermaid
+graph LR
+    classDef source fill:#E3F2FD,stroke:#90CAF9,color:#0D47A1
+    classDef category fill:#F0F0F0,stroke:#E0E0E0,color:#212121
+
+    FilterOptions["get_filter_options response"]
+
+    ManufacturerCat["manufacturers[]<br/>(string list)"]
+    ManufacturerSrc["Source: device_registry.devices[].manufacturer<br/>Deduplicated, sorted alphabetically<br/>Excludes None/null values"]
+
+    ClassCat["device_classes[]<br/>(string list)"]
+    ClassSrc["Source: entity_registry entities, attribute 'device_class'<br/>Deduplicated, sorted alphabetically<br/>Typically just ['battery'] for battery entities"]
+
+    AreaCat["areas[]<br/>({ id: string, name: string } list)"]
+    AreaSrc["Source: area_registry.areas<br/>Only areas that have at least one battery entity<br/>Sorted alphabetically by name<br/>Includes { id, name } — filter sent as area id"]
+
+    StatusCat["statuses[]<br/>(string list)"]
+    StatusSrc["Fixed: ['critical', 'warning', 'healthy', 'unavailable']<br/>Always all four — status computed server-side<br/>Not dynamically derived (all statuses always possible)"]
+
+    FilterOptions --> ManufacturerCat
+    ManufacturerCat --> ManufacturerSrc
+    FilterOptions --> ClassCat
+    ClassCat --> ClassSrc
+    FilterOptions --> AreaCat
+    AreaCat --> AreaSrc
+    FilterOptions --> StatusCat
+    StatusCat --> StatusSrc
+
+    class ManufacturerSrc source
+    class ClassSrc source
+    class AreaSrc source
+    class StatusSrc source
+    class ManufacturerCat category
+    class ClassCat category
+    class AreaCat category
+    class StatusCat category
+```
+
+### Edge Cases
+1. **`get_filter_options` times out**: After 10 seconds with no response, treat as error; show [Retry] in dropdowns. Do not block `query_devices`.
+2. **Empty category**: If no battery devices have a known manufacturer, `manufacturers: []`. Show "No options available" in that dropdown; disable the trigger button with a tooltip "No manufacturers found".
+3. **Area with no name**: Areas without a display name should be omitted from the `areas` array by the backend.
+4. **Very long manufacturer/area name list**: Dropdown scrolls vertically (max-height: 300px) — no pagination within the dropdown.
+5. **Filter option value changes between load and apply**: If a user opens a dropdown, HA state changes (e.g., a device is unregistered), and the user checks a now-invalid option — the query will return 0 results and the filtered empty state shows. This is acceptable; no special handling needed.
+6. **`get_filter_options` called multiple times**: Panel must guard against duplicate in-flight calls (use a `_filter_options_fetch_promise` guard). If a second request arrives while the first is in flight, reuse the same promise.
+7. **WebSocket disconnection during fetch**: If the connection drops before `get_filter_options` responds, the fetch is retried after reconnection as part of the normal reconnect flow (same as `query_devices`).
+
+### Accessibility
+- **Loading state in filter triggers**: `aria-busy="true"` on trigger buttons while options are loading; `aria-label="Manufacturer filter, loading options"`
+- **Error state in dropdown**: Error message has `role="alert"`; [Retry] button is keyboard accessible
+- **Empty category trigger**: Disabled trigger button has `aria-disabled="true"` and `title="No [category] options available"`
+- **Options rendered as list**: Checkbox list inside dropdown has `aria-label="[Category] filter options"` for screen reader context
+
+---
+
+## Sprint 5 Accessibility Additions
+
+The following accessibility specs extend the global Accessibility Specs section for all filter interactions:
+
+### Filter-Specific Tab Order (Desktop)
+`Sort → [Manufacturer] → [Device Class] → [Status] → [Room] → [Active Chip 1] → [Active Chip 1 x] → [Active Chip 2] → ... → [Clear all] → Device List Items`
+
+### Filter-Specific Screen Reader Announcements (aria-live="polite")
+- Filter dropdown opens: "Room filter options panel open"
+- Checkbox checked: "Living Room selected"
+- Checkbox unchecked: "Living Room deselected"
+- Dropdown closes with selections: "Room filter: 2 values selected"
+- Chip added: "Room: Living Room filter added"
+- Chip removed: "Room: Living Room filter removed"
+- All filters cleared: "All filters cleared"
+- Filtered query returns results: "Showing N devices matching your filters"
+- Filtered empty state: "No devices match your current filters"
+
+### Sprint 5 Touch Target Compliance
+- Filter trigger buttons: 44px height (enforced in filter bar row)
+- Chip [x] buttons: 28px icon target extended to 44px via padding on chip row items
+- Bottom sheet checkbox rows: 44px height per row
+- Bottom sheet accordion headers: 48px height
+- "Apply Filters" button: 48px height
+- "Clear all" link in chip row: min 44px touch target via vertical padding
+
+---
+
+## Sprint 5 Performance & Optimization Additions
+
+### Filter Options Caching
+- `get_filter_options` response cached in `this._filter_options` (in-memory)
+- Not stored in localStorage (options reflect current HA state, not persisted)
+- Not refreshed during session (acceptable stale risk)
+- One in-flight guard via `this._filter_options_fetch_promise`
+
+### Filter Query Debouncing (Desktop)
+- If user rapidly opens and closes multiple dropdowns making selections, debounce the resulting `query_devices` calls by 300ms
+- Only the final filter state triggers a `query_devices` call
+- This avoids N API calls for N rapid filter changes
+
+### Mobile Sheet — No Intermediate API Calls
+- Staged filter state in bottom sheet never triggers `query_devices`
+- Zero API overhead while user is browsing filter options
+- Single `query_devices` call on "Apply Filters"
+
+### Cursor Reset on Filter Change
+- Every filter change resets `this._current_cursor = null`
+- Prevents pagination from continuing from a cursor that belongs to a different (pre-filter) result set
+- The `IntersectionObserver` for infinite scroll is not disconnected — it will trigger new pagination on the filtered result set as user scrolls
+
+---
+
+## Sprint 5 Testing Checklist (for QA)
+
+- [ ] Filter bar renders with four trigger buttons on desktop
+- [ ] Mobile filter bar renders with single "Filter" button (no four individual dropdowns)
+- [ ] Clicking filter trigger opens dropdown with correct options from `get_filter_options`
+- [ ] Multi-select within a category works (check multiple values)
+- [ ] AND logic across categories: manufacturer=Aqara + room=Kitchen returns correct subset
+- [ ] OR logic within category: manufacturer=[Aqara,Hue] returns devices from either
+- [ ] Active trigger buttons show selection count (e.g., "Room (2)")
+- [ ] Active trigger buttons show accent color styling
+- [ ] Chip row appears when first filter applied (slide-in 200ms)
+- [ ] Chip row disappears when last filter cleared (slide-out 200ms)
+- [ ] Chips display correct "Category: Value [x]" format
+- [ ] Chip [x] removes that specific value only
+- [ ] "Clear all" removes all filters simultaneously
+- [ ] Filter state persists to localStorage on every change
+- [ ] Filter state restored from localStorage before first query_devices call (no unfiltered flash)
+- [ ] Cursor resets to null on every filter change
+- [ ] Filtered empty state shown when query returns 0 devices (not the "no devices" empty state)
+- [ ] "[Clear Filters]" CTA in filtered empty state works identically to chip row "Clear all"
+- [ ] Mobile bottom sheet opens/closes with 300ms animation
+- [ ] Mobile bottom sheet: changes are staged, not applied until "Apply Filters"
+- [ ] Mobile bottom sheet: [X] discards staged changes, no API call
+- [ ] Mobile bottom sheet: "Clear All" clears staged (uncommitted) state
+- [ ] Mobile "Filter" button badge shows count of committed (not staged) active filters
+- [ ] `get_filter_options` called once on load, result cached for session
+- [ ] Filter dropdowns show loading state while options are fetching
+- [ ] Filter dropdowns show error state with [Retry] if fetch fails
+- [ ] Empty category shows "No options available" and disables trigger button
+- [ ] Keyboard: Tab through filter triggers, Enter/Space opens dropdown
+- [ ] Keyboard: Arrow keys navigate dropdown options, Space toggles checkbox
+- [ ] Keyboard: Escape closes dropdown, returns focus to trigger
+- [ ] Keyboard: Tab through chip row, Enter/Space on [x] removes chip
+- [ ] Screen reader: ARIA live announcements fire on filter add/remove/clear
+- [ ] WCAG AA contrast: chip text, dropdown labels, trigger button text (both themes)
+- [ ] All filter UI touch targets meet 44px minimum
+- [ ] Dropdown positioning corrects for right-edge and bottom-edge viewport overflow
+- [ ] Chip row scrolls horizontally on narrow viewports without wrapping

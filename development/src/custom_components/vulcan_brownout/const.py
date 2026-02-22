@@ -1,7 +1,7 @@
 """Constants for the Vulcan Brownout integration."""
 
 DOMAIN = "vulcan_brownout"
-VERSION = "3.0.0"
+VERSION = "5.0.0"
 
 # Battery monitoring thresholds and defaults
 BATTERY_THRESHOLD_DEFAULT = 15
@@ -14,6 +14,7 @@ COMMAND_SUBSCRIBE = "vulcan-brownout/subscribe"
 COMMAND_SET_THRESHOLD = "vulcan-brownout/set_threshold"
 COMMAND_GET_NOTIFICATION_PREFERENCES = "vulcan-brownout/get_notification_preferences"
 COMMAND_SET_NOTIFICATION_PREFERENCES = "vulcan-brownout/set_notification_preferences"
+COMMAND_GET_FILTER_OPTIONS = "vulcan-brownout/get_filter_options"
 EVENT_DEVICE_CHANGED = "vulcan-brownout/device_changed"
 EVENT_DEVICE_REMOVED = "vulcan-brownout/device_removed"
 EVENT_STATUS = "vulcan-brownout/status"
@@ -56,6 +57,21 @@ STATUS_WARNING = "warning"
 STATUS_HEALTHY = "healthy"
 STATUS_UNAVAILABLE = "unavailable"
 SUPPORTED_STATUSES = [STATUS_CRITICAL, STATUS_WARNING, STATUS_HEALTHY, STATUS_UNAVAILABLE]
+
+# Sprint 5: Filter keys and options
+FILTER_KEY_MANUFACTURER = "filter_manufacturer"
+FILTER_KEY_DEVICE_CLASS = "filter_device_class"
+FILTER_KEY_STATUS = "filter_status"
+FILTER_KEY_AREA = "filter_area"
+
+SUPPORTED_FILTER_KEYS = [
+    FILTER_KEY_MANUFACTURER,
+    FILTER_KEY_DEVICE_CLASS,
+    FILTER_KEY_STATUS,
+    FILTER_KEY_AREA,
+]
+
+MAX_FILTER_OPTIONS = 20
 
 # Status thresholds (relative to configured threshold)
 WARNING_BUFFER = 10  # Show WARNING for levels threshold to threshold+10
