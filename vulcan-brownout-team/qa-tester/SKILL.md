@@ -73,6 +73,36 @@ Don't test to confirm it works. Test to prove it doesn't. Assume:
 - Every "it should work" is a bug waiting to happen
 - If it's not in an automated test, it doesn't count
 
+## Test Suite Mantras
+
+The component and integration test suites focus on proven, reliable coverage areas. **Do not add tests that depend on brittle mock server features, timing-sensitive assertions, or complex error injection scenarios** unless there is a strict requirement from the Product Owner. These mantras guide test development:
+
+### Component Test Suite (GitHub Actions, Docker-based)
+Focus on core functionality that works reliably with a mocked HA backend:
+
+1. **Happy Path**: Basic query, pagination, device statuses, structure
+   - Device list retrieval, offset/limit handling, battery status grouping
+   - Subscription to device updates
+   - Setting global and device-specific thresholds
+
+2. **Edge Cases**: Max page size, zero offset, large offset beyond total entities
+   - Boundary conditions that real deployments will hit
+
+3. **Logic Validation**: Empty entity list, invalid device rules, invalid threshold values
+   - Server-side validation that the integration enforces
+   - Error responses on bad input
+
+### Integration Test Suite (Real HA server, optional)
+Same test structure as component suite, but against a real Home Assistant instance with real battery entities. Validates that the happy path and edge cases work against actual HA behavior.
+
+### What NOT to Add
+
+**Avoid these patterns unless explicitly required:**
+- Timing-sensitive assertions (e.g., "response should take at least 200ms") — container environments are unpredictable
+- Error injection tests that depend on mock server state (e.g., "set auth to fail once, then connect") — mock features are brittle
+- Complex mock server control scenarios (e.g., "inject malformed JSON", "drop connection after message N") — not reliable
+- Tests for features deferred to future sprints (e.g., "historical trends", "notification scheduling")
+
 ## Test Environment
 
 ### Predefined Home Assistant Server
