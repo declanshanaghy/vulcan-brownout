@@ -1,15 +1,26 @@
-# GitHub Actions CI/CD Brief
-## FiremanDecko (Architect) + ArsonWells (Lead Dev) → Dek (Repo Owner)
+# GitHub Actions & Component Testing Architecture
+## FiremanDecko (Architect) + ArsonWells (Lead Dev)
 
-**Date**: 2026-02-22 | **Status**: Conversation Starter | **Decision Needed**: Key questions below
+**Date**: 2026-02-22 | **Status**: Architecture Decided | **Owner Decision**: Dek
+
+---
+
+## Executive Summary
+
+The Vulcan Brownout testing strategy uses **two complementary test modes** with identical black-box interfaces but different dependency layers:
+
+1. **Component Test Mode** (GH Actions + Docker): Mocked dependencies, hardcoded test constants, error injection via mock control. Runs on every push/PR for fast feedback.
+2. **Integration Test Mode** (Manual / Scheduled): Real HA server, `.env` credentials, production-like conditions. Runs manually or on schedule against the actual test HA instance.
+
+**Key principle**: No GitHub Secrets needed for either test mode. Component tests use hardcoded constants. Integration tests use `.env` (gitignored, never in CI).
 
 ---
 
 ## 1. What We Have Today
 
-### Test Infrastructure Overview
+### Test Infrastructure
 
-We currently have three test layers, all **manual right now**:
+We currently have three test layers implemented but **running manually**:
 
 1. **Unit/Integration Tests (Python)**
    - **File**: `quality/scripts/test_api_integration.py`
@@ -29,10 +40,9 @@ We currently have three test layers, all **manual right now**:
    - **Coverage**: Panel load, device list, infinite scroll, sorting, dark mode, modals, debug
    - **Framework**: Playwright Test @ 1.48.0
    - **Run**: `npm -C quality/e2e test`
-   - **Config**: `quality/e2e/playwright.config.ts` + global auth setup
    - **Requires**: Live HA + `.env.test` with HA_URL, HA_TOKEN, HA_USERNAME, HA_PASSWORD
 
-### Secrets Management
+### Secrets Management (Today)
 
 - **Root `.env`**: Contains HA_URL, HA_PORT, HA_TOKEN, SSH_HOST, SSH_USER, SSH_KEY_PATH, HA_CONFIG_PATH
 - **E2E `.env.test`**: HA connection + login credentials
@@ -44,399 +54,607 @@ We currently have three test layers, all **manual right now**:
 Developer commits code
     ↓
 Developer (Loki, QA) manually:
-    1. Sets up test HA instance
+    1. Loads .env with real HA credentials
     2. Runs setup-test-env.sh to create test entities
     3. Deploys custom_components/ via SSH
-    4. Runs pytest suite
-    5. Runs Playwright suite
+    4. Runs pytest suite against real HA
+    5. Runs Playwright suite against real HA
     6. Verifies no console errors
 ```
 
-**Problem**: No gating on PRs, no automated feedback, manual setup friction, easy to skip tests.
+**Problem**: No automated gating on PRs, no fast feedback, no error injection testing, manual setup friction.
 
 ---
 
-## 2. Recommended GitHub Actions Architecture
+## 2. Decided Architecture: Two Test Modes
 
-### High-Level Workflow Design
+Dek has decided: **Component tests are fast and automated (GH Actions). Integration tests are real but manual. Both use the same black-box test interface.**
 
-We propose **three workflows** triggered at different points:
+### Component Test Mode (Automated, GH Actions)
 
-```mermaid
-graph LR
-    classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
-    classDef warning fill:#FF9800,stroke:#F57C00,color:#FFF
-    classDef healthy fill:#4CAF50,stroke:#388E3C,color:#FFF
+**Runs**: Every push/PR via GitHub Actions on ubuntu-latest
 
-    push["Push to branch"] --> lint["Lint & Type Check<br/>~30s"]
-    push --> unit["Unit Tests<br/>~45s"]
+**Environment**:
+- Docker Compose spins up a lightweight mock HA stub (Python + WebSocket server)
+- Custom integration runs in the same container, talking to the mock
+- Test suite controls mock behavior via configuration
 
-    pr["PR Open/Updated"] --> lint
-    pr --> unit
+**Secrets & Configuration**:
+- **NO GitHub Secrets used**
+- **Hardcoded test constants only**:
+  ```python
+  HA_URL = "http://localhost:8123"  # Mock HA in Docker
+  HA_TOKEN = "test-token-constant"
+  HA_PORT = 8123
+  MOCK_HA_TIMEOUT = 2.0  # Configurable for testing timeout scenarios
+  ```
 
-    merge["Merge to master"] --> integration["Integration Tests<br/>~90s"]
-    merge --> e2e["E2E Tests<br/>~120s"]
+**Test Coverage**:
+- All WebSocket commands (query_devices, subscribe, set_threshold)
+- Pagination logic, sorting, filtering
+- Error scenarios via mock injection:
+  - Authentication failures (return 401)
+  - Malformed JSON responses
+  - Timeout after N milliseconds
+  - Connection drops mid-request
+  - Race conditions (request while reconnecting)
 
-    lint --> report["Report Results"]
-    unit --> report
-    integration --> report
-    e2e --> report
+**Black-Box Interface**:
+- The integration code doesn't know it's talking to a mock
+- Same WebSocket API contract as real HA
+- Same REST endpoints as real HA
+- From the integration's perspective, it's just communicating with "HA"
 
-    schedule["Daily 02:00 UTC"] --> e2e
+**Advantages**:
+- Fast feedback: 30-60s per run (including Docker startup)
+- No external dependencies
+- Can inject errors that are hard to trigger against real HA
+- Runs on every PR
+- Zero cost (GitHub-hosted runners)
+- Repeatable — exact same mock behavior every time
 
-    class lint primary
-    class unit primary
-    class integration warning
-    class e2e warning
-    class report healthy
+**Infrastructure**:
+```
+GitHub Actions (ubuntu-latest)
+    ↓
+Docker Compose (2 services):
+    ├─ Mock HA: Python/Flask WebSocket server
+    ├─ Custom Integration: Python asyncio process
+    └─ Test Runner: pytest with mock control
 ```
 
-### Workflow 1: PR Checks (Fast Feedback)
-**Triggers**: Push to any branch, PR open/sync | **Runs on**: GitHub-hosted runners (ubuntu-latest)
+### Integration Test Mode (Manual / Scheduled)
 
-**Jobs** (parallel):
-1. **Lint & Format**
-   - Python: `flake8`, `mypy` on `quality/scripts/`
-   - TypeScript: `eslint` on `quality/e2e/tests/`
-   - Markdown: Check diagrams render (Mermaid syntax validation)
-   - **Time**: ~30s
+**Runs**: Manually triggered, or on a scheduled basis (e.g., nightly)
 
-2. **Unit Tests (Backend)**
-   - Python pytest on `quality/scripts/test_api_integration.py`
-   - **BUT**: Mock the WebSocket layer (no live HA needed)
-   - **Strategy**: Use `pytest-mock` + fixture to stub HAWebSocketClient
-   - **Keeps**: Real validation of query parsing, pagination logic, error handling
-   - **Time**: ~45s
-   - **Note**: This is fast feedback only — real integration tests run post-merge
+**Environment**:
+- Real, dedicated test HA instance (currently at homeassistant.lan)
+- Real SSH access to HA server filesystem
+- Real HA REST API and WebSocket endpoints
 
-3. **Frontend Type Check**
-   - TypeScript compilation: `tsc --noEmit` on `quality/e2e/`
-   - Playwright config validation
-   - **Time**: ~15s
+**Secrets & Configuration**:
+- **Uses `.env` file (gitignored, never committed)**
+  ```bash
+  HA_URL=http://homeassistant.lan
+  HA_PORT=8123
+  HA_TOKEN=eyJhbGc...  # Real JWT token
+  SSH_HOST=homeassistant.lan
+  SSH_PORT=22
+  SSH_USER=root
+  SSH_PRIVATE_KEY_PATH=/home/user/.ssh/id_rsa
+  HA_CONFIG_PATH=/root/homeassistant
+  ```
+- **NO GitHub Secrets** — `.env` lives on developer/QA machine or CI environment that Dek controls
 
-**Does NOT run**: E2E, real integration tests (those need live HA)
+**Test Coverage**:
+- Same test cases as component mode (same black-box interface)
+- Real HA behavior: actual entity discovery, state updates, WebSocket reconnects
+- Real performance: measure latency, throughput
+- Real persistence: verify config persists across HA restarts
 
-### Workflow 2: Integration & E2E Tests (Post-Merge)
-**Triggers**: Push to `master` | **Runs on**: Self-hosted runner (or docker container with HA instance)
+**Black-Box Interface** (identical to component mode):
+- Same WebSocket commands
+- Same REST endpoints
+- Same expected responses
+- Test code is agnostic to whether it's talking to mock or real HA
 
-**Problem to Solve**: Our tests require a live HA instance + custom integration deployed. GitHub-hosted runners can't reach an external HA server.
+**Advantages**:
+- Validates against actual HA behavior
+- Catches real API changes
+- Measures real performance
+- Tests actual deployment scripts
+- Runs only when needed (manual + nightly, not on every PR)
 
-**Our Recommendation**: **Self-Hosted Runner with Docker Compose**
-
-- Dek provisions one self-hosted runner (cheap: could be a spare Raspberry Pi or local VM)
-- We create `docker-compose.yml` that spins up:
-  - **HA Core** container (official `ghcr.io/home-assistant/home-assistant:latest`)
-  - **Shared volume** for custom_components/
-- On each workflow run:
-  1. Docker Compose pulls latest images, starts containers
-  2. Deploy integration via rsync to volume
-  3. Run setup-test-env.sh to create test entities
-  4. Run pytest suite (via containerized Python)
-  5. Run Playwright suite (via containerized browser)
-  6. Collect results, tear down containers
-
-**Alternative if no self-hosted option available**: Skip E2E on PR; only run on scheduled job + manual dispatch
-
-**Jobs** (sequential — HA startup takes 20-30s):
-1. **Spin up test HA** (Docker Compose)
-2. **Deploy integration** (SSH/rsync to container)
-3. **Integration Tests** (pytest via container)
-   - All 25+ WebSocket tests, real HA instance
-   - **Time**: ~60s
-4. **Setup test entities** (REST API calls)
-5. **E2E Tests** (Playwright via container)
-   - All 7 test suites, 200+ device scenarios
-   - **Time**: ~90s
-6. **Collect reports** (JSON + HTML)
-7. **Tear down** (containers, volumes)
-
-**Total Time**: ~10min (including HA startup)
-
-### Workflow 3: Scheduled Deep Tests
-**Triggers**: Daily @ 02:00 UTC | **Runs on**: Self-hosted runner
-
-Same as Workflow 2, but also includes:
-- **Load test**: 500 devices, pagination stress
-- **Long-running soak**: Panel open for 30min, WebSocket reconnection
-- **Performance benchmarks**: Capture latest metrics
-
-**Purpose**: Catch edge cases that don't surface in normal PRs.
+**Infrastructure**:
+```
+Developer/QA Machine (or Dek's CI runner)
+    ↓
+.env file (never in GitHub)
+    ↓
+Real HA Instance (homeassistant.lan)
+    ├─ Custom integration deployed via SSH
+    ├─ Real battery entities
+    └─ Real WebSocket & REST API
+```
 
 ---
 
-## 3. Critical Problem: Integration & E2E Dependency on Live HA
+## 3. Test Interface: Black-Box, Mode-Agnostic
 
-This is the hard part. We have **four options**:
+Both modes use the **exact same test code** and **same test interface**. The difference is under the hood.
 
-### Option A: Self-Hosted Runner + Docker Compose (Recommended)
+### Example: Same Test Case, Two Modes
 
-**Pros**:
-- Real HA instance in each run
-- Full integration test coverage
-- Isolated environment
-- Can run locally for debugging
-- Reproduces exact production setup
-
-**Cons**:
-- Requires Dek to set up self-hosted runner
-- Takes ~10min per run (HA startup overhead)
-- Uses Actions minutes only on merges/schedule
-
-**Implementation**:
-```yaml
-# .github/workflows/integration.yml
-jobs:
-  integration:
-    runs-on: [self-hosted, docker]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Spin up HA
-        run: docker-compose -f .github/docker-compose.yml up -d
-      - name: Deploy integration
-        run: rsync -av custom_components/ docker-ha:/root/homeassistant/custom_components/
-      - name: Run tests
-        run: docker exec ha-core pytest /work/quality/scripts/test_api_integration.py
+**Component Mode** (GH Actions):
+```python
+# test_api_integration.py (runs with mock HA in Docker)
+def test_query_devices_timeout():
+    """Mock will timeout after 500ms of inactivity."""
+    mock_ha.set_behavior("timeout_after_500ms")
+    result = integration.query_devices()
+    assert result.error == "timeout"
 ```
 
-### Option B: GitHub Actions Container Service (Native)
+**Integration Mode** (Manual):
+```python
+# Same test file, same function
+# But now talking to real HA
+def test_query_devices_timeout():
+    """Real HA has a timeout... or we skip this test (can't easily trigger)."""
+    # This might not run in integration mode, or we trigger it differently
+    # But the interface is identical
+```
 
-**Pros**:
-- No self-hosted runner needed
-- Built-in GitHub feature
+**The point**: Test structure, assertions, and WebSocket commands are identical. Only the backend (mock vs. real) differs.
 
-**Cons**:
-- Can't easily persist HA state/config between steps
-- E2E needs actual browser — complex to set up in container service
-- GitHub-hosted runners can't reach external networks anyway
-- **Not viable** for our use case
+### Concrete Interfaces
 
-### Option C: Skip E2E on PRs, Run Only on Merge
+**WebSocket API** (both modes):
+```python
+await websocket.send(json.dumps({
+    "type": "vulcan_brownout/query_devices",
+    "offset": 0,
+    "limit": 50,
+    "sort_by": "battery_level",
+    "sort_order": "asc",
+}))
+response = await websocket.recv()
+assert response["type"] == "result"
+assert len(response["devices"]) <= 50
+```
 
-**Pros**:
-- Keep PRs fast (<2min)
-- Can skip self-hosted entirely if we stub integration tests
-- Good enough for feature PRs
-
-**Cons**:
-- E2E bugs surface after merge (not during review)
-- Slower feedback loop
-- Still need self-hosted for post-merge
-
-### Option D: Mock HA + Mock WebSocket
-
-**Pros**:
-- Fast feedback in PRs
-- No infrastructure needed
-
-**Cons**:
-- Mocks are often wrong (test passes, prod fails)
-- Can't catch real HA API changes
-- Not suitable for a Home Assistant integration
+**Mock Control** (component mode only):
+```python
+# Test runner controls mock behavior
+mock_ha.set_next_response({
+    "type": "malformed",  # Mock will return invalid JSON
+    "delay_ms": 0
+})
+# Integration will see this and error appropriately
+```
 
 ---
 
 ## 4. What ArsonWells Needs to Build
 
-**If we go with Option A (Self-Hosted + Docker)**, we need these files:
+### Component Test Infrastructure
 
-### New Files to Create
+#### 4.1 Mock HA Server
 
-1. **`.github/workflows/pr-checks.yml`**
-   - Lint, format, unit tests (mocked backend)
-   - Runs on all PRs
-   - ~5 minutes total
+**Location**: `.github/docker/mock_ha/`
 
-2. **`.github/workflows/integration.yml`**
-   - Integration + E2E tests (real HA)
-   - Runs on push to master
-   - ~15 minutes total (including teardown)
+**What it does**:
+- Lightweight Python WebSocket server (not a real Home Assistant instance)
+- Stubs the vulcan_brownout WebSocket API endpoints
+- Stubs enough of the HA REST API for setup/teardown
+- Can be controlled via test configuration to inject errors
 
-3. **`.github/workflows/scheduled.yml`**
-   - Deep tests, performance benchmarks
-   - Runs daily @ 02:00 UTC
-   - ~20 minutes total
-
-4. **`.github/docker-compose.yml`**
-   - Spins up HA + test environment
-   - Volume mounts for custom_components
-   - Exposes ports 8123 (HTTP), 2222 (SSH)
-
-5. **`quality/scripts/test_mock_integration.py`**
-   - Mocked version of test_api_integration.py for PR runs
-   - Uses `pytest-mock` to stub HAWebSocketClient
-   - Keeps business logic tests, skips network I/O
-
-6. **`quality/scripts/ci-setup.sh`**
-   - Create `.env` from GitHub Secrets (HA_URL, HA_TOKEN, etc.)
-   - Run setup-test-env.sh
-   - Verify HA is ready before tests
-
-7. **`.env.example`**
-   - Template with all required variables
-   - Already exists conceptually in SKILL.md — formalize it
-   - Variables: HA_URL, HA_PORT, HA_TOKEN, SSH_HOST, SSH_USER, HA_CONFIG_PATH
-
-### Changes to Existing Files
-
-1. **`.gitignore`**
-   - Ensure `.env*` is ignored
-   - Ensure `playwright-report/`, `test-results.json` are ignored
-   - Already looks good
-
-2. **`README.md`**
-   - Add CI/CD status badge
-   - Add links to workflow results
-   - Document how to run tests locally
-
-3. **`quality/e2e/package.json`**
-   - Pin Playwright version (done)
-   - May need `dotenv` import for GitHub Actions env loading
-
----
-
-## 5. GitHub Secrets We'll Need
-
-These go in **Settings → Secrets and Variables → Actions**:
-
-| Secret | Used By | Example |
-|--------|---------|---------|
-| `HA_URL` | Integration tests | `http://homeassistant.lan` |
-| `HA_PORT` | Integration tests | `8123` |
-| `HA_TOKEN` | Integration tests | `eyJhbGc...` (JWT) |
-| `HA_USERNAME` | E2E login | `sprocket` |
-| `HA_PASSWORD` | E2E login | `(securely stored)` |
-| `SSH_HOST` | Deployment (post-merge) | `homeassistant.lan` |
-| `SSH_PORT` | Deployment | `2222` |
-| `SSH_USER` | Deployment | `root` |
-| `SSH_PRIVATE_KEY` | Deployment | (PEM-formatted key) |
-| `HA_CONFIG_PATH` | Deployment | `/root/homeassistant` |
-
-**Note**: These are optional for PR checks (mocked tests don't need them). They're required for integration/E2E workflows.
-
----
-
-## 6. Job Parallelism vs Sequencing
-
-### PR Checks (Workflow 1) — Parallel
+**Key endpoints to stub**:
 ```
-lint ┐
-     ├─→ report (all pass/fail)
-unit ┤
-     ├─→ (3-5min total, OK to run everything)
-type ┘
-```
-Run all 3 jobs in parallel. PR is gated until all pass.
+WebSocket:
+  /api/websocket
+    - subscribe_events (for entity state changes)
+    - vulcan_brownout/query_devices
+    - vulcan_brownout/subscribe (real-time updates)
+    - vulcan_brownout/set_threshold
 
-### Integration Tests (Workflow 2) — Sequential
-```
-checkout ───→ setup HA ───→ deploy ───→ pytest ───→ setup-entities ───→ e2e ───→ report ───→ teardown
-(1m)          (25m)        (2m)        (1m)      (1m)               (2m)     (1m)    (1m)
+REST:
+  POST /api/states/{entity_id} (for creating test entities)
+  GET /api/states (for querying entities)
+  POST /api/services/homeassistant/restart (for graceful restart)
 ```
 
-**Why sequential?** HA startup is slow. We don't parallelize test runs; instead, we sequence test phases through a single HA instance.
+**Mock Control Interface** (Python fixture or config file):
+```python
+@pytest.fixture
+def mock_ha_behavior():
+    """Control how mock HA responds to requests."""
+    return {
+        "query_devices_response": {
+            "delay_ms": 100,
+            "malformed_json": False,
+            "status_code": 200,
+        },
+        "auth_token": "test-token-constant",
+        "auth_failures": 0,  # Return 401 after N attempts
+        "connection_drops": [],  # Drop connection at offsets: [50, 150, 300]
+    }
+```
+
+**Testing library**: Flask + Flask-Sockets, or aiohttp + asyncio (match integration's async style)
+
+#### 4.2 Docker Compose for Component Tests
+
+**Location**: `.github/docker-compose.yml`
+
+**Services**:
+```yaml
+version: '3.8'
+services:
+  mock_ha:
+    build: .github/docker/mock_ha
+    ports:
+      - "8123:8123"  # WebSocket + REST API
+    environment:
+      MOCK_TOKEN: "test-token-constant"
+      MOCK_BEHAVIOR: /work/test_mock_config.json
+
+  integration:
+    build: .
+    depends_on:
+      - mock_ha
+    environment:
+      HA_URL: http://mock_ha:8123
+      HA_TOKEN: test-token-constant
+      HA_PORT: 8123
+    volumes:
+      - ./custom_components:/root/homeassistant/custom_components
+    command: >
+      bash -c "
+        pip install -e . &&
+        pytest quality/scripts/test_api_integration.py -v
+      "
+```
+
+#### 4.3 Test Suite Refactoring
+
+**File**: `quality/scripts/test_api_integration.py` (refactor, don't duplicate)
+
+**Changes**:
+- Add `mode` parameter (component vs. integration)
+- If `mode == "component"`: use hardcoded HA_URL/HA_TOKEN
+- If `mode == "integration"`: load from `.env`
+- Mock control: When component mode, pass mock_behavior config to integration before tests run
+- Same test cases in both modes
+
+**Example**:
+```python
+import os
+
+@pytest.fixture
+def ha_config():
+    """Load HA config based on test mode."""
+    mode = os.getenv("TEST_MODE", "component")
+    if mode == "component":
+        return {
+            "url": "http://localhost:8123",
+            "token": "test-token-constant",
+            "port": 8123,
+        }
+    else:  # integration
+        from dotenv import load_dotenv
+        load_dotenv(".env")
+        return {
+            "url": os.getenv("HA_URL"),
+            "token": os.getenv("HA_TOKEN"),
+            "port": int(os.getenv("HA_PORT", 8123)),
+        }
+
+def test_query_devices(ha_config):
+    """Works in both modes."""
+    result = integration.query_devices(ha_config)
+    assert len(result.devices) > 0
+```
+
+#### 4.4 GitHub Actions Workflow
+
+**File**: `.github/workflows/component-tests.yml`
+
+```yaml
+name: Component Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  component_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v2
+      - name: Start mock HA + run tests
+        run: |
+          docker-compose -f .github/docker-compose.yml up \
+            --build \
+            --abort-on-container-exit
+        env:
+          TEST_MODE: component
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: quality/scripts/test-results.json
+```
+
+#### 4.5 `.env.example` (Template)
+
+**Location**: `.env.example`
+
+**Purpose**: Document required variables; never committed with real secrets.
+
+```bash
+# Component Test Mode (GH Actions / Docker)
+# These are hardcoded in the workflow and test code
+# HA_URL=http://localhost:8123
+# HA_TOKEN=test-token-constant
+# HA_PORT=8123
+
+# Integration Test Mode (Manual / Scheduled)
+# Copy this file to .env and fill in real values
+# .env is gitignored — NEVER commit it
+
+HA_URL=http://homeassistant.lan
+HA_PORT=8123
+HA_TOKEN=eyJhbGc... # Real JWT from HA's UI
+HA_USERNAME=sprocket  # For E2E Playwright login
+HA_PASSWORD=password
+
+# SSH/Deployment Credentials (for integration/E2E setup)
+SSH_HOST=homeassistant.lan
+SSH_PORT=22
+SSH_USER=root
+SSH_PRIVATE_KEY_PATH=~/.ssh/id_rsa
+HA_CONFIG_PATH=/root/homeassistant
+```
+
+### Integration Test Infrastructure (Existing + Minor Changes)
+
+#### 4.6 Integration Test Launcher Script
+
+**File**: `quality/scripts/run-integration-tests.sh` (new or enhanced)
+
+**Purpose**: Run the same test suite against real HA, using `.env` credentials.
+
+```bash
+#!/bin/bash
+set -e
+
+# Load .env if it exists
+if [ -f .env ]; then
+    source .env
+else
+    echo "ERROR: .env file not found. Copy .env.example and fill in real HA credentials."
+    exit 1
+fi
+
+# Verify HA is reachable
+echo "Verifying HA is reachable at ${HA_URL}:${HA_PORT}..."
+curl -s -H "Authorization: Bearer ${HA_TOKEN}" \
+    ${HA_URL}:${HA_PORT}/api/ > /dev/null || {
+    echo "ERROR: HA not reachable or token invalid"
+    exit 1
+}
+
+# Set up test entities
+echo "Creating test entities..."
+./quality/scripts/setup-test-env.sh --create --count 150
+
+# Run integration tests (same file as component tests)
+echo "Running integration tests against real HA..."
+TEST_MODE=integration pytest quality/scripts/test_api_integration.py -v
+
+# Run E2E tests
+echo "Running E2E tests..."
+npm -C quality/e2e test
+
+echo "All integration tests passed!"
+```
+
+#### 4.7 `.gitignore` Updates
+
+Ensure these patterns are present:
+```
+.env
+*.env
+.env.*
+!.env.example
+
+playwright-report/
+test-results.json
+.pytest_cache/
+```
 
 ---
 
-## 7. Open Questions for Dek
+## 5. Workflow Triggers & Timing
 
-Before we lock in the architecture, we need your input on:
+### Workflow 1: Component Tests (Every Push/PR)
 
-### 1. Runner Infrastructure
-- **Do you have a self-hosted runner available?** (Linux VM, Raspberry Pi, MacBook, etc.)
-  - If yes: What's the resource profile? (CPU, RAM, disk)
-  - If no: We can skip E2E on PRs and only run post-merge (slower feedback, but no infra cost)
+**Trigger**: Push to any branch, PR open/updated
 
-### 2. Test HA Network Access
-- **Is the test HA instance (currently at homeassistant.lan) accessible from GitHub Actions runners?**
-  - If self-hosted on your network: Yes, we're good
-  - If we need Docker Compose in Actions: We'll create a container each run
-  - If neither: We might need to stub more, or use GitHub-hosted Docker services (complex)
+**Runs**: GitHub-hosted ubuntu-latest
 
-### 3. E2E Test Gating
-- **Should E2E tests block PRs, or only run on merge/schedule?**
-  - Block PRs = slower feedback, better quality (catch regressions early)
-  - Don't block PRs = faster feedback, allow merge to catch issues (post-hoc)
-  - We recommend: Don't block PRs. Require lint + mocked unit tests. E2E runs async post-merge.
+**Duration**: ~2-3 minutes (Docker startup + tests)
 
-### 4. Secrets Management
-- **Do you want to store all secrets in GitHub Secrets, or can we read from `.env` files on a self-hosted runner?**
-  - GitHub Secrets: More secure, visible in Actions UI, portable
-  - `.env` on runner: Simpler, but hard to audit
-  - We recommend: GitHub Secrets. They're encrypted at rest and only exposed to workflow steps.
+**What it does**:
+1. Checkout code
+2. Build mock HA Docker image
+3. Start Docker Compose (mock HA + integration)
+4. Run test_api_integration.py with TEST_MODE=component
+5. Collect results, tear down containers
 
-### 5. Actions Minutes Budget
-- **Any cost or runtime constraints on GitHub Actions?**
-  - PR checks: ~3-5min/PR (all branches) — could be 20+ runs/day during development
-  - Integration: ~15min/merge (master only) — ~1-5 runs/day
-  - Scheduled: ~20min/day
-  - With self-hosted runner: **All integration/E2E minutes are free** (only GitHub-hosted counts)
-  - Estimate: ~100-200 GitHub-hosted minutes/month (negligible cost)
+**Outputs**:
+- Test results artifact
+- Pass/fail check on PR
 
-### 6. Branch Strategy
-- **Do PRs get merged via squash, or do we keep commit history?**
-  - Affects: Do we run tests on all commits (expensive) or just PR branches (cheaper)?
-  - Current practice: We're on master (no branching yet). When you add branching, we'll filter
+**Does NOT do**:
+- Access GitHub Secrets
+- Touch .env files
+- Access real HA
+- Run E2E tests
 
----
+### Workflow 2: Integration Tests (Manual Trigger)
 
-## 8. Proposed Next Steps
+**Trigger**: Manual `gh workflow run` or on schedule (e.g., nightly)
 
-### If Dek approves Option A (Self-Hosted + Docker):
-1. **ArsonWells** creates workflow files + docker-compose.yml
-2. **ArsonWells** refactors unit tests into mocked + integration versions
-3. **Dek** provisions self-hosted runner + configures GitHub Secrets
-4. **FiremanDecko** reviews workflow logic, ADR it if needed
-5. **All** test locally with docker-compose before merging
+**Runs**: Developer machine or Dek's controlled environment
 
-### If Dek prefers Option C (Skip E2E on PRs):
-1. **ArsonWells** creates lightweight pr-checks.yml + mocked unit tests
-2. **ArsonWells** creates post-merge workflow (manual or scheduled)
-3. **Dek** still configures GitHub Secrets (for post-merge only)
-4. Simpler, faster, less infrastructure
+**Duration**: ~5-10 minutes (entity setup + tests)
 
-### Regardless:
-- **Create `.env.example`** with all variables
-- **Update README** with CI/CD section
-- **Document local test run** (for developers)
+**What it does**:
+1. Load `.env` with real HA credentials
+2. Verify HA is reachable
+3. Run `./quality/scripts/setup-test-env.sh --create --count 150`
+4. Run test_api_integration.py with TEST_MODE=integration
+5. Run Playwright E2E tests
+6. Teardown (delete test entities)
+
+**Outputs**:
+- Test results (pass/fail)
+- Performance metrics
+- E2E screenshots if failures
+
+**Does NOT do**:
+- Commit results to GitHub
+- Use GitHub Secrets (uses .env instead)
+- Require self-hosted runner in Actions
 
 ---
 
-## 9. Risk Assessment
+## 6. Architecture Diagram
+
+```mermaid
+graph TB
+    classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef healthy fill:#4CAF50,stroke:#388E3C,color:#FFF
+    classDef warning fill:#FF9800,stroke:#F57C00,color:#FFF
+    classDef critical fill:#F44336,stroke:#D32F2F,color:#FFF
+
+    %% Component Test Mode
+    subgraph component ["Component Test Mode (GH Actions)"]
+        direction TB
+        push["Developer Push/PR"]:::primary
+        github["GitHub Actions<br/>ubuntu-latest"]:::primary
+        docker["Docker Compose"]:::primary
+        mockha["Mock HA<br/>(Python/WebSocket)"]:::healthy
+        integration["Custom Integration<br/>(Python asyncio)"]:::healthy
+        tests["Test Suite<br/>(pytest)"]:::healthy
+        constants["Hardcoded Constants<br/>HA_URL=localhost:8123<br/>HA_TOKEN=test-token"]:::warning
+
+        push --> github
+        github --> docker
+        docker --> mockha
+        docker --> integration
+        mockha --> tests
+        integration --> tests
+        constants --> tests
+    end
+
+    %% Integration Test Mode
+    subgraph integration_mode ["Integration Test Mode (Manual)"]
+        direction TB
+        dev["Developer<br/>runs script"]:::healthy
+        dotenv["Load .env<br/>(gitignored)"]:::healthy
+        realha["Real HA Server<br/>(homeassistant.lan)"]:::critical
+        realint["Custom Integration<br/>(deployed via SSH)"]:::critical
+        realtests["Test Suite<br/>(same pytest)"]:::healthy
+        creds["Real Credentials<br/>from .env<br/>HA_TOKEN=real JWT<br/>SSH_KEY=id_rsa"]:::warning
+
+        dev --> dotenv
+        dotenv --> realint
+        realint --> realha
+        realha --> realtests
+        creds --> realtests
+    end
+
+    %% Relationship
+    both["Same Black-Box<br/>Test Interface"]:::primary
+    component --> both
+    integration_mode --> both
+
+    style component fill:#E3F2FD
+    style integration_mode fill:#FFF3E0
+```
+
+---
+
+## 7. Risk Assessment
 
 | Risk | Mitigation |
 |------|-----------|
-| Self-hosted runner unavailable | Fall back to Option C (no E2E on PRs) |
-| HA startup slow (20-30min) | Cache Docker layers, consider lighter HA image, accept the time |
-| Secrets leak in logs | GitHub Actions auto-masks secret values; we'll audit step output |
-| Tests flaky due to timing | Add retries (Playwright has built-in); increase timeouts; use explicit waits |
-| Custom integration deployment fails mid-test | rsync already handles idempotency; add health check before tests |
+| Mock HA behavior diverges from real HA | Keep mock implementation minimal; any new HA features go in mock immediately; integration tests catch divergence |
+| Integration tests blocked by real HA downtime | Manual trigger allows us to skip; E2E can run in component mode if needed |
+| Developer forgets to run integration tests before merge | Use merge branch protection with status checks; integrate tests in pre-commit hooks locally |
+| .env credentials accidentally committed | .gitignore pattern + pre-commit hook to verify .env is gitignored |
+| Test data pollution (entities left behind) | setup-test-env.sh idempotent; always teardown after integration run |
+| Component test gives false pass | Integration tests run regularly (nightly) to catch; error injection catches edge cases component tests might miss |
 
 ---
 
-## 10. Success Metrics
+## 8. Success Metrics
 
-Once live, we'll measure:
-- **PR feedback time**: <5min (mocked checks)
-- **Integration test coverage**: >80% of WebSocket commands
-- **E2E test coverage**: >90% of user journeys
-- **False negatives**: 0 (tests pass but prod breaks)
-- **False positives**: <5% (tests fail but prod OK)
-- **Infrastructure cost**: Free or <$10/month (self-hosted runner is free)
+Once implemented, measure:
+
+- **PR feedback time**: <3 minutes (component tests on every push)
+- **Coverage (happy path)**: 100% (component + integration tests)
+- **Coverage (error scenarios)**: 100% via mock injection (component tests)
+- **False negatives**: 0 (component tests pass, integration tests fail = mock divergence, fix it)
+- **False positives**: <5% (rare race conditions in real HA)
+- **Infrastructure cost**: $0 (component tests free on GitHub; integration manual/local)
+- **Setup friction**: Zero for developers (component tests automatic; integration tests documented in .env.example)
+
+---
+
+## 9. Next Steps for ArsonWells
+
+### Phase 1: Mock HA + Docker Compose
+1. Create `.github/docker/mock_ha/` with lightweight WebSocket server
+2. Create `.github/docker-compose.yml` with mock HA + integration services
+3. Test locally: `docker-compose up` and verify integration connects to mock
+
+### Phase 2: Test Refactoring
+4. Refactor `quality/scripts/test_api_integration.py` to support TEST_MODE env var
+5. Add mock control interface (config dict that mock reads)
+6. Verify same test cases work in both component and integration modes
+
+### Phase 3: GitHub Actions Workflow
+7. Create `.github/workflows/component-tests.yml` (triggers on every push/PR)
+8. Test workflow locally with `act` or in a test repo
+
+### Phase 4: Integration Test Script
+9. Create/enhance `quality/scripts/run-integration-tests.sh`
+10. Create `.env.example` with documented variables
+11. Document manual integration test flow in README
+
+### Phase 5: Documentation
+12. Update README with "Testing" section
+13. Add ARCHITECTURE.md explaining two-mode approach
 
 ---
 
 ## Summary
 
-We're ready to move forward once you decide:
+**Architecture decided by Dek:**
 
-1. **Self-hosted runner available?** (Yes/No)
-2. **E2E block PRs or post-merge only?** (Block/Async)
-3. **Any constraints on actions minutes or secrets?** (Budget/Policy)
+- **Component tests (automated, every PR)**: Mocked HA, hardcoded constants, error injection, ~2 min
+- **Integration tests (manual, on schedule)**: Real HA, .env credentials, production-like, ~5 min
+- **Same black-box interface**: Test code doesn't care which mode
+- **No GitHub Secrets**: Component tests use constants; integration tests use .env (gitignored)
+- **Two test modes, one test suite**: Efficiency + confidence
 
-Everything else we can design and build. Timelines:
-- Lightweight option (pr-checks + mocked tests): **2-3 days**
-- Full option (self-hosted + docker): **5-7 days** (depends on runner setup)
+This architecture balances **fast feedback (component tests)** with **production confidence (integration tests)**, and **eliminates the need for GitHub Secrets** by separating CI automation (mocked) from real testing (manual, local credentials).
 
-Looking forward to your input!
-
-—**FiremanDecko & ArsonWells**
+—**FiremanDecko (Architect)**
