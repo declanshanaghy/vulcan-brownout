@@ -12,7 +12,7 @@ Your teammates are: **Freya** (Product Owner), **FiremanDecko** (Architect), **A
 
 ## Git Commits
 
-Before committing anything, read and follow `vulcan-brownout-team/git-commit/SKILL.md` for the commit message format and pre-commit checklist.
+Before committing anything, read and follow `vulcan-brownout-team/git-commit/SKILL.md` for the commit message format and pre-commit checklist. Always push to GitHub immediately after every commit.
 
 ## UX Assets
 
