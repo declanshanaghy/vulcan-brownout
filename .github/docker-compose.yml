@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  mock_ha:
+    build:
+      context: .
+      dockerfile: .github/docker/mock_ha/Dockerfile
+    ports:
+      - "8123:8123"
+    environment:
+      MOCK_TOKEN: "test-token-constant"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 8123), timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - vulcan-test
+
+  component_tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      mock_ha:
+        condition: service_healthy
+    environment:
+      HA_URL: "http://mock_ha:8123"
+      HA_TOKEN: "test-token-constant"
+      HA_PORT: "8123"
+      TEST_MODE: "component"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./quality/scripts:/app/quality/scripts:ro
+      - ./development/src:/app/development/src:ro
+    networks:
+      - vulcan-test
+    command: >
+      bash -c "
+        pip install --no-cache-dir \
+          aiohttp==3.9.1 \
+          aiohttp-cors==0.7.0 \
+          websockets==12.0 \
+          pytest==7.4.3 \
+          pytest-asyncio==0.21.1 \
+          python-dotenv==1.0.0 &&
+        pytest quality/scripts/test_component_integration.py -v --tb=short
+      "
+
+networks:
+  vulcan-test:
+    driver: bridge
