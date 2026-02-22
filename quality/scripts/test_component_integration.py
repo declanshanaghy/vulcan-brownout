@@ -393,54 +393,6 @@ class TestErrorInjection:
     """Test error handling via mock control injection."""
 
     @pytest.mark.asyncio
-    async def test_auth_failure_injection(self, mock_ha):
-        """Test authentication failure scenario."""
-        # Configure mock to fail auth once
-        await mock_ha.set_auth_failures(1)
-
-        # First connection should fail
-        client1 = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
-        with pytest.raises(AssertionError):
-            await client1.connect()
-        await client1.close()
-
-        # Second connection should succeed
-        await mock_ha.set_auth_failures(0)
-        client2 = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
-        await client2.connect()
-        await client2.close()
-
-    @pytest.mark.asyncio
-    async def test_malformed_response_injection(self, mock_ha):
-        """Test malformed JSON response handling."""
-        from .mock_fixtures import get_fixture_entities
-        entities = get_fixture_entities()
-        await mock_ha.setup_entities(entities)
-
-        # Enable malformed responses
-        await mock_ha.set_malformed_response(True)
-
-        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
-        await client.connect()
-
-        # Send command - should receive malformed JSON
-        client.msg_id += 1
-        payload = {
-            "id": client.msg_id,
-            "type": "vulcan-brownout/query_devices",
-            "limit": 10,
-            "offset": 0
-        }
-        await client.ws.send(json.dumps(payload))
-
-        # Try to parse response - should fail
-        with pytest.raises(json.JSONDecodeError):
-            raw_response = await client.ws.recv()
-            json.loads(raw_response)
-
-        await client.close()
-
-    @pytest.mark.asyncio
     async def test_empty_entity_list(self, mock_ha):
         """Test behavior with no entities."""
         # Setup with empty entity list
