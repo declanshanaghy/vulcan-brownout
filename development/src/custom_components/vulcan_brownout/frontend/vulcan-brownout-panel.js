@@ -14,7 +14,6 @@
  */
 
 import { LitElement, html, css } from "https://unpkg.com/lit@3.1.0?module";
-import { customElement, property, state } from "https://unpkg.com/lit@3.1.0/decorators.js?module";
 
 const QUERY_DEVICES_COMMAND = "vulcan-brownout/query_devices";
 const SUBSCRIBE_COMMAND = "vulcan-brownout/subscribe";
@@ -42,66 +41,85 @@ const CONNECTION_CONNECTED = "connected";
 const CONNECTION_RECONNECTING = "reconnecting";
 const CONNECTION_OFFLINE = "offline";
 
-@customElement("vulcan-brownout-panel")
-export class VulcanBrownoutPanel extends LitElement {
-  // HA-provided property
-  @property({ attribute: false }) hass = null;
-
-  // Data state
-  @state() battery_devices = [];
-  @state() global_threshold = 15;
-  @state() device_rules = {};
-  @state() device_statuses = { critical: 0, warning: 0, healthy: 0, unavailable: 0 };
-
-  // Pagination state (Sprint 3: cursor-based)
-  @state() current_cursor = null;
-  @state() has_more = false;
-  @state() is_fetching = false;
-  @state() show_skeleton_loaders = false;
-
-  // UI state
-  @state() isLoading = false;
-  @state() error = null;
-  @state() sort_method = "priority";
-  @state() filter_state = {
-    critical: true,
-    warning: true,
-    healthy: true,
-    unavailable: false,
+class VulcanBrownoutPanel extends LitElement {
+  // Lit reactive properties (replaces @property and @state decorators)
+  static properties = {
+    // HA-provided property
+    hass: { attribute: false },
+    // Data state
+    battery_devices: { state: true },
+    global_threshold: { state: true },
+    device_rules: { state: true },
+    device_statuses: { state: true },
+    // Pagination state (Sprint 3: cursor-based)
+    current_cursor: { state: true },
+    has_more: { state: true },
+    is_fetching: { state: true },
+    show_skeleton_loaders: { state: true },
+    // UI state
+    isLoading: { state: true },
+    error: { state: true },
+    sort_method: { state: true },
+    filter_state: { state: true },
+    // Connection state
+    connection_status: { state: true },
+    last_update_time: { state: true },
+    subscription_id: { state: true },
+    // Modal state
+    show_settings_panel: { state: true },
+    settings_global_threshold: { state: true },
+    settings_device_rules: { state: true },
+    show_add_rule_modal: { state: true },
+    selected_device_for_rule: { state: true },
+    new_rule_threshold: { state: true },
+    // Sprint 3: Notification preferences modal
+    show_notification_modal: { state: true },
+    notification_prefs: { state: true },
+    notification_history: { state: true },
+    notification_search: { state: true },
+    // Mobile state
+    show_sort_modal: { state: true },
+    show_filter_modal: { state: true },
+    is_mobile: { state: true },
+    // Sprint 3: Back to top button and dark mode
+    show_back_to_top: { state: true },
+    current_theme: { state: true },
   };
 
-  // Connection state
-  @state() connection_status = CONNECTION_OFFLINE;
-  @state() last_update_time = null;
-  @state() subscription_id = null;
-
-  // Modal state
-  @state() show_settings_panel = false;
-  @state() settings_global_threshold = 15;
-  @state() settings_device_rules = {};
-  @state() show_add_rule_modal = false;
-  @state() selected_device_for_rule = null;
-  @state() new_rule_threshold = 15;
-
-  // Sprint 3: Notification preferences modal
-  @state() show_notification_modal = false;
-  @state() notification_prefs = {
-    enabled: true,
-    frequency_cap_hours: 6,
-    severity_filter: "critical_only",
-    per_device: {},
-  };
-  @state() notification_history = [];
-  @state() notification_search = "";
-
-  // Mobile state
-  @state() show_sort_modal = false;
-  @state() show_filter_modal = false;
-  @state() is_mobile = window.innerWidth < 768;
-
-  // Sprint 3: Back to top button and dark mode
-  @state() show_back_to_top = false;
-  @state() current_theme = "light";
+  constructor() {
+    super();
+    this.hass = null;
+    this.battery_devices = [];
+    this.global_threshold = 15;
+    this.device_rules = {};
+    this.device_statuses = { critical: 0, warning: 0, healthy: 0, unavailable: 0 };
+    this.current_cursor = null;
+    this.has_more = false;
+    this.is_fetching = false;
+    this.show_skeleton_loaders = false;
+    this.isLoading = false;
+    this.error = null;
+    this.sort_method = "priority";
+    this.filter_state = { critical: true, warning: true, healthy: true, unavailable: false };
+    this.connection_status = CONNECTION_OFFLINE;
+    this.last_update_time = null;
+    this.subscription_id = null;
+    this.show_settings_panel = false;
+    this.settings_global_threshold = 15;
+    this.settings_device_rules = {};
+    this.show_add_rule_modal = false;
+    this.selected_device_for_rule = null;
+    this.new_rule_threshold = 15;
+    this.show_notification_modal = false;
+    this.notification_prefs = { enabled: true, frequency_cap_hours: 6, severity_filter: "critical_only", per_device: {} };
+    this.notification_history = [];
+    this.notification_search = "";
+    this.show_sort_modal = false;
+    this.show_filter_modal = false;
+    this.is_mobile = window.innerWidth < 768;
+    this.show_back_to_top = false;
+    this.current_theme = "light";
+  }
 
   // Connection retry state
   reconnect_attempt = 0;
@@ -656,14 +674,15 @@ export class VulcanBrownoutPanel extends LitElement {
         },
       });
 
-      if (!result || !result.data) {
+      if (!result) {
         throw new Error("Invalid response from server");
       }
 
-      this.battery_devices = result.data.devices || [];
-      this.device_statuses = result.data.device_statuses || {};
-      this.current_cursor = result.data.next_cursor || null;
-      this.has_more = result.data.has_more || false;
+      // callWS returns the result field directly (no wrapping data object)
+      this.battery_devices = result.devices || [];
+      this.device_statuses = result.device_statuses || {};
+      this.current_cursor = result.next_cursor || null;
+      this.has_more = result.has_more || false;
       this.last_update_time = new Date();
       this.error = null;
 
@@ -741,10 +760,10 @@ export class VulcanBrownoutPanel extends LitElement {
         },
       });
 
-      if (result && result.data) {
-        this.battery_devices = [...this.battery_devices, ...(result.data.devices || [])];
-        this.current_cursor = result.data.next_cursor || null;
-        this.has_more = result.data.has_more || false;
+      if (result) {
+        this.battery_devices = [...this.battery_devices, ...(result.devices || [])];
+        this.current_cursor = result.next_cursor || null;
+        this.has_more = result.has_more || false;
       }
     } catch (err) {
       console.error("Failed to load next page:", err);
@@ -772,11 +791,11 @@ export class VulcanBrownoutPanel extends LitElement {
         data: {},
       });
 
-      if (!result || !result.data) {
+      if (!result) {
         throw new Error("Invalid subscription response");
       }
 
-      this.subscription_id = result.data.subscription_id;
+      this.subscription_id = result.subscription_id;
       this.connection_status = CONNECTION_CONNECTED;
       this.reconnect_attempt = 0;
 
@@ -975,14 +994,14 @@ export class VulcanBrownoutPanel extends LitElement {
         type: GET_NOTIFICATION_PREFERENCES_COMMAND,
         data: {},
       });
-      if (result && result.data) {
+      if (result) {
         this.notification_prefs = {
-          enabled: result.data.enabled,
-          frequency_cap_hours: result.data.frequency_cap_hours,
-          severity_filter: result.data.severity_filter,
-          per_device: result.data.per_device || {},
+          enabled: result.enabled,
+          frequency_cap_hours: result.frequency_cap_hours,
+          severity_filter: result.severity_filter,
+          per_device: result.per_device || {},
         };
-        this.notification_history = result.data.notification_history || [];
+        this.notification_history = result.notification_history || [];
       }
     } catch (err) {
       console.error("Failed to load notification preferences:", err);
@@ -1003,21 +1022,14 @@ export class VulcanBrownoutPanel extends LitElement {
   }
 
   async _call_websocket(message) {
-    return new Promise((resolve, reject) => {
-      if (!this.hass || !this.hass.callWS) {
-        reject(new Error("Home Assistant WebSocket not available"));
-        return;
-      }
-
-      this.hass
-        .callWS(message)
-        .then((response) => {
-          resolve(response);
-        })
-        .catch((error) => {
-          reject(error);
-        });
-    });
+    if (!this.hass || !this.hass.callWS) {
+      throw new Error("Home Assistant WebSocket not available");
+    }
+    // Flatten nested 'data' field — HA callWS expects params at the top level,
+    // not wrapped in a data object
+    const { data, ...rest } = message;
+    const flatMessage = data ? { ...rest, ...data } : rest;
+    return this.hass.callWS(flatMessage);
   }
 
   _on_window_resize() {

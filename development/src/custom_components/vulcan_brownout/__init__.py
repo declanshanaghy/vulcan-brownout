@@ -76,19 +76,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Register sidebar panel
         try:
+            import pathlib
+            from homeassistant.components.http import StaticPathConfig
             from homeassistant.components.frontend import async_register_built_in_panel
 
+            # Serve the frontend JS directory as a static path
+            frontend_path = pathlib.Path(__file__).parent / "frontend"
+            try:
+                await hass.http.async_register_static_paths(
+                    [StaticPathConfig("/vulcan_brownout_panel", str(frontend_path), False)]
+                )
+            except RuntimeError:
+                _LOGGER.debug("Vulcan Brownout static path already registered")
+
+            # Register as a custom panel in the HA sidebar
             async_register_built_in_panel(
                 hass,
-                component_name=DOMAIN,
+                component_name="custom",
                 sidebar_title=PANEL_TITLE,
                 sidebar_icon=PANEL_ICON,
                 frontend_url_path=PANEL_NAME,
                 require_admin=False,
-                config={"_panel_custom": {"name": PANEL_NAME}},
+                config={
+                    "_panel_custom": {
+                        "name": "vulcan-brownout-panel",
+                        "module_url": "/vulcan_brownout_panel/vulcan-brownout-panel.js",
+                    }
+                },
             )
 
-            _LOGGER.info("Registered Vulcan Brownout sidebar panel")
+            _LOGGER.info("Registered Vulcan Brownout sidebar panel at /%s", PANEL_NAME)
         except Exception as e:
             _LOGGER.warning(f"Could not register custom panel: {e}")
             # Continue anyway - WebSocket API should still work
