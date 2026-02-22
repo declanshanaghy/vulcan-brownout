@@ -1,4 +1,8 @@
-# API Contracts — Sprint 3 (v3.0.0)
+# API Contracts — Sprint 4 (v3.0.0)
+
+**Updated**: 2026-02-22 | **Status**: No API changes from Sprint 3
+
+**Note**: Sprint 4 focuses on frontend theme detection (hass.themes.darkMode) and UX polish. No new WebSocket commands or backend API changes are required. The contracts below are carried forward from Sprint 3 unchanged.
 
 ## Commands (Frontend → Backend)
 
