@@ -3,8 +3,8 @@ version: '3.8'
 services:
   mock_ha:
     build:
-      context: .
-      dockerfile: .github/docker/mock_ha/Dockerfile
+      context: .github/docker/mock_ha
+      dockerfile: Dockerfile
     ports:
       - "8123:8123"
     environment:
