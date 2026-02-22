@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional
 import urllib.parse
 
 import pytest
+import pytest_asyncio
 import websockets
 import aiohttp
 
@@ -161,14 +162,14 @@ class MockHAController:
             assert resp.status == 200
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def mock_ha():
     """Create mock HA controller."""
     async with MockHAController() as controller:
         yield controller
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def ws_client(mock_ha):
     """Create and connect WebSocket client."""
     # Setup default entities
