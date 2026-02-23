@@ -29,7 +29,10 @@ Returns all battery entities below the fixed 15% threshold, sorted by battery le
         "last_updated": "2026-02-22T10:00:00Z",
         "device_name": "Front Door Lock",
         "battery_level": 8.0,
-        "status": "critical"
+        "status": "critical",
+        "manufacturer": "Schlage",
+        "model": "BE469",
+        "area_name": "Entrance"
       }
     ],
     "total": 3

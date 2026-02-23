@@ -150,45 +150,63 @@ class VulcanBrownoutPanel extends LitElement {
       }
     }
 
-    .battery-list {
+    .table-container {
       flex: 1;
       overflow-y: auto;
-      padding-right: 8px;
     }
 
-    .battery-card {
-      background-color: var(--vb-bg-card);
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 8px;
-      box-shadow: var(--vb-shadow);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      transition: background-color 300ms ease-out, box-shadow 300ms ease-out;
+    .battery-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
     }
 
-    .device-info {
-      flex: 1;
-    }
-
-    .device-name {
+    .battery-table thead th {
+      position: sticky;
+      top: 0;
+      background-color: var(--vb-bg-primary);
+      text-align: left;
+      padding: 8px 10px;
+      font-size: 11px;
       font-weight: 600;
-      margin-bottom: 4px;
-      color: var(--vb-text-primary);
-    }
-
-    .device-status {
-      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
       color: var(--vb-text-secondary);
+      border-bottom: 2px solid var(--vb-bg-divider);
+      white-space: nowrap;
     }
 
-    .battery-level {
-      font-size: 14px;
-      font-weight: 600;
-      min-width: 50px;
+    .battery-table thead th:last-child {
       text-align: right;
+    }
+
+    .battery-table tbody td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--vb-bg-divider);
+      color: var(--vb-text-primary);
+      vertical-align: middle;
+    }
+
+    .battery-table tbody tr:hover {
+      background-color: var(--vb-bg-card);
+    }
+
+    .battery-table .level-cell {
+      text-align: right;
+      font-weight: 600;
       color: var(--vb-color-critical);
+      white-space: nowrap;
+    }
+
+    .battery-table .time-cell {
+      color: var(--vb-text-secondary);
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    .battery-table .secondary-cell {
+      color: var(--vb-text-secondary);
+      font-size: 12px;
     }
 
     .empty-state {
@@ -261,22 +279,41 @@ class VulcanBrownoutPanel extends LitElement {
                 Refresh
               </button>
             </div>`
-          : html`<div class="battery-list">
-              ${this.battery_devices.map(
-                (device) => html`
-                  <div class="battery-card">
-                    <div class="device-info">
-                      <div class="device-name">
-                        ${device.device_name || device.entity_id}
-                      </div>
-                      <div class="device-status">${device.status}</div>
-                    </div>
-                    <div class="battery-level">
-                      ${Math.round(device.battery_level)}%
-                    </div>
-                  </div>
-                `
-              )}
+          : html`<div class="table-container">
+              <table class="battery-table">
+                <thead>
+                  <tr>
+                    <th>Last Seen</th>
+                    <th>Entity Name</th>
+                    <th>Area</th>
+                    <th>Manufacturer & Model</th>
+                    <th>% Remaining</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${this.battery_devices.map(
+                    (device) => html`
+                      <tr>
+                        <td class="time-cell">
+                          ${this._formatRelativeTime(device.last_updated)}
+                        </td>
+                        <td>${device.device_name || device.entity_id}</td>
+                        <td class="secondary-cell">
+                          ${device.area_name || "\u2014"}
+                        </td>
+                        <td class="secondary-cell">
+                          ${[device.manufacturer, device.model]
+                            .filter(Boolean)
+                            .join(" ") || "\u2014"}
+                        </td>
+                        <td class="level-cell">
+                          ${Math.round(device.battery_level)}%
+                        </td>
+                      </tr>
+                    `
+                  )}
+                </tbody>
+              </table>
             </div>`}
       </div>
     `;
@@ -406,6 +443,20 @@ class VulcanBrownoutPanel extends LitElement {
       "hass_themes_updated",
       this._themeListener
     );
+  }
+
+  _formatRelativeTime(isoString) {
+    if (!isoString) return "\u2014";
+    const now = Date.now();
+    const then = new Date(isoString).getTime();
+    const diffSec = Math.floor((now - then) / 1000);
+    if (diffSec < 60) return "just now";
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin} min ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr} hr${diffHr > 1 ? "s" : ""} ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    return `${diffDay} day${diffDay > 1 ? "s" : ""} ago`;
   }
 
   async _call_ws(message) {

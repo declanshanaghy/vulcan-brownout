@@ -46,7 +46,7 @@ test.describe('Vulcan Brownout - Panel Loading', () => {
     }
   });
 
-  test('should render device items with name, status, and level', async ({ page }) => {
+  test('should render table with correct columns', async ({ page }) => {
     if (!isStaging) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
@@ -58,10 +58,12 @@ test.describe('Vulcan Brownout - Panel Loading', () => {
 
     const count = await panel.getDeviceCount();
     if (count > 0) {
-      const firstItem = await panel.getDeviceAtIndex(0);
-      await expect(firstItem.locator('.device-name')).toBeVisible();
-      await expect(firstItem.locator('.battery-level')).toBeVisible();
-      await expect(firstItem.locator('.device-status')).toBeVisible();
+      const headers = panel.panel.locator('.battery-table thead th');
+      await expect(headers).toHaveCount(5);
+
+      const firstRow = await panel.getDeviceAtIndex(0);
+      const cells = firstRow.locator('td');
+      await expect(cells).toHaveCount(5);
     }
   });
 

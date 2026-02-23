@@ -18,6 +18,14 @@ def generate_test_entities(count: int = 150) -> List[Dict[str, Any]]:
     """
     entities: List[Dict[str, Any]] = []
 
+    # Sample manufacturers, models, and areas for realistic test data
+    manufacturers = ["Schlage", "Philips", "Nest", "Ring", "Aqara", "Yale",
+                     "Honeywell", "Sengled", "Ecolink", "First Alert"]
+    models = ["BE469", "SML001", "Protect", "Doorbell Pro", "MCCGQ11LM",
+              "YRD256", "5800PIR", "E1C-NB7", "DWZWAVE25", "ZCOMBO-G"]
+    areas = ["Entrance", "Bedroom", "Kitchen", "Living Room", "Garage",
+             "Bathroom", "Office", "Hallway", "Basement", "Patio"]
+
     # Critical entities (below 15% — these will be shown)
     critical_count = max(3, count // 15)
     for i in range(critical_count):
@@ -33,6 +41,9 @@ def generate_test_entities(count: int = 150) -> List[Dict[str, Any]]:
                 "battery_level": battery_level,
             },
             "available": True,
+            "manufacturer": manufacturers[i % len(manufacturers)],
+            "model": models[i % len(models)],
+            "area_name": areas[i % len(areas)],
         })
 
     # Above-threshold entities (>= 15% — these will NOT be shown)

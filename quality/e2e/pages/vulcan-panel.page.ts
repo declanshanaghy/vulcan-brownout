@@ -31,8 +31,8 @@ export class VulcanBrownoutPanel {
     this.panel = page.locator('vulcan-brownout-panel');
     this.header = this.panel.locator('.header');
     this.title = this.header.locator('h1');
-    this.deviceList = this.panel.locator('.battery-list');
-    this.deviceItems = this.panel.locator('.battery-card');
+    this.deviceList = this.panel.locator('.table-container');
+    this.deviceItems = this.panel.locator('.battery-table tbody tr');
     this.connectionBadge = this.header.locator('.connection-badge');
     this.connectionDot = this.connectionBadge.locator('.connection-dot');
     this.emptyState = this.panel.locator('.empty-state');
@@ -117,7 +117,7 @@ export class VulcanBrownoutPanel {
     const items = await this.deviceItems.all();
     const names: string[] = [];
     for (const item of items) {
-      const name = await item.locator('.device-name').textContent();
+      const name = await item.locator('td:nth-child(2)').textContent();
       if (name) names.push(name.trim());
     }
     return names;
@@ -127,7 +127,7 @@ export class VulcanBrownoutPanel {
     const items = await this.deviceItems.all();
     const levels: number[] = [];
     for (const item of items) {
-      const text = await item.locator('.battery-level').textContent();
+      const text = await item.locator('td:nth-child(5)').textContent();
       if (text) {
         const match = text.match(/\d+/);
         if (match) levels.push(parseInt(match[0]));
@@ -141,7 +141,7 @@ export class VulcanBrownoutPanel {
   }
 
   async getDeviceLevelAtIndex(index: number): Promise<number | null> {
-    const text = await this.deviceItems.nth(index).locator('.battery-level').textContent();
+    const text = await this.deviceItems.nth(index).locator('td:nth-child(5)').textContent();
     if (text) {
       const match = text.match(/\d+/);
       if (match) return parseInt(match[0]);

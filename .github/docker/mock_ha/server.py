@@ -174,6 +174,9 @@ class MockHAServer:
                     "attributes": entity.get("attributes", {}),
                     "last_changed": entity.get("last_changed"),
                     "last_updated": entity.get("last_updated"),
+                    "manufacturer": entity.get("manufacturer"),
+                    "model": entity.get("model"),
+                    "area_name": entity.get("area_name"),
                 })
             except (ValueError, TypeError):
                 continue

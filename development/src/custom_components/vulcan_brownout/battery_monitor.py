@@ -5,7 +5,11 @@ from typing import Any, Dict, List, Optional
 
 from homeassistant.core import HomeAssistant, State
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.helpers import entity_registry as er, device_registry as dr
+from homeassistant.helpers import (
+    area_registry as ar,
+    device_registry as dr,
+    entity_registry as er,
+)
 
 from .const import BATTERY_DEVICE_CLASS, BATTERY_THRESHOLD, STATUS_CRITICAL
 
@@ -20,6 +24,9 @@ class BatteryEntity:
         entity_id: str,
         state: State,
         device_name: Optional[str] = None,
+        manufacturer: Optional[str] = None,
+        model: Optional[str] = None,
+        area_name: Optional[str] = None,
     ) -> None:
         self.entity_id = entity_id
         self.state = state
@@ -27,6 +34,9 @@ class BatteryEntity:
             device_name or state.attributes.get("friendly_name", entity_id)
         )
         self.battery_level = self._parse_battery_level(state.state)
+        self.manufacturer = manufacturer
+        self.model = model
+        self.area_name = area_name
 
     def _parse_battery_level(self, state_value: str) -> float:
         if state_value in (STATE_UNAVAILABLE, STATE_UNKNOWN):
@@ -51,6 +61,9 @@ class BatteryEntity:
             "device_name": self.device_name,
             "battery_level": self.battery_level,
             "status": STATUS_CRITICAL,
+            "manufacturer": self.manufacturer,
+            "model": self.model,
+            "area_name": self.area_name,
         }
 
 
@@ -66,6 +79,7 @@ class BatteryMonitor:
         try:
             entity_registry = er.async_get(self.hass)
             device_registry = dr.async_get(self.hass)
+            area_registry = ar.async_get(self.hass)
 
             for entity_entry in entity_registry.entities.values():
                 device_class = (
@@ -95,15 +109,32 @@ class BatteryMonitor:
                 except (ValueError, TypeError):
                     continue
 
-                # Get device name from device registry
+                # Get device info from device registry
                 device_name = None
+                manufacturer = None
+                model = None
+                area_id = entity_entry.area_id
                 if entity_entry.device_id:
                     device = device_registry.async_get(entity_entry.device_id)
                     if device:
                         device_name = device.name
+                        manufacturer = device.manufacturer
+                        model = device.model
+                        if not area_id:
+                            area_id = device.area_id
+
+                # Resolve area name
+                area_name = None
+                if area_id:
+                    area = area_registry.async_get_area(area_id)
+                    if area:
+                        area_name = area.name
 
                 try:
-                    entity = BatteryEntity(entity_id, state, device_name)
+                    entity = BatteryEntity(
+                        entity_id, state, device_name,
+                        manufacturer, model, area_name,
+                    )
                     self.entities[entity_id] = entity
                 except Exception as e:
                     _LOGGER.warning(
@@ -133,19 +164,40 @@ class BatteryMonitor:
             return
 
         device_name = None
+        manufacturer = None
+        model = None
+        area_name = None
         if entity_id in self.entities:
-            device_name = self.entities[entity_id].device_name
+            existing = self.entities[entity_id]
+            device_name = existing.device_name
+            manufacturer = existing.manufacturer
+            model = existing.model
+            area_name = existing.area_name
         else:
             entity_registry = er.async_get(self.hass)
             entry = entity_registry.entities.get(entity_id)
-            if entry and entry.device_id:
-                device_registry = dr.async_get(self.hass)
-                device = device_registry.async_get(entry.device_id)
-                if device:
-                    device_name = device.name
+            if entry:
+                area_id = entry.area_id
+                if entry.device_id:
+                    device_registry = dr.async_get(self.hass)
+                    device = device_registry.async_get(entry.device_id)
+                    if device:
+                        device_name = device.name
+                        manufacturer = device.manufacturer
+                        model = device.model
+                        if not area_id:
+                            area_id = device.area_id
+                if area_id:
+                    area_registry = ar.async_get(self.hass)
+                    area = area_registry.async_get_area(area_id)
+                    if area:
+                        area_name = area.name
 
         try:
-            entity = BatteryEntity(entity_id, new_state, device_name)
+            entity = BatteryEntity(
+                entity_id, new_state, device_name,
+                manufacturer, model, area_name,
+            )
             self.entities[entity_id] = entity
         except Exception as e:
             _LOGGER.warning(

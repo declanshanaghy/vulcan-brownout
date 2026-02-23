@@ -10,10 +10,13 @@ export interface Device {
   status: 'critical';
   last_changed: string;
   last_updated: string;
+  manufacturer?: string;
+  model?: string;
+  area_name?: string;
 }
 
 export interface DeviceListResponse {
-  devices: Device[];
+  entities: Device[];
   total: number;
 }
 
@@ -31,6 +34,9 @@ export function generateDevice(overrides?: Partial<Device>): Device {
     status: 'critical',
     last_changed: new Date(Date.now() - Math.random() * 86400000).toISOString(),
     last_updated: new Date(Date.now() - Math.random() * 3600000).toISOString(),
+    manufacturer: 'TestMfr',
+    model: 'Model-1',
+    area_name: 'Test Room',
     ...overrides,
   };
 }
@@ -51,6 +57,9 @@ export function generateDeviceList(
       status: 'critical',
       last_changed: new Date(Date.now() - Math.random() * 86400000).toISOString(),
       last_updated: new Date(Date.now() - Math.random() * 3600000).toISOString(),
+      manufacturer: 'TestMfr',
+      model: `Model-${i}`,
+      area_name: `Room ${i}`,
     });
   }
   return devices;
@@ -67,5 +76,8 @@ export function generateDevicesByName(names: string[]): Device[] {
     status: 'critical' as const,
     last_changed: new Date().toISOString(),
     last_updated: new Date().toISOString(),
+    manufacturer: 'TestMfr',
+    model: `Model-${idx}`,
+    area_name: `Room ${idx}`,
   }));
 }

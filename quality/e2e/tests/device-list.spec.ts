@@ -77,7 +77,7 @@ test.describe('Vulcan Brownout - Device List', () => {
     });
   });
 
-  test('should show critical status for all devices', async ({ page }) => {
+  test('should show all devices below 15% threshold', async ({ page }) => {
     if (!isStaging) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
@@ -87,12 +87,11 @@ test.describe('Vulcan Brownout - Device List', () => {
     const panel = new VulcanBrownoutPanel(page);
     await panel.goto();
 
-    const count = await panel.getDeviceCount();
-    for (let i = 0; i < count; i++) {
-      const item = await panel.getDeviceAtIndex(i);
-      const statusText = await item.locator('.device-status').textContent();
-      expect(statusText?.toLowerCase()).toBe('critical');
-    }
+    const levels = await panel.getDeviceLevels();
+    levels.forEach((level) => {
+      expect(level).toBeGreaterThanOrEqual(0);
+      expect(level).toBeLessThan(15);
+    });
   });
 
   test('should handle devices with special characters in names @mock-only', async ({ page }) => {
