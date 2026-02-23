@@ -264,7 +264,20 @@ fi
 log_info "Waiting for integration to load..."
 sleep 5
 
-# 12. Check for integration in HA
+# 12. Enable debug logging for the integration
+log_info "Enabling debug logging for vulcan_brownout..."
+
+if curl -s -m 10 -X POST \
+    -H "Authorization: Bearer $HA_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"custom_components.vulcan_brownout": "debug"}' \
+    "$HA_URL:$HA_PORT/api/services/logger/set_level" > /dev/null 2>&1; then
+    log_info "✓ Debug logging enabled for custom_components.vulcan_brownout"
+else
+    log_warn "Could not set debug log level via API (integration may not be loaded yet)"
+fi
+
+# 13. Check for integration in HA
 log_info "Verifying integration is loaded..."
 
 if curl -s -m 10 -H "Authorization: Bearer $HA_TOKEN" \
@@ -274,7 +287,7 @@ else
     log_warn "Could not verify integration load (may appear in logs)"
 fi
 
-# 13. Deployment summary
+# 14. Deployment summary
 log_info ""
 log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 log_info "Vulcan Brownout Deployment Complete"
