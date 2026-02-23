@@ -12,48 +12,10 @@ homeassistant:
   country: US
   internal_url: http://localhost:8123
 
-template:
-  - sensor:
-      # Below threshold (should appear in panel)
-      - name: "Living Room Remote"
-        unique_id: mock_battery_living_room_remote
-        state: "5"
-        device_class: battery
-        unit_of_measurement: "%"
-      - name: "Front Door Sensor"
-        unique_id: mock_battery_front_door
-        state: "8"
-        device_class: battery
-        unit_of_measurement: "%"
-      - name: "Garage Motion"
-        unique_id: mock_battery_garage_motion
-        state: "12"
-        device_class: battery
-        unit_of_measurement: "%"
-      - name: "Office Button"
-        unique_id: mock_battery_office_button
-        state: "14"
-        device_class: battery
-        unit_of_measurement: "%"
-      # At threshold boundary (should NOT appear — >= 15)
-      - name: "Hallway Sensor"
-        unique_id: mock_battery_hallway
-        state: "15"
-        device_class: battery
-        unit_of_measurement: "%"
-      # Above threshold (should NOT appear)
-      - name: "Kitchen Motion"
-        unique_id: mock_battery_kitchen
-        state: "45"
-        device_class: battery
-        unit_of_measurement: "%"
-      - name: "Back Door Lock"
-        unique_id: mock_battery_back_door
-        state: "80"
-        device_class: battery
-        unit_of_measurement: "%"
-      - name: "Master Bedroom Remote"
-        unique_id: mock_battery_master_remote
-        state: "95"
-        device_class: battery
-        unit_of_measurement: "%"
+# Switch between mock entities (default) and entities extracted from a real HA instance:
+#   Mock (default):   template: !include template.yaml
+#   Extracted:        template: !include ha-entities.yaml
+#
+# To extract from a real HA: python development/scripts/extract-ha-entities.py
+# then: cp tmp/ha-entities.yaml development/environments/docker/config/ha-entities.yaml
+template: !include template.yaml
