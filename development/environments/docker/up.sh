@@ -46,8 +46,11 @@ info "Container started."
 # ── Wait for HA to be ready ───────────────────────────────────────────────────
 # Use /api/onboarding — always returns 200 without authentication
 section "Waiting for Home Assistant to be ready (up to ${TIMEOUT}s)"
+info "HA_URL=${HA_URL}:${HA_PORT}"
+info "HA_USERNAME=${HA_USERNAME}"
+
 elapsed=0
-until curl -sf "${HA_URL}/api/onboarding" >/dev/null 2>&1; do
+until curl -sf "${HA_URL}:${HA_PORT}" >/dev/null 2>&1; do
   if [ "$elapsed" -ge "$TIMEOUT" ]; then
     error "HA did not become ready within ${TIMEOUT}s."
     error "Check logs with: docker logs vulcan-brownout-ha"
