@@ -227,16 +227,49 @@ class BatteryMonitor:
     async def query_entities(self) -> Dict[str, Any]:
         """Return all battery entities below the fixed threshold.
 
+        For each entity selected below the threshold, performs a fresh lookup
+        against the device, entity, and area registries to attach the owning
+        device's manufacturer, model, and area name to the response payload.
+
         Sorted by battery level ascending (lowest first).
         """
-        low_battery: List[BatteryEntity] = []
-        for entity in self.entities.values():
-            if 0 <= entity.battery_level < BATTERY_THRESHOLD:
-                low_battery.append(entity)
+        entity_registry = er.async_get(self.hass)
+        device_registry = dr.async_get(self.hass)
+        area_registry = ar.async_get(self.hass)
 
-        low_battery.sort(key=lambda e: (e.battery_level, e.device_name))
+        low_battery: List[Dict[str, Any]] = []
+
+        for entity in self.entities.values():
+            if not (0 <= entity.battery_level < BATTERY_THRESHOLD):
+                continue
+
+            data = entity.to_dict()
+
+            # Fresh device registry lookup for each selected entity
+            entry = entity_registry.entities.get(entity.entity_id)
+            if entry:
+                area_id = entry.area_id
+                if entry.device_id:
+                    device = device_registry.async_get(entry.device_id)
+                    if device:
+                        if device.name:
+                            data["device_name"] = device.name
+                        data["manufacturer"] = device.manufacturer
+                        data["model"] = device.model
+                        if not area_id:
+                            area_id = device.area_id
+                if area_id:
+                    area = area_registry.async_get_area(area_id)
+                    if area:
+                        data["area_name"] = area.name
+
+            low_battery.append(data)
+
+        low_battery.sort(
+            key=lambda d: (d["battery_level"], d.get("device_name") or d["entity_id"])
+        )
 
         return {
-            "entities": [e.to_dict() for e in low_battery],
+            "entities": low_battery,
             "total": len(low_battery),
         }

@@ -209,6 +209,15 @@ class VulcanBrownoutPanel extends LitElement {
       font-size: 12px;
     }
 
+    .entity-link {
+      color: var(--vb-color-primary-action);
+      text-decoration: none;
+    }
+
+    .entity-link:hover {
+      text-decoration: underline;
+    }
+
     .empty-state {
       display: flex;
       flex-direction: column;
@@ -297,7 +306,12 @@ class VulcanBrownoutPanel extends LitElement {
                         <td class="time-cell">
                           ${this._formatRelativeTime(device.last_updated)}
                         </td>
-                        <td>${device.device_name || device.entity_id}</td>
+                        <td>
+                          <a
+                            class="entity-link"
+                            href="/config/entities?entity_id=${device.entity_id}"
+                          >${device.device_name || device.entity_id}</a>
+                        </td>
                         <td class="secondary-cell">
                           ${device.area_name || "\u2014"}
                         </td>

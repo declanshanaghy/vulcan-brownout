@@ -266,6 +266,9 @@ class MockHAServer:
                     "friendly_name": entity.get("friendly_name", entity_id),
                     "attributes": entity.get("attributes", {}),
                     "available": entity.get("available", True),
+                    "manufacturer": entity.get("manufacturer"),
+                    "model": entity.get("model"),
+                    "area_name": entity.get("area_name"),
                     "last_changed": datetime.utcnow().isoformat() + "Z",
                     "last_updated": datetime.utcnow().isoformat() + "Z",
                 }
