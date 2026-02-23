@@ -4,91 +4,91 @@
   "key": "core.restore_state",
   "data": [
     {
-      "state": {"entity_id":"conversation.home_assistant_2","state":"unknown","attributes":{"friendly_name":"Home Assistant","supported_features":1},"last_changed":"2026-02-23T08:11:32.970996+00:00","last_reported":"2026-02-23T08:11:32.970996+00:00","last_updated":"2026-02-23T08:11:32.970996+00:00","context":{"id":"01KJ4RVEQAM4JW5JWG6YDRQVYV","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"conversation.home_assistant_2","state":"unknown","attributes":{"friendly_name":"Home Assistant","supported_features":1},"last_changed":"2026-02-23T09:58:57.453703+00:00","last_reported":"2026-02-23T09:58:57.453703+00:00","last_updated":"2026-02-23T09:58:57.453703+00:00","context":{"id":"01KJ4Z045DES4CXF3P5RZ5STR9","parent_id":null,"user_id":null}},
       "extra_data": null,
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
-      "state": {"entity_id":"event.backup_automatic_backup","state":"unknown","attributes":{"event_types":["completed","failed","in_progress"],"event_type":null,"friendly_name":"Backup Automatic backup"},"last_changed":"2026-02-23T08:11:32.988806+00:00","last_reported":"2026-02-23T08:11:32.988806+00:00","last_updated":"2026-02-23T08:11:32.988806+00:00","context":{"id":"01KJ4RVEQW5XAMRMRY5DAEVZYW","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"event.backup_automatic_backup","state":"unknown","attributes":{"event_types":["completed","failed","in_progress"],"event_type":null,"friendly_name":"Backup Automatic backup"},"last_changed":"2026-02-23T09:58:57.473001+00:00","last_reported":"2026-02-23T09:58:57.473001+00:00","last_updated":"2026-02-23T09:58:57.473001+00:00","context":{"id":"01KJ4Z0461YNT1HJKJWJEH6EM6","parent_id":null,"user_id":null}},
       "extra_data": {
         "last_event_type": null,
         "last_event_attributes": null
       },
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
-      "state": {"entity_id":"person.sprocket","state":"unknown","attributes":{"editable":true,"id":"sprocket","device_trackers":[],"user_id":"14e9128a99a94e9fa36d928ce45c1aee","friendly_name":"sprocket"},"last_changed":"2026-02-23T08:11:33.347647+00:00","last_reported":"2026-02-23T08:11:35.029977+00:00","last_updated":"2026-02-23T08:11:35.029977+00:00","context":{"id":"01KJ4RVGQN5J1TA0045F2Q1XGQ","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"person.sprocket","state":"unknown","attributes":{"editable":true,"id":"sprocket","device_trackers":[],"source":"person.sprocket","user_id":"14e9128a99a94e9fa36d928ce45c1aee","friendly_name":"sprocket"},"last_changed":"2026-02-23T09:58:57.847434+00:00","last_reported":"2026-02-23T09:58:57.847434+00:00","last_updated":"2026-02-23T09:58:57.847434+00:00","context":{"id":"01KJ4Z04HQ5FXEPJ3DJ46X65A0","parent_id":null,"user_id":null}},
       "extra_data": null,
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
-      "state": {"entity_id":"sensor.living_room_remote","state":"5","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Living Room Remote"},"last_changed":"2026-02-23T08:11:35.030446+00:00","last_reported":"2026-02-23T08:11:35.030446+00:00","last_updated":"2026-02-23T08:11:35.030446+00:00","context":{"id":"01KJ4RVGQPJ3YT3P3YA7ZZW0GM","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"sensor.living_room_remote","state":"unknown","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Living Room Remote"},"last_changed":"2026-02-23T09:58:58.644123+00:00","last_reported":"2026-02-23T09:58:58.644123+00:00","last_updated":"2026-02-23T09:58:58.644123+00:00","context":{"id":"01KJ4Z05AM5E1K6A8M5ECYVC1S","parent_id":null,"user_id":null}},
       "extra_data": {
-        "native_value": "5",
+        "native_value": null,
         "native_unit_of_measurement": "%"
       },
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
-      "state": {"entity_id":"sensor.front_door_sensor","state":"8","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Front Door Sensor"},"last_changed":"2026-02-23T08:11:35.030544+00:00","last_reported":"2026-02-23T08:11:35.030544+00:00","last_updated":"2026-02-23T08:11:35.030544+00:00","context":{"id":"01KJ4RVGQP9NKCVY0WG373GRKD","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"sensor.front_door_sensor","state":"unknown","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Front Door Sensor"},"last_changed":"2026-02-23T09:58:58.644598+00:00","last_reported":"2026-02-23T09:58:58.644598+00:00","last_updated":"2026-02-23T09:58:58.644598+00:00","context":{"id":"01KJ4Z05AMXMWHJXNMJTKFXE38","parent_id":null,"user_id":null}},
       "extra_data": {
-        "native_value": "8",
+        "native_value": null,
         "native_unit_of_measurement": "%"
       },
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
-      "state": {"entity_id":"sensor.garage_motion","state":"12","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Garage Motion"},"last_changed":"2026-02-23T08:11:35.030625+00:00","last_reported":"2026-02-23T08:11:35.030625+00:00","last_updated":"2026-02-23T08:11:35.030625+00:00","context":{"id":"01KJ4RVGQPDCQWVWT7PCMW4BFT","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"sensor.garage_motion","state":"unknown","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Garage Motion"},"last_changed":"2026-02-23T09:58:58.644736+00:00","last_reported":"2026-02-23T09:58:58.644736+00:00","last_updated":"2026-02-23T09:58:58.644736+00:00","context":{"id":"01KJ4Z05AMQPJ207SQZKCQGY2N","parent_id":null,"user_id":null}},
       "extra_data": {
-        "native_value": "12",
+        "native_value": null,
         "native_unit_of_measurement": "%"
       },
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
-      "state": {"entity_id":"sensor.office_button","state":"14","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Office Button"},"last_changed":"2026-02-23T08:11:35.030684+00:00","last_reported":"2026-02-23T08:11:35.030684+00:00","last_updated":"2026-02-23T08:11:35.030684+00:00","context":{"id":"01KJ4RVGQP8PDX9ATKSX75X7KW","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"sensor.office_button","state":"unknown","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Office Button"},"last_changed":"2026-02-23T09:58:58.644837+00:00","last_reported":"2026-02-23T09:58:58.644837+00:00","last_updated":"2026-02-23T09:58:58.644837+00:00","context":{"id":"01KJ4Z05AMY827BJN0TY77ZQTV","parent_id":null,"user_id":null}},
       "extra_data": {
-        "native_value": "14",
+        "native_value": null,
         "native_unit_of_measurement": "%"
       },
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
-      "state": {"entity_id":"sensor.hallway_sensor","state":"15","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Hallway Sensor"},"last_changed":"2026-02-23T08:11:35.030735+00:00","last_reported":"2026-02-23T08:11:35.030735+00:00","last_updated":"2026-02-23T08:11:35.030735+00:00","context":{"id":"01KJ4RVGQPSNV818HV2D7VJ0TG","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"sensor.hallway_sensor","state":"unknown","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Hallway Sensor"},"last_changed":"2026-02-23T09:58:58.645025+00:00","last_reported":"2026-02-23T09:58:58.645025+00:00","last_updated":"2026-02-23T09:58:58.645025+00:00","context":{"id":"01KJ4Z05ANV3CQ0K08RFJDXFNV","parent_id":null,"user_id":null}},
       "extra_data": {
-        "native_value": "15",
+        "native_value": null,
         "native_unit_of_measurement": "%"
       },
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
-      "state": {"entity_id":"sensor.kitchen_motion","state":"45","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Kitchen Motion"},"last_changed":"2026-02-23T08:11:35.030786+00:00","last_reported":"2026-02-23T08:11:35.030786+00:00","last_updated":"2026-02-23T08:11:35.030786+00:00","context":{"id":"01KJ4RVGQPXYYE0K6MRF0K2Q9B","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"sensor.kitchen_motion","state":"unknown","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Kitchen Motion"},"last_changed":"2026-02-23T09:58:58.645182+00:00","last_reported":"2026-02-23T09:58:58.645182+00:00","last_updated":"2026-02-23T09:58:58.645182+00:00","context":{"id":"01KJ4Z05ANZHEC8M0ATG6SWDSW","parent_id":null,"user_id":null}},
       "extra_data": {
-        "native_value": "45",
+        "native_value": null,
         "native_unit_of_measurement": "%"
       },
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
-      "state": {"entity_id":"sensor.back_door_lock","state":"80","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Back Door Lock"},"last_changed":"2026-02-23T08:11:35.030843+00:00","last_reported":"2026-02-23T08:11:35.030843+00:00","last_updated":"2026-02-23T08:11:35.030843+00:00","context":{"id":"01KJ4RVGQP15GRAT6R40WE4WVJ","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"sensor.back_door_lock","state":"unknown","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Back Door Lock"},"last_changed":"2026-02-23T09:58:58.645437+00:00","last_reported":"2026-02-23T09:58:58.645437+00:00","last_updated":"2026-02-23T09:58:58.645437+00:00","context":{"id":"01KJ4Z05ANJ80YA9KYJFRRWQTP","parent_id":null,"user_id":null}},
       "extra_data": {
-        "native_value": "80",
+        "native_value": null,
         "native_unit_of_measurement": "%"
       },
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
-      "state": {"entity_id":"sensor.master_bedroom_remote","state":"95","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Master Bedroom Remote"},"last_changed":"2026-02-23T08:11:35.030983+00:00","last_reported":"2026-02-23T08:11:35.030983+00:00","last_updated":"2026-02-23T08:11:35.030983+00:00","context":{"id":"01KJ4RVGQPTJGEN1K5DS0RZ29Y","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"sensor.master_bedroom_remote","state":"unknown","attributes":{"unit_of_measurement":"%","device_class":"battery","friendly_name":"Master Bedroom Remote"},"last_changed":"2026-02-23T09:58:58.645702+00:00","last_reported":"2026-02-23T09:58:58.645702+00:00","last_updated":"2026-02-23T09:58:58.645702+00:00","context":{"id":"01KJ4Z05ANP25Q2SZKC612GJ98","parent_id":null,"user_id":null}},
       "extra_data": {
-        "native_value": "95",
+        "native_value": null,
         "native_unit_of_measurement": "%"
       },
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
-      "state": {"entity_id":"tts.google_translate_en_com","state":"unknown","attributes":{"friendly_name":"Google Translate en com"},"last_changed":"2026-02-23T08:11:34.232971+00:00","last_reported":"2026-02-23T08:11:34.232971+00:00","last_updated":"2026-02-23T08:11:34.232971+00:00","context":{"id":"01KJ4RVFYR09S41FZ8NTE4WB5Y","parent_id":null,"user_id":null}},
+      "state": {"entity_id":"tts.google_translate_en_com","state":"unknown","attributes":{"friendly_name":"Google Translate en com"},"last_changed":"2026-02-23T09:58:58.863303+00:00","last_reported":"2026-02-23T09:58:58.863303+00:00","last_updated":"2026-02-23T09:58:58.863303+00:00","context":{"id":"01KJ4Z05HF63BK1JFDTWDHBFR6","parent_id":null,"user_id":null}},
       "extra_data": null,
-      "last_seen": "2026-02-23T08:13:32.225766+00:00"
+      "last_seen": "2026-02-23T09:58:59.702556+00:00"
     },
     {
       "state": {"entity_id":"conversation.home_assistant","state":"unknown","attributes":{"friendly_name":"Home Assistant","supported_features":1},"last_changed":"2026-02-23T07:09:11.200100+00:00","last_reported":"2026-02-23T07:09:11.200100+00:00","last_updated":"2026-02-23T07:09:11.200100+00:00","context":{"id":"01KJ4N98N09QWT2ES56BZMJBC7","parent_id":null,"user_id":null}},

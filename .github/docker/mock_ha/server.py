@@ -136,6 +136,8 @@ class MockHAServer:
 
         if cmd_type == "vulcan-brownout/query_entities":
             await self._handle_query_entities(ws, command)
+        elif cmd_type == "vulcan-brownout/query_unavailable":
+            await self._handle_query_unavailable(ws, command)
         elif cmd_type == "vulcan-brownout/subscribe":
             await self._handle_subscribe(ws, command)
         else:
@@ -182,6 +184,52 @@ class MockHAServer:
                 continue
 
         entities.sort(key=lambda d: d["battery_level"])
+
+        await ws.send_json({
+            "type": "result",
+            "id": msg_id,
+            "success": True,
+            "data": {
+                "entities": entities,
+                "total": len(entities),
+            },
+        })
+
+    async def _handle_query_unavailable(
+        self, ws: web.WebSocketResponse, command: Dict[str, Any]
+    ) -> None:
+        """Return battery entities whose state is unavailable or unknown."""
+        msg_id = command.get("id")
+
+        entities = []
+        for entity_id, entity in sorted(self.entity_data.items()):
+            if entity_id.startswith("binary_sensor."):
+                continue
+            state = entity.get("state", "")
+            available = entity.get("available", True)
+            attributes = entity.get("attributes", {})
+            device_class = attributes.get("device_class", "")
+            if device_class != "battery":
+                continue
+            # Include only entities that are unavailable or unknown by state
+            # (available=False in mock maps to state="unavailable")
+            if available and state not in ("unavailable", "unknown"):
+                continue
+
+            entities.append({
+                "entity_id": entity_id,
+                "state": "unavailable" if not available else state,
+                "battery_level": None,
+                "device_name": entity.get("friendly_name", entity_id),
+                "manufacturer": entity.get("manufacturer"),
+                "model": entity.get("model"),
+                "area_name": entity.get("area_name"),
+                "last_changed": entity.get("last_changed"),
+                "last_updated": entity.get("last_updated"),
+            })
+
+        # Sort by last_changed descending
+        entities.sort(key=lambda d: d["last_changed"] or "", reverse=True)
 
         await ws.send_json({
             "type": "result",

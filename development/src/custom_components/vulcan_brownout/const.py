@@ -11,6 +11,7 @@ BATTERY_DEVICE_CLASS: str = "battery"
 
 # WebSocket command types
 COMMAND_QUERY_ENTITIES: str = "vulcan-brownout/query_entities"
+COMMAND_QUERY_UNAVAILABLE: str = "vulcan-brownout/query_unavailable"
 COMMAND_SUBSCRIBE: str = "vulcan-brownout/subscribe"
 
 # WebSocket event types

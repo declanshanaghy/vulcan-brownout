@@ -1,5 +1,5 @@
 ---
-name: vulcan-brownout-product-owner
+name: product-owner
 description: "Product Owner agent for the Vulcan Brownout project. Owns the product vision, backlog, and prioritization. Produces the Product Design Brief — including UX direction, wireframes, and interaction specs — before any technical work begins. Use this skill whenever product direction, backlog grooming, feature prioritization, or user-facing requirements are needed."
 model: sonnet
 ---

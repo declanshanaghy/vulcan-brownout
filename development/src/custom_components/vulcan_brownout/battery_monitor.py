@@ -503,3 +503,96 @@ class BatteryMonitor:
             "entities": low_battery,
             "total": result_count,
         }
+
+    async def get_unavailable_entities(self) -> Dict[str, Any]:
+        """Return all battery entities whose state is unavailable or unknown.
+
+        Queries the entity registry directly (not self.entities, which only
+        contains numeric entities). Skips binary_sensor.* entities.
+        Sorts by last_changed descending (most recently changed first).
+        """
+        _LOGGER.debug("get_unavailable_entities: starting unavailable entity query")
+
+        entity_registry = er.async_get(self.hass)
+        device_registry = dr.async_get(self.hass)
+        area_registry = ar.async_get(self.hass)
+
+        unavailable: List[Dict[str, Any]] = []
+
+        for entity_entry in entity_registry.entities.values():
+            device_class = (
+                entity_entry.device_class
+                or entity_entry.original_device_class
+            )
+            if device_class != BATTERY_DEVICE_CLASS:
+                continue
+
+            entity_id = entity_entry.entity_id
+
+            if entity_id.startswith("binary_sensor."):
+                _LOGGER.debug(
+                    "get_unavailable_entities: entity_id=%s skip=binary_sensor",
+                    entity_id,
+                )
+                continue
+
+            state = self.hass.states.get(entity_id)
+            if state is None:
+                _LOGGER.debug(
+                    "get_unavailable_entities: entity_id=%s skip=no_state", entity_id
+                )
+                continue
+
+            if state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                continue
+
+            device_name, manufacturer, model, area_name = self._resolve_device_info(
+                entity_id,
+                entity_entry.device_id,
+                entity_entry.area_id,
+                device_registry,
+                area_registry,
+            )
+
+            friendly_name: Optional[str] = device_name or state.attributes.get(
+                "friendly_name", entity_id
+            )
+
+            data: Dict[str, Any] = {
+                "entity_id": entity_id,
+                "state": state.state,
+                "battery_level": None,
+                "device_name": friendly_name or entity_id,
+                "manufacturer": manufacturer,
+                "model": model,
+                "area_name": area_name,
+                "last_changed": (
+                    state.last_changed.isoformat() if state.last_changed else None
+                ),
+                "last_updated": (
+                    state.last_updated.isoformat() if state.last_updated else None
+                ),
+            }
+            unavailable.append(data)
+            _LOGGER.debug(
+                "get_unavailable_entities: entity_id=%s state=%s accepted=true",
+                entity_id, state.state,
+            )
+
+        # Sort by last_changed descending (most recently changed first).
+        # Entities with no last_changed timestamp sort to the end.
+        unavailable.sort(
+            key=lambda d: d["last_changed"] or "",
+            reverse=True,
+        )
+
+        result_count = len(unavailable)
+        _LOGGER.info(
+            "get_unavailable_entities: complete unavailable_count=%d",
+            result_count,
+        )
+
+        return {
+            "entities": unavailable,
+            "total": result_count,
+        }

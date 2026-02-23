@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components import websocket_api
 import voluptuous as vol
 
-from .const import COMMAND_QUERY_ENTITIES, COMMAND_SUBSCRIBE, DOMAIN
+from .const import COMMAND_QUERY_ENTITIES, COMMAND_QUERY_UNAVAILABLE, COMMAND_SUBSCRIBE, DOMAIN
 from .battery_monitor import BatteryMonitor
 from .subscription_manager import WebSocketSubscriptionManager
 
@@ -19,14 +19,15 @@ def register_websocket_commands(hass: HomeAssistant) -> None:
     """Register WebSocket command handlers."""
     _LOGGER.debug(
         "register_websocket_commands: registering commands=%s",
-        [COMMAND_QUERY_ENTITIES, COMMAND_SUBSCRIBE],
+        [COMMAND_QUERY_ENTITIES, COMMAND_QUERY_UNAVAILABLE, COMMAND_SUBSCRIBE],
     )
     websocket_api.async_register_command(hass, handle_query_entities)
+    websocket_api.async_register_command(hass, handle_query_unavailable)
     websocket_api.async_register_command(hass, handle_subscribe)
     _LOGGER.info(
-        "register_websocket_commands: registered command_count=2 "
-        "commands=[%s, %s]",
-        COMMAND_QUERY_ENTITIES, COMMAND_SUBSCRIBE,
+        "register_websocket_commands: registered command_count=3 "
+        "commands=[%s, %s, %s]",
+        COMMAND_QUERY_ENTITIES, COMMAND_QUERY_UNAVAILABLE, COMMAND_SUBSCRIBE,
     )
 
 
@@ -78,6 +79,57 @@ async def handle_query_entities(
         )
         connection.send_error(
             msg_id, "internal_error", "Failed to query entities"
+        )
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): COMMAND_QUERY_UNAVAILABLE}
+)
+@websocket_api.async_response
+async def handle_query_unavailable(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: Dict[str, Any],
+) -> None:
+    """Handle vulcan-brownout/query_unavailable — no parameters."""
+    msg_id = msg["id"]
+    _LOGGER.debug(
+        "handle_query_unavailable: msg_id=%s command=%s",
+        msg_id, COMMAND_QUERY_UNAVAILABLE,
+    )
+    try:
+        battery_monitor: BatteryMonitor = hass.data.get(DOMAIN)
+        if battery_monitor is None:
+            _LOGGER.warning(
+                "handle_query_unavailable: msg_id=%s error=integration_not_loaded",
+                msg_id,
+            )
+            connection.send_error(
+                msg_id,
+                "integration_not_loaded",
+                "Vulcan Brownout integration not loaded",
+            )
+            return
+
+        result = await battery_monitor.get_unavailable_entities()
+        entity_count = result.get("total", 0)
+        _LOGGER.debug(
+            "handle_query_unavailable: msg_id=%s result_total=%d sending_response=true",
+            msg_id, entity_count,
+        )
+        connection.send_result(msg_id, result)
+        _LOGGER.info(
+            "handle_query_unavailable: msg_id=%s entities_returned=%d",
+            msg_id, entity_count,
+        )
+
+    except Exception as e:
+        _LOGGER.error(
+            "handle_query_unavailable: msg_id=%s error=%s",
+            msg_id, e, exc_info=True,
+        )
+        connection.send_error(
+            msg_id, "internal_error", "Failed to query unavailable entities"
         )
 
 

@@ -1,5 +1,5 @@
 ---
-name: vulcan-brownout-pipeline
+name: pipeline
 description: "Kanban orchestration pipeline for the Vulcan Brownout team. Runs all 3 agents in the defined workflow: Product Owner designs → Principal Engineer architects + implements → QA Tester validates with idempotent scripts. Use this skill to execute a full feature cycle, process a product brief, or run the complete team workflow."
 ---
 

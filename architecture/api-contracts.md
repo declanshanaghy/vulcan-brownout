@@ -1,6 +1,6 @@
-# API Contracts — v6.0.0 (Simplified)
+# API Contracts — v6.1.0 (Sprint 6: Unavailable Devices Tab)
 
-**Updated**: 2026-02-22 | **Status**: v6 — ruthless simplification
+**Updated**: 2026-02-23 | **Status**: v6.1 — tabbed UI, unavailable devices command added
 
 **Breaking changes from v5.0.0**:
 - `query_devices` renamed to `query_entities` (we work with entities, not devices)
@@ -93,6 +93,43 @@ Connection status broadcast.
   }
 }
 ```
+
+---
+
+### query_unavailable (Sprint 6)
+
+Returns all `device_class=battery` entities whose state is `"unavailable"` or `"unknown"`.
+Used exclusively by the Unavailable Devices tab. Lazy-loaded on first tab visit.
+
+```json
+-> { "type": "vulcan-brownout/query_unavailable" }
+
+<- {
+    "entities": [
+      {
+        "entity_id": "sensor.back_door_battery",
+        "state": "unavailable",
+        "battery_level": null,
+        "device_name": "Back Door Lock",
+        "manufacturer": "Yale",
+        "model": "YRD256",
+        "area_name": "Entrance",
+        "last_changed": "2026-02-23T08:00:00Z",
+        "last_updated": "2026-02-23T08:00:00Z"
+      }
+    ],
+    "total": 1
+  }
+```
+
+No parameters. Backend automatically:
+- Queries the entity registry for all `device_class=battery` entities (from entity registry)
+- Filters to entities where `state.state in ("unavailable", "unknown")`
+- Skips `binary_sensor.*` entities
+- Sorts by `last_changed` descending (most recently changed first)
+- Returns `battery_level: null` (not a number — entity is not reporting)
+
+---
 
 ## Removed Commands (v5 -> v6)
 

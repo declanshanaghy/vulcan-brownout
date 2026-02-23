@@ -1,15 +1,23 @@
 /**
- * Vulcan Brownout Battery Monitor Panel v6.0.0
+ * Vulcan Brownout Battery Monitor Panel v6.1.0
  *
- * Simple panel: shows battery entities below 15% threshold.
- * Real-time updates via WebSocket subscription.
+ * Tabbed panel: "Low Battery" (entities below 15%) and
+ * "Unavailable Devices" (state=unavailable|unknown).
+ * Real-time updates apply to the Low Battery tab only.
+ * Unavailable tab is a point-in-time snapshot loaded lazily on first visit.
  * Theme follows HA user preference (Auto/Light/Dark) via CSS custom properties.
  */
 
 import { LitElement, html, css } from "https://unpkg.com/lit@3.1.0?module";
 
 const QUERY_ENTITIES_COMMAND = "vulcan-brownout/query_entities";
+const QUERY_UNAVAILABLE_COMMAND = "vulcan-brownout/query_unavailable";
 const SUBSCRIBE_COMMAND = "vulcan-brownout/subscribe";
+
+const SESSION_STORAGE_KEY = "vulcan_brownout_active_tab";
+
+const TAB_LOW_BATTERY = "low-battery";
+const TAB_UNAVAILABLE = "unavailable";
 
 const RECONNECT_BACKOFF = [1000, 2000, 4000, 8000, 16000, 30000];
 const MAX_RECONNECT_ATTEMPTS = 10;
@@ -27,6 +35,11 @@ class VulcanBrownoutPanel extends LitElement {
     connection_status: { state: true },
     subscription_id: { state: true },
     current_theme: { state: true },
+    _activeTab: { state: true },
+    _unavailableEntities: { state: true },
+    _unavailableTotal: { state: true },
+    _unavailableLoading: { state: true },
+    _unavailableError: { state: true },
   };
 
   constructor() {
@@ -38,6 +51,11 @@ class VulcanBrownoutPanel extends LitElement {
     this.connection_status = CONNECTION_OFFLINE;
     this.subscription_id = null;
     this.current_theme = "light";
+    this._activeTab = TAB_LOW_BATTERY;
+    this._unavailableEntities = null; // null = not yet loaded (lazy-load guard)
+    this._unavailableTotal = 0;
+    this._unavailableLoading = false;
+    this._unavailableError = null;
   }
 
   reconnect_attempt = 0;
@@ -55,6 +73,13 @@ class VulcanBrownoutPanel extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this._apply_theme(this._detect_theme());
+
+    // Restore tab from session storage before first data fetch
+    const savedTab = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (savedTab === TAB_LOW_BATTERY || savedTab === TAB_UNAVAILABLE) {
+      this._activeTab = savedTab;
+    }
+
     this._load_devices();
   }
 
@@ -150,6 +175,54 @@ class VulcanBrownoutPanel extends LitElement {
       }
     }
 
+    /* Tab bar */
+    .tab-bar {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 0 0 0 0;
+      height: 40px;
+      border-bottom: 1px solid var(--vb-border-color);
+      margin-bottom: 0;
+    }
+
+    .tab {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 0 0 2px 0;
+      height: 40px;
+      min-width: 80px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--vb-text-secondary);
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .tab.active {
+      color: var(--vb-color-primary-action);
+      font-weight: 600;
+      border-bottom: 2px solid var(--vb-color-primary-action);
+    }
+
+    .tab:hover:not(.active) {
+      color: var(--vb-text-primary);
+    }
+
+    .tab:focus-visible {
+      outline: 2px solid var(--vb-color-primary-action);
+      outline-offset: 2px;
+    }
+
+    .tab-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
     .table-container {
       flex: 1;
       overflow-y: auto;
@@ -198,6 +271,11 @@ class VulcanBrownoutPanel extends LitElement {
       white-space: nowrap;
     }
 
+    .battery-table .status-cell {
+      text-align: right;
+      white-space: nowrap;
+    }
+
     .battery-table .time-cell {
       color: var(--vb-text-secondary);
       white-space: nowrap;
@@ -216,6 +294,18 @@ class VulcanBrownoutPanel extends LitElement {
 
     .entity-link:hover {
       text-decoration: underline;
+    }
+
+    /* Status badge for unavailable/unknown */
+    .status-badge {
+      display: inline-block;
+      background: rgba(158, 158, 158, 0.12);
+      border: 1px solid #9e9e9e;
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--vb-text-secondary);
     }
 
     .empty-state {
@@ -273,6 +363,49 @@ class VulcanBrownoutPanel extends LitElement {
           </div>
         </div>
 
+        <div
+          class="tab-bar"
+          role="tablist"
+          aria-label="Battery monitoring tabs"
+          @keydown=${this._onTabKeydown}
+        >
+          <button
+            id="tab-low-battery"
+            role="tab"
+            aria-selected=${this._activeTab === TAB_LOW_BATTERY ? "true" : "false"}
+            aria-controls="panel-low-battery"
+            class="tab ${this._activeTab === TAB_LOW_BATTERY ? "active" : ""}"
+            @click=${() => this._switchTab(TAB_LOW_BATTERY)}
+          >
+            Low Battery
+          </button>
+          <button
+            id="tab-unavailable"
+            role="tab"
+            aria-selected=${this._activeTab === TAB_UNAVAILABLE ? "true" : "false"}
+            aria-controls="panel-unavailable"
+            class="tab ${this._activeTab === TAB_UNAVAILABLE ? "active" : ""}"
+            @click=${() => this._switchTab(TAB_UNAVAILABLE)}
+          >
+            Unavailable Devices
+          </button>
+        </div>
+
+        ${this._activeTab === TAB_LOW_BATTERY
+          ? this._renderLowBatteryPanel()
+          : this._renderUnavailablePanel()}
+      </div>
+    `;
+  }
+
+  _renderLowBatteryPanel() {
+    return html`
+      <div
+        id="panel-low-battery"
+        role="tabpanel"
+        aria-labelledby="tab-low-battery"
+        class="tab-panel"
+      >
         ${this.error
           ? html`<div
               style="color: var(--vb-color-critical); padding: 8px; border-radius: 4px;"
@@ -282,7 +415,7 @@ class VulcanBrownoutPanel extends LitElement {
           : ""}
         ${this.battery_devices.length === 0 && !this.isLoading
           ? html`<div class="empty-state">
-              <div class="empty-state-icon">✅</div>
+              <div class="empty-state-icon">🔋</div>
               <div class="empty-state-text">All batteries above 15%</div>
               <button class="button" @click=${this._load_devices}>
                 Refresh
@@ -295,7 +428,7 @@ class VulcanBrownoutPanel extends LitElement {
                     <th>Last Seen</th>
                     <th>Entity Name</th>
                     <th>Area</th>
-                    <th>Manufacturer & Model</th>
+                    <th>Manufacturer &amp; Model</th>
                     <th>% Remaining</th>
                   </tr>
                 </thead>
@@ -333,6 +466,139 @@ class VulcanBrownoutPanel extends LitElement {
     `;
   }
 
+  _renderUnavailablePanel() {
+    if (this._unavailableLoading) {
+      return html`
+        <div
+          id="panel-unavailable"
+          role="tabpanel"
+          aria-labelledby="tab-unavailable"
+          class="tab-panel"
+        >
+          <div class="empty-state">
+            <div class="empty-state-text">Loading unavailable devices...</div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (this._unavailableError) {
+      return html`
+        <div
+          id="panel-unavailable"
+          role="tabpanel"
+          aria-labelledby="tab-unavailable"
+          class="tab-panel"
+        >
+          <div
+            style="color: var(--vb-color-critical); padding: 8px; border-radius: 4px;"
+          >
+            ${this._unavailableError}
+          </div>
+        </div>
+      `;
+    }
+
+    const entities = this._unavailableEntities || [];
+
+    if (entities.length === 0) {
+      return html`
+        <div
+          id="panel-unavailable"
+          role="tabpanel"
+          aria-labelledby="tab-unavailable"
+          class="tab-panel"
+        >
+          <div class="empty-state">
+            <div class="empty-state-icon">✅</div>
+            <div class="empty-state-text">
+              No unavailable devices. All monitored devices are responding.
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    return html`
+      <div
+        id="panel-unavailable"
+        role="tabpanel"
+        aria-labelledby="tab-unavailable"
+        class="tab-panel"
+      >
+        <div class="table-container">
+          <table class="battery-table">
+            <thead>
+              <tr>
+                <th>Last Seen</th>
+                <th>Entity Name</th>
+                <th>Area</th>
+                <th>Manufacturer &amp; Model</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${entities.map(
+                (device) => html`
+                  <tr>
+                    <td class="time-cell">
+                      ${this._formatRelativeTime(device.last_updated)}
+                    </td>
+                    <td>
+                      <a
+                        class="entity-link"
+                        href="/config/entities?entity_id=${device.entity_id}"
+                      >${device.device_name || device.entity_id}</a>
+                    </td>
+                    <td class="secondary-cell">
+                      ${device.area_name || "\u2014"}
+                    </td>
+                    <td class="secondary-cell">
+                      ${[device.manufacturer, device.model]
+                        .filter(Boolean)
+                        .join(" ") || "\u2014"}
+                    </td>
+                    <td class="status-cell">
+                      <span class="status-badge">${device.state}</span>
+                    </td>
+                  </tr>
+                `
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  _switchTab(tab) {
+    if (this._activeTab === tab) return;
+    this._activeTab = tab;
+    sessionStorage.setItem(SESSION_STORAGE_KEY, tab);
+
+    // Lazy-load unavailable entities on first visit to that tab
+    if (tab === TAB_UNAVAILABLE && this._unavailableEntities === null) {
+      this._load_unavailable();
+    }
+  }
+
+  _onTabKeydown(event) {
+    const tabs = [TAB_LOW_BATTERY, TAB_UNAVAILABLE];
+    const currentIndex = tabs.indexOf(this._activeTab);
+
+    if (event.key === "ArrowRight") {
+      const next = tabs[(currentIndex + 1) % tabs.length];
+      this._switchTab(next);
+      this.shadowRoot.getElementById(`tab-${next}`)?.focus();
+    } else if (event.key === "ArrowLeft") {
+      const prev = tabs[(currentIndex - 1 + tabs.length) % tabs.length];
+      this._switchTab(prev);
+      this.shadowRoot.getElementById(`tab-${prev}`)?.focus();
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+    }
+  }
+
   async _load_devices() {
     this.isLoading = true;
     this.error = null;
@@ -350,6 +616,24 @@ class VulcanBrownoutPanel extends LitElement {
       this.connection_status = CONNECTION_OFFLINE;
     } finally {
       this.isLoading = false;
+    }
+  }
+
+  async _load_unavailable() {
+    this._unavailableLoading = true;
+    this._unavailableError = null;
+
+    try {
+      const result = await this._call_ws({ type: QUERY_UNAVAILABLE_COMMAND });
+      this._unavailableEntities = result.entities || [];
+      this._unavailableTotal = result.total || 0;
+    } catch (err) {
+      console.error("Failed to load unavailable devices:", err);
+      this._unavailableError = err.message || "Failed to load unavailable devices";
+      // Keep _unavailableEntities as null so retry is possible next visit
+      this._unavailableEntities = null;
+    } finally {
+      this._unavailableLoading = false;
     }
   }
 
@@ -387,8 +671,8 @@ class VulcanBrownoutPanel extends LitElement {
   }
 
   _on_entity_changed(data) {
-    // Re-query to get the updated list (entities may appear/disappear
-    // as they cross the 15% threshold)
+    // Re-query low-battery list; real-time updates apply only to Low Battery tab.
+    // Unavailable tab is a point-in-time snapshot — not refreshed on events.
     this._load_devices();
   }
 

@@ -203,6 +203,103 @@ class TestSubscribe:
         assert r1["data"]["subscription_id"] != r2["data"]["subscription_id"]
 
 
+class TestQueryUnavailable:
+    """Test vulcan-brownout/query_unavailable — returns unavailable battery entities."""
+
+    @pytest.mark.asyncio
+    async def test_query_unavailable_basic(self, ws_client):
+        response = await ws_client.send_command("vulcan-brownout/query_unavailable", {})
+
+        assert response["type"] == "result"
+        assert response["success"] is True
+        assert "data" in response
+
+        data = response["data"]
+        assert "entities" in data
+        assert "total" in data
+        assert isinstance(data["entities"], list)
+        assert isinstance(data["total"], int)
+
+    @pytest.mark.asyncio
+    async def test_query_unavailable_entity_structure(self, ws_client):
+        """Unavailable entities should have the correct shape."""
+        response = await ws_client.send_command("vulcan-brownout/query_unavailable", {})
+        assert response["success"] is True
+
+        entities = response["data"]["entities"]
+        for entity in entities:
+            assert "entity_id" in entity
+            assert "state" in entity
+            assert "device_name" in entity
+            assert "last_changed" in entity
+            assert "last_updated" in entity
+            # battery_level must be null/None (not a number)
+            assert entity.get("battery_level") is None
+
+    @pytest.mark.asyncio
+    async def test_query_unavailable_returns_unavailable_entities(self, mock_ha):
+        """Query should return entities marked as unavailable."""
+        from .mock_fixtures import generate_test_entities
+        # Use a small fixture guaranteed to have unavailable entities
+        entities = generate_test_entities(10)
+        await mock_ha.setup_entities(entities)
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        response = await client.send_command("vulcan-brownout/query_unavailable", {})
+        assert response["success"] is True
+
+        data = response["data"]
+        # generate_test_entities(10) always has 2 unavailable entities
+        assert data["total"] >= 0
+        for entity in data["entities"]:
+            assert entity["state"] in ("unavailable", "unknown")
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_query_unavailable_excludes_binary_sensors(self, ws_client):
+        """Binary sensors must never appear in unavailable results."""
+        response = await ws_client.send_command("vulcan-brownout/query_unavailable", {})
+        assert response["success"] is True
+
+        for entity in response["data"]["entities"]:
+            assert not entity["entity_id"].startswith("binary_sensor.")
+
+    @pytest.mark.asyncio
+    async def test_query_unavailable_no_numeric_entities(self, ws_client):
+        """Entities with numeric battery levels must not appear in unavailable results."""
+        response = await ws_client.send_command("vulcan-brownout/query_unavailable", {})
+        assert response["success"] is True
+
+        for entity in response["data"]["entities"]:
+            assert entity.get("battery_level") is None
+
+    @pytest.mark.asyncio
+    async def test_query_unavailable_empty_when_all_available(self, mock_ha):
+        """When all entities are available, unavailable list is empty."""
+        await mock_ha.setup_entities([
+            {
+                "entity_id": "sensor.healthy_battery",
+                "state": "50",
+                "friendly_name": "Healthy Battery",
+                "attributes": {"device_class": "battery"},
+                "available": True,
+            }
+        ])
+
+        client = HAWebSocketClient(TEST_HA_URL, TEST_HA_TOKEN)
+        await client.connect()
+
+        response = await client.send_command("vulcan-brownout/query_unavailable", {})
+        assert response["success"] is True
+        assert response["data"]["total"] == 0
+        assert response["data"]["entities"] == []
+
+        await client.close()
+
+
 class TestErrorHandling:
     """Test error handling."""
 

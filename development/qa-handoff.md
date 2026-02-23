@@ -1,31 +1,57 @@
-# Sprint 5: Simple Filtering — QA Handoff
+# Sprint 6: Tabbed UI — QA Handoff
 
 **To**: Loki (QA Lead)
-**From**: ArsonWells (Lead Developer)
-**Date**: 2026-02-22
+**From**: FiremanDecko (Principal Engineer)
+**Date**: 2026-02-23
 **Status**: Ready for validation
 
 ---
 
 ## Overview
 
-Sprint 5 implements server-side filtering by manufacturer, device class, status, and room/area. This document provides QA with test scenarios, focus areas, and acceptance criteria.
+Sprint 6 adds a tabbed UI to the Vulcan Brownout panel. The existing Low Battery view
+becomes one tab; a new Unavailable Devices tab shows battery entities whose state is
+`"unavailable"` or `"unknown"`. The unavailable tab is lazy-loaded (not fetched at
+startup) and is a point-in-time snapshot (not updated by real-time events).
 
-All code is complete and compiles successfully. No new dependencies.
+All code is complete and all 15 component tests pass. No new dependencies.
 
 ---
 
 ## Files Changed
 
 ### Backend (Python)
-- `development/src/custom_components/vulcan_brownout/const.py` — Filter constants, version bump
-- `development/src/custom_components/vulcan_brownout/battery_monitor.py` — Filter methods, updated `query_devices`
-- `development/src/custom_components/vulcan_brownout/websocket_api.py` — Filter handler, updated schema
-- `development/src/custom_components/vulcan_brownout/manifest.json` — Version 5.0.0
-- `.github/docker/mock_ha/server.py` — Filter support for E2E
+- `development/src/custom_components/vulcan_brownout/const.py`
+  - Added `COMMAND_QUERY_UNAVAILABLE = "vulcan-brownout/query_unavailable"`
+- `development/src/custom_components/vulcan_brownout/battery_monitor.py`
+  - Added `get_unavailable_entities()` method — queries entity registry directly,
+    returns `device_class=battery` entities in unavailable/unknown state,
+    sorted by `last_changed` descending
+- `development/src/custom_components/vulcan_brownout/websocket_api.py`
+  - Added `handle_query_unavailable` handler
+  - `register_websocket_commands()` now registers 3 commands (was 2)
+- `.github/docker/mock_ha/server.py`
+  - Added `_handle_query_unavailable()` mock handler
 
 ### Frontend (JavaScript)
-- `development/src/custom_components/vulcan_brownout/frontend/vulcan-brownout-panel.js` — Complete filter UI, storage, API integration
+- `development/src/custom_components/vulcan_brownout/frontend/vulcan-brownout-panel.js`
+  - New reactive properties: `_activeTab`, `_unavailableEntities`, `_unavailableTotal`,
+    `_unavailableLoading`, `_unavailableError`
+  - Tab bar rendered below header with `role="tablist"` ARIA
+  - `_switchTab()` persists active tab to `sessionStorage`
+  - `_load_unavailable()` lazy-fetches unavailable entities on first tab visit
+  - `_renderLowBatteryPanel()` and `_renderUnavailablePanel()` replace monolithic `render()`
+  - Keyboard navigation: ArrowLeft/ArrowRight between tabs
+  - Added CSS for `.tab-bar`, `.tab`, `.tab.active`, `.status-badge`
+
+### Test Suite
+- `quality/scripts/test_component_integration.py`
+  - Added `TestQueryUnavailable` class with 6 new tests
+
+### Architecture / Docs
+- `architecture/api-contracts.md` — added `query_unavailable` spec (Sprint 6 section)
+- `development/qa-handoff.md` — this document
+- `development/implementation-plan.md` — Sprint 6 section
 
 ---
 
@@ -33,267 +59,155 @@ All code is complete and compiles successfully. No new dependencies.
 
 ### Component Tests (Python/pytest)
 
-#### Scenario 1: Filter by Single Manufacturer
-**Test**: `test_query_devices_filter_manufacturer`
-- Precondition: 5 test entities, 2 Aqara, 2 Hue, 1 IKEA
-- Action: Query with `filter_manufacturer=["Aqara"]`
-- Expected: Only Aqara devices returned, total=2
-- Check: `total` reflects filtered count
+#### Scenario 1: query_unavailable returns success
+**Test**: `test_query_unavailable_basic`
+- Action: Send `vulcan-brownout/query_unavailable`
+- Expected: `type=result`, `success=true`, response has `entities` (list) and `total` (int)
 
-#### Scenario 2: Filter by Multiple Categories (AND Logic)
-**Test**: `test_query_devices_filter_and_logic`
-- Precondition: Devices with various manufacturers and statuses
-- Action: Query with `filter_manufacturer=["Aqara"]` AND `filter_status=["critical"]`
-- Expected: Only Aqara devices in critical status
-- Check: AND logic enforced across categories
+#### Scenario 2: entity structure is correct
+**Test**: `test_query_unavailable_entity_structure`
+- Expected: Each entity has `entity_id`, `state`, `device_name`, `last_changed`,
+  `last_updated`, and `battery_level == null`
 
-#### Scenario 3: Multiple Values in One Category (OR Logic)
-**Test**: `test_query_devices_filter_or_logic`
-- Precondition: Mixed manufacturers
-- Action: Query with `filter_manufacturer=["Aqara", "Hue"]`
-- Expected: Both Aqara AND Hue devices returned (not just one)
-- Check: OR logic within category
+#### Scenario 3: returns only unavailable/unknown entities
+**Test**: `test_query_unavailable_returns_unavailable_entities`
+- Precondition: 10-entity fixture with 2 unavailable entities
+- Expected: All returned entities have `state` in `("unavailable", "unknown")`
 
-#### Scenario 4: Empty Filter Array = No Filter
-**Test**: `test_query_devices_filter_empty_array`
-- Action: Query with `filter_manufacturer=[]`
-- Expected: All devices returned (same as no filter)
-- Check: Empty array normalized to None/no filter
+#### Scenario 4: excludes binary sensors
+**Test**: `test_query_unavailable_excludes_binary_sensors`
+- Expected: No `entity_id` starts with `"binary_sensor."`
 
-#### Scenario 5: No Matching Devices
-**Test**: `test_query_devices_filter_no_match`
-- Action: Query with `filter_manufacturer=["NonExistent"]`
-- Expected: Empty devices list, total=0, has_more=false
-- Check: No error, just empty result
+#### Scenario 5: battery_level is null (not numeric)
+**Test**: `test_query_unavailable_no_numeric_entities`
+- Expected: `battery_level` is `null` for every returned entity
 
-#### Scenario 6: get_filter_options Returns Correct Data
-**Test**: `test_get_filter_options_manufacturers`
-- Action: Call `get_filter_options()`
-- Expected: manufacturers array contains only manufacturers from tracked entities
-- Check: No null/empty values included
-
-#### Scenario 7: get_filter_options Returns Only Areas with Battery Entities
-**Test**: `test_get_filter_options_areas`
-- Precondition: HA has 5 areas; only 3 have battery devices
-- Action: Call `get_filter_options()`
-- Expected: areas array has 3 entries only
-- Check: Only areas with battery entities included
-
-#### Scenario 8: Total Reflects Filtered Count (Not Entity Count)
-**Test**: `test_query_devices_filter_total_is_filtered_count`
-- Precondition: 100 total entities, 20 match filter
-- Action: Query with filter, limit=10
-- Expected: total=20, returned 10, has_more=true
-- Check: total is filtered count, not entity count
-
-#### Scenario 9: Backward Compatibility
-**Test**: `test_query_devices_no_filters_unchanged`
-- Action: Query without any filter params
-- Expected: Full unfiltered result set (same as Sprint 4)
-- Check: No breaking changes
+#### Scenario 6: empty result when all entities are available
+**Test**: `test_query_unavailable_empty_when_all_available`
+- Precondition: Single entity with `available=True` and numeric state
+- Expected: `total=0`, `entities=[]`
 
 ---
 
-### E2E Tests (Playwright)
+### E2E / Manual Tests (browser)
 
-#### Scenario A: Filter Bar Renders
-**File**: `quality/e2e/filter-bar.spec.ts`
-- Desktop: Four filter buttons visible (Manufacturer, Device Class, Status, Room)
-- Mobile: Single "Filter" button visible
+#### Scenario A: Tab bar renders
+- Open panel
+- Two tabs visible: "Low Battery" (active by default) and "Unavailable Devices"
+- Tab bar is below the header, flush left, with a bottom border
 
-#### Scenario B: Dropdown Populates from API
-**File**: `quality/e2e/filter-options.spec.ts`
-- Click filter button
-- Dropdown opens
-- Options populated from mock `get_filter_options` response
-- No hardcoded values
+#### Scenario B: Low Battery tab unchanged
+- Low Battery tab shows existing table with columns: Last Seen, Entity Name, Area,
+  Manufacturer & Model, % Remaining
+- Empty state shows battery icon and "All batteries above 15%"
+- Real-time updates continue to work
 
-#### Scenario C: Single Filter Selection
-**File**: `quality/e2e/filter-select.spec.ts`
-- Select manufacturer filter
-- Device list updates (via `query_devices` with filter param)
-- Chip appears in chip row
-- Chip shows correct value and category
+#### Scenario C: Unavailable Devices tab loads lazily
+- On initial panel load: `query_unavailable` is NOT called
+- Click "Unavailable Devices" tab — `query_unavailable` IS called once
+- Click back to "Low Battery", then back to "Unavailable Devices" — NOT called again
+  (cached result shown)
 
-#### Scenario D: AND Logic (Two Categories)
-**File**: `quality/e2e/filter-and-logic.spec.ts`
-- Select manufacturer filter (Aqara)
-- Select status filter (critical)
-- Device list shows only Aqara devices in critical status
-- No Hue devices shown even if critical
-- No Aqara devices in healthy status shown
+#### Scenario D: Unavailable tab content
+- Table columns: Last Seen, Entity Name, Area, Manufacturer & Model, Status
+- "Status" column shows grey pill badge (`unavailable` or `unknown`)
+- No "% Remaining" column on this tab
 
-#### Scenario E: OR Logic (Two Values in One Category)
-**File**: `quality/e2e/filter-or-logic.spec.ts`
-- Select manufacturer: Aqara
-- Select manufacturer: Hue (without deselecting Aqara)
-- Device list shows both Aqara AND Hue devices
-- No IKEA devices shown
+#### Scenario E: Unavailable empty state
+- When no entities are unavailable:
+  - Icon: checkmark (✅)
+  - Text: "No unavailable devices. All monitored devices are responding."
+  - No "Refresh" button (snapshot tab)
 
-#### Scenario F: Remove Single Filter Chip
-**File**: `quality/e2e/filter-chip-remove.spec.ts`
-- Apply manufacturer filter
-- Chip appears with [x] button
-- Click [x]
-- Chip removed, device list updates
-- Other filters remain active
+#### Scenario F: Session storage persistence
+- Open panel — Low Battery tab active
+- Switch to Unavailable Devices tab
+- Close and reopen panel (same session / same tab / F5)
+- Panel opens to Unavailable Devices tab (restored from sessionStorage)
 
-#### Scenario G: Clear All Filters
-**File**: `quality/e2e/filter-clear-all.spec.ts`
-- Apply multiple filters
-- Click "Clear all" link
-- All chips removed
-- Device list updates to show all devices
+#### Scenario G: Tab keyboard navigation
+- Focus a tab with keyboard
+- ArrowRight moves focus and activates the next tab
+- ArrowLeft moves focus and activates the previous tab
 
-#### Scenario H: Filter Persistence (localStorage)
-**File**: `quality/e2e/filter-persistence.spec.ts`
-- Select filters: Manufacturer=Aqara, Status=critical
-- Reload page (F5)
-- Filters restored automatically
-- Chip row shows same filters
-- Device list still filtered
-
-#### Scenario I: Mobile Bottom Sheet Open/Apply
-**File**: `quality/e2e/filter-mobile-sheet.spec.ts`
-- Viewport width < 768px
-- Click "Filter" button
-- Bottom sheet slides up
-- Check categories and options present
-- Select filters: Manufacturer=Aqara, Area=Kitchen
-- Click "Apply Filters"
-- Sheet closes, chips appear, device list updates
-
-#### Scenario J: Mobile Bottom Sheet Cancel
-**File**: `quality/e2e/filter-mobile-discard.spec.ts`
-- Open bottom sheet
-- Select filters (staged)
-- Click [X] or "Cancel"
-- Sheet closes without applying
-- Active filters unchanged
-- Device list unchanged
-
-#### Scenario K: Filtered Empty State
-**File**: `quality/e2e/filter-empty-state.spec.ts`
-- Apply filter with zero matches
-- Empty state renders:
-  - Icon: 🔍 (magnifying glass, not battery)
-  - Text: "No devices match your filters"
-  - CTA: "Clear Filters" button
-  - NOT the "No battery entities found" message from Wireframe 6
-
-#### Scenario L: Filter Options Load in Parallel
-**File**: `quality/e2e/filter-loading-state.spec.ts`
-- Device list loads
-- Filter options load in parallel (not blocking device list)
-- Both complete successfully
-
-#### Scenario M: No Cache Staleness with Device Changes
-**File**: `quality/e2e/filter-cache.spec.ts`
-- Load panel, get filter options (cached)
-- Add new device to HA (via mock control endpoint)
-- New device not in filter dropdown (expected cache behavior)
-- Reload panel
-- New device appears in dropdown
+#### Scenario H: ARIA semantics
+- Tab bar has `role="tablist"`
+- Each tab has `role="tab"`, `aria-selected="true/false"`, `aria-controls="panel-{tab}"`,
+  `id="tab-{tab}"`
+- Each panel has `role="tabpanel"`, `aria-labelledby="tab-{tab}"`, `id="panel-{tab}"`
 
 ---
 
 ## Acceptance Criteria
 
 ### Functionality
-- [ ] All filter categories functional (manufacturer, device_class, status, area)
-- [ ] AND-across-categories logic working
-- [ ] OR-within-category logic working
-- [ ] Filter changes reset cursor (pagination restart)
-- [ ] `total` reflects filtered count
-- [ ] Empty list handled gracefully
-- [ ] `get_filter_options` returns correct data
-- [ ] Backward compatibility maintained (no params works)
+- [ ] `query_unavailable` WebSocket command registered and responding
+- [ ] `battery_level` is `null` in unavailable response
+- [ ] State values are `"unavailable"` or `"unknown"` only
+- [ ] Binary sensors excluded from unavailable results
+- [ ] Sorted by `last_changed` descending
+- [ ] Lazy-load: unavailable tab not fetched at startup
+- [ ] Result cached: unavailable not re-fetched within session
+- [ ] Low Battery tab unaffected — all existing behavior preserved
+- [ ] Real-time `entity_changed` events update Low Battery tab only
 
 ### Frontend UI/UX
-- [ ] Desktop filter bar with category buttons
-- [ ] Dropdown appears on button click
-- [ ] Dropdown has loading/error/ready states
-- [ ] Checkboxes toggle filter values
-- [ ] Chip row appears when filters active
-- [ ] Chip has [x] remove button (min 44px touch target)
-- [ ] "Clear all" link appears in chip row
-- [ ] Filtered empty state distinct from no-devices state
-- [ ] Mobile breakpoint (768px) changes UI appropriately
-- [ ] Mobile bottom sheet slides up from bottom
-- [ ] Mobile sheet has Apply/Cancel buttons
-- [ ] Filters persist across page reload
-
-### Performance
-- [ ] No noticeable lag on filter selection
-- [ ] Desktop: 300ms debounce prevents excessive API calls
-- [ ] Mobile: Changes staged (not instant API call per toggle)
-- [ ] `get_filter_options` cached client-side (not refetched every load)
+- [ ] Tab bar renders below header
+- [ ] Active tab has blue bottom border and bold text
+- [ ] Inactive tab text is secondary color, no underline border
+- [ ] Hover on inactive tab changes to primary text color
+- [ ] Tab switch is instant (no animation)
+- [ ] Unavailable tab shows "Status" column in 5th position
+- [ ] Status values shown as grey pill badge
+- [ ] Low Battery empty state: battery icon + "All batteries above 15%"
+- [ ] Unavailable empty state: checkmark icon + "No unavailable devices..." message
 
 ### Accessibility
-- [ ] 44px minimum touch target on all buttons
-- [ ] Keyboard navigation: Tab through buttons, Enter to toggle dropdown
-- [ ] ARIA labels on buttons: "Filter options, N active"
-- [ ] Dropdown: `role="listbox"`, options `role="option"`
-- [ ] Chip row: `aria-label="Active filters"`
-- [ ] Remove button: descriptive label (not just "x")
-- [ ] Mobile sheet: `role="dialog"`, `aria-modal="true"`
-- [ ] WCAG AA contrast in both light and dark themes
+- [ ] `role="tablist"` on tab bar
+- [ ] `role="tab"`, `aria-selected`, `aria-controls` on each tab button
+- [ ] `role="tabpanel"`, `aria-labelledby` on each panel
+- [ ] Keyboard: ArrowLeft/ArrowRight navigates between tabs
+- [ ] Enter/Space on focused tab activates it
+- [ ] `focus-visible` outline on tabs when keyboard-focused
 
-### Theming
-- [ ] Dark mode colors applied correctly
-- [ ] Light mode colors applied correctly
-- [ ] All filter UI elements follow theme
-- [ ] Transitions smooth (300ms)
+### Session Persistence
+- [ ] Active tab saved to `sessionStorage.getItem("vulcan_brownout_active_tab")`
+- [ ] Tab restored from sessionStorage in `connectedCallback()`
+- [ ] Only valid tab values (`"low-battery"`, `"unavailable"`) are restored
 
 ---
 
 ## Known Limitations (Expected Behavior)
 
-1. **Stale Filter Options**: Options cached for session. If user adds device/area to HA, dropdown won't show it until panel reload. Acceptable per architecture decision.
+1. **Point-in-time snapshot**: Unavailable tab data is fetched once per session visit.
+   If a device comes back online or goes unavailable after loading, the tab does not
+   update until the user navigates away and returns.
 
-2. **Persisted Invalid Filters**: If a persisted filter value (e.g., deleted area) is no longer valid, it's silently removed when options load. No user-visible error. Acceptable per risk mitigation in brief.
+2. **No retry button on unavailable tab**: If `query_unavailable` fails, the error
+   message is shown. The user must switch away and back to retry (which re-triggers
+   fetch since `_unavailableEntities` stays `null` on error).
 
-3. **Cursor Reset on Filter Change**: Pagination always restarts (cursor = null) when filters change. This is correct behavior, not a bug. Same as when sort order changes.
-
----
-
-## Focus Areas
-
-1. **Filter Logic Correctness**: Highest priority. Verify AND/OR logic works as specified. Test edge cases (no matches, single value, many values).
-
-2. **Filtering Performance**: Verify no lag or excessive API calls. Check debounce works on desktop (300ms).
-
-3. **UI Responsiveness**: Check filter bar switches layout at 768px. Check touch targets are 44x44px minimum.
-
-4. **localStorage Persistence**: Critical path. Filters must survive reload without losing data.
-
-5. **Accessibility**: Keyboard navigation and screen reader support for all new UI.
-
-6. **Backward Compatibility**: Verify old clients (without filter params) still work.
+3. **Binary sensors excluded by design**: Devices with `binary_sensor.*` entity IDs are
+   never shown, even if their state is unavailable. This matches the Low Battery tab
+   behavior.
 
 ---
 
 ## How to Run Tests
 
-### Component Tests
+### Component Tests (Docker)
 ```bash
-docker compose -f .github/docker-compose.yml up --build --abort-on-container-exit component_tests
+./quality/scripts/run-all-tests.sh --component
 ```
 
-### E2E Tests
+### Lint
 ```bash
-cd quality/e2e
-npm install && npx playwright install chromium
-npx playwright test                  # all tests
-npx playwright test filter*.spec.ts  # filter tests only
-npx playwright test --headed         # with browser visible
-npx playwright show-report           # view HTML report
+./quality/scripts/run-all-tests.sh --lint
 ```
 
-### Linting
+### All Stages
 ```bash
-flake8 development/src/custom_components/vulcan_brownout/ --max-line-length=127
-mypy development/src/custom_components/vulcan_brownout/ --ignore-missing-imports
+./quality/scripts/run-all-tests.sh
 ```
 
 ---
@@ -301,14 +215,14 @@ mypy development/src/custom_components/vulcan_brownout/ --ignore-missing-imports
 ## Sign-Off
 
 QA lead will validate and sign off on:
-- All test scenarios pass
-- No regressions to Sprint 4 features
-- Accessibility meets WCAG AA standard
-- Performance acceptable
-- Backward compatibility confirmed
+- All 15 component tests pass
+- All E2E/manual scenarios above verified
+- No regressions to Low Battery tab or subscription behavior
+- ARIA semantics verified with browser devtools or screen reader
+- Session storage persistence confirmed across page reload
 
 Then proceed to **Stage 4: VALIDATE** in team workflow.
 
 ---
 
-**Ready for QA validation. All code complete and tested locally.**
+**Ready for QA validation. All 15 component tests pass (9 original + 6 new).**

@@ -4,3 +4,4 @@ home-assistant.log*
 *.db
 *.db-shm
 *.db-wal
+.storage/

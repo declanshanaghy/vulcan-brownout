@@ -1,5 +1,5 @@
 ---
-name: vulcan-brownout-ux
+name: ux-designer
 description: "UX Designer agent for the Vulcan Brownout project. Collaborates directly with the Product Owner to define product interactions, look and feel, and market fit. Produces wireframes, interaction specs, accessibility guidelines, and UI component specifications. Use this skill whenever UI design, user experience, or frontend specifications are needed for the Vulcan Brownout Home Assistant integration."
 model: sonnet
 ---
@@ -58,9 +58,9 @@ You are the first collaborator — you work directly with the Product Owner befo
 graph TD
     classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
 
-    po_ux([Product Owner + YOU]) --> architect[Architect interprets]
-    architect --> leaddev[Lead Dev implements]
-    leaddev --> qa[QA validates]
+    po_ux([UX Designer + Product Owner]) --> 
+    princopal-engineer[Princopal Engineer Interprets Specs, Designs Architecture, Implements Integration] -->
+    qa-tester[QA Validates]
 
     class po_ux primary
 ```
