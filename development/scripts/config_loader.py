@@ -1,11 +1,18 @@
 """
 Config Loader for Vulcan Brownout
 
-Loads YAML configuration from development/environments/{env}/ directory.
+Loads YAML configuration from an environment directory.
+By default uses development/environments/{env}/ but supports a custom
+env_base_dir for environments stored elsewhere (e.g. quality/environments/).
 Merges main config with secrets from vulcan-brownout-secrets.yaml.
 
 Usage:
+    # Default (development/environments/docker/)
     config = ConfigLoader('docker').load()
+    print(config['ha']['token'])
+
+    # Custom base dir (quality/environments/staging/)
+    config = ConfigLoader('staging', env_base_dir='quality/environments').load()
     print(config['ha']['token'])
 """
 
@@ -19,22 +26,30 @@ except ImportError:
     raise
 
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict, Optional
 
 
 class ConfigLoader:
     """Load and merge YAML configuration files for an environment."""
 
-    def __init__(self, environment: str):
+    def __init__(self, environment: str, env_base_dir: Optional[str] = None):
         """
         Initialize config loader for an environment.
 
         Args:
-            environment: 'docker' or 'staging'
+            environment: Environment name (e.g. 'docker', 'staging')
+            env_base_dir: Optional path relative to repo root for the
+                environments base directory. Defaults to
+                'development/environments'. Use 'quality/environments'
+                for staging configs stored under quality/.
         """
         self.environment = environment
         self.repo_root = self._find_repo_root()
-        self.env_dir = self.repo_root / 'development' / 'environments' / environment
+
+        if env_base_dir is not None:
+            self.env_dir = self.repo_root / env_base_dir / environment
+        else:
+            self.env_dir = self.repo_root / 'development' / 'environments' / environment
 
         if not self.env_dir.exists():
             raise ValueError(f"Environment directory not found: {self.env_dir}")

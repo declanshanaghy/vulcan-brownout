@@ -1,13 +1,18 @@
 #!/bin/bash
 #
-# Vulcan Brownout Sprint 2 QA Deployment Script
+# Vulcan Brownout QA Deployment Script
 # SSH-based idempotent deployment with health checks and rollback capability
+#
+# Reads config from quality/environments/staging/ YAML files via ConfigLoader.
+# Assumes the staging HA instance is already fully set up and running.
+# Uses quality/venv/ — bootstrapped automatically from quality/requirements.txt.
 #
 # Usage: ./deploy.sh [--dry-run] [--verbose]
 #
 # Prerequisites:
-#   - .env file in project root with SSH credentials
-#   - SSH key authorized on HA server
+#   - python3 (to bootstrap the venv on first run)
+#   - quality/environments/staging/vulcan-brownout-secrets.yaml populated
+#   - SSH key authorized on HA server (path set in config YAML)
 #   - rsync installed locally
 #
 
@@ -17,7 +22,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SOURCE_DIR="${PROJECT_ROOT}/development/src/custom_components/vulcan_brownout"
-ENV_FILE="${PROJECT_ROOT}/.env"
+STAGING_CONFIG_DIR="${PROJECT_ROOT}/quality/environments/staging"
+QUALITY_VENV="${PROJECT_ROOT}/quality/venv"
+QUALITY_PYTHON="${QUALITY_VENV}/bin/python"
 
 # Color codes
 RED='\033[0;31m'
@@ -68,22 +75,50 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# 1. Load environment
-log_info "Loading environment from $ENV_FILE..."
+# 1. Load environment from YAML config via ConfigLoader
+log_info "Loading staging config from $STAGING_CONFIG_DIR..."
 
-if [ ! -f "$ENV_FILE" ]; then
-    log_error ".env file not found: $ENV_FILE"
+SECRETS_FILE="${STAGING_CONFIG_DIR}/vulcan-brownout-secrets.yaml"
+if [ ! -f "$SECRETS_FILE" ]; then
+    log_error "Secrets file not found: $SECRETS_FILE"
+    log_error "Run: cp ${SECRETS_FILE}.example ${SECRETS_FILE}"
+    log_error "Then fill in your HA token and password."
     exit 1
 fi
 
-# Source the .env file
-source "$ENV_FILE"
+# Bootstrap quality/venv/ if it doesn't exist yet.
+# This is the staging integration test venv — independent of development/venv/.
+if [ ! -f "$QUALITY_PYTHON" ]; then
+    log_info "Creating quality/venv/ from quality/requirements.txt..."
+    if ! command -v python3 &>/dev/null; then
+        log_error "python3 not found — install Python 3 to bootstrap quality/venv/"
+        exit 1
+    fi
+    python3 -m venv "$QUALITY_VENV"
+    "$QUALITY_PYTHON" -m pip install --quiet --upgrade pip
+    "$QUALITY_PYTHON" -m pip install --quiet -r "${PROJECT_ROOT}/quality/requirements.txt"
+    log_info "✓ quality/venv/ ready"
+fi
 
-# Verify required variables
+log_info "Parsing YAML config via ConfigLoader..."
+eval "$(PYTHONPATH="${PROJECT_ROOT}/development/scripts" "$QUALITY_PYTHON" - <<'PYEOF'
+import sys, os
+sys.path.insert(0, os.environ.get("PYTHONPATH", ""))
+from config_loader import ConfigLoader
+loader = ConfigLoader("staging", env_base_dir="quality/environments")
+for k, v in loader.get_env_vars().items():
+    safe_v = str(v).replace("'", "'\\''")
+    print(f"export {k}='{safe_v}'")
+PYEOF
+)"
+
+# Verify required variables were loaded
 REQUIRED_VARS=("SSH_HOST" "SSH_PORT" "SSH_USER" "SSH_KEY_PATH" "HA_CONFIG_PATH" "HA_TOKEN")
 for var in "${REQUIRED_VARS[@]}"; do
     if [ -z "${!var:-}" ]; then
-        log_error "Required environment variable not set: $var"
+        log_error "Required config value not set: $var"
+        log_error "Check quality/environments/staging/vulcan-brownout-config.yaml"
+        log_error "and quality/environments/staging/vulcan-brownout-secrets.yaml"
         exit 1
     fi
 done
@@ -102,6 +137,7 @@ log_debug "SSH_HOST=$SSH_HOST"
 log_debug "SSH_PORT=$SSH_PORT"
 log_debug "SSH_USER=$SSH_USER"
 log_debug "HA_CONFIG_PATH=$HA_CONFIG_PATH"
+log_debug "HA_URL=$HA_URL"
 
 # 2. Validate source directory
 log_info "Validating source directory..."
@@ -189,12 +225,9 @@ log_info "✓ HA config path exists: $HA_CONFIG_PATH"
 # 7. Test HA API connectivity
 log_info "Testing HA API connectivity..."
 
-HA_URL="${HA_URL:-http://homeassistant.lan}"
-HA_PORT="${HA_PORT:-8123}"
-
 if ! curl -s -m 5 -H "Authorization: Bearer $HA_TOKEN" \
-    "$HA_URL:$HA_PORT/api/" > /dev/null 2>&1; then
-    log_warn "Could not reach HA API at $HA_URL:$HA_PORT (may be running on server only)"
+    "$HA_URL/api/" > /dev/null 2>&1; then
+    log_warn "Could not reach HA API at $HA_URL (may be running on server only)"
 else
     log_info "✓ HA API connectivity verified"
 fi
@@ -250,7 +283,7 @@ if ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "$RESTART_CMD" &>/dev/null; then
     log_info "Waiting for Home Assistant to restart (up to 60 seconds)..."
     for i in {1..12}; do
         sleep 5
-        if ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "$RESTART_CMD" &>/dev/null; then
+        if curl -s -m 5 -H "Authorization: Bearer $HA_TOKEN" "$HA_URL/api/" > /dev/null 2>&1; then
             log_info "✓ Home Assistant is back online"
             break
         fi
@@ -271,7 +304,7 @@ if curl -s -m 10 -X POST \
     -H "Authorization: Bearer $HA_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"custom_components.vulcan_brownout": "debug"}' \
-    "$HA_URL:$HA_PORT/api/services/logger/set_level" > /dev/null 2>&1; then
+    "$HA_URL/api/services/logger/set_level" > /dev/null 2>&1; then
     log_info "✓ Debug logging enabled for custom_components.vulcan_brownout"
 else
     log_warn "Could not set debug log level via API (integration may not be loaded yet)"
@@ -281,7 +314,7 @@ fi
 log_info "Verifying integration is loaded..."
 
 if curl -s -m 10 -H "Authorization: Bearer $HA_TOKEN" \
-    "$HA_URL:$HA_PORT/api/states" 2>/dev/null | grep -q "vulcan_brownout"; then
+    "$HA_URL/api/states" 2>/dev/null | grep -q "vulcan_brownout"; then
     log_info "✓ Integration detected in Home Assistant"
 else
     log_warn "Could not verify integration load (may appear in logs)"
@@ -296,15 +329,16 @@ log_info "Integration: vulcan_brownout"
 log_info "Version: $(grep '"version"' "$SOURCE_DIR/manifest.json" | cut -d'"' -f4)"
 log_info "Deployed to: $DEPLOY_PATH"
 log_info "Server: $SSH_USER@$SSH_HOST:$SSH_PORT"
+log_info "Config: quality/environments/staging/"
 log_info "Timestamp: $(date)"
 log_info ""
 log_info "Next steps:"
 log_info "1. Check HA logs: ssh -p $SSH_PORT $SSH_USER@$SSH_HOST 'tail -f /home/homeassistant/.homeassistant/home-assistant.log | grep -i vulcan'"
 log_info "2. Open HA UI and verify Battery Monitoring panel appears"
-log_info "3. Run test suite: python3 quality/scripts/test_api_integration.py"
+log_info "3. Run integration tests: pytest quality/integration-tests/test_api_integration.py -v"
 log_info ""
 log_info "To verify integration loaded:"
-log_info "  curl -H \"Authorization: Bearer \$HA_TOKEN\" http://$SSH_HOST:8123/api/states | grep vulcan"
+log_info "  curl -H \"Authorization: Bearer \$HA_TOKEN\" $HA_URL/api/states | grep vulcan"
 log_info ""
 
 exit 0

@@ -1,0 +1,154 @@
+---
+# Ansible Playbook: Setup Quality / Staging Test Environment for Vulcan Brownout
+#
+# macOS only - uses Homebrew for package management
+#
+# Prerequisites:
+#   - macOS (Sonoma or later)
+#   - Homebrew installed (https://brew.sh)
+#   - Ansible installed: brew install ansible
+#   - Node.js installed (for Playwright): brew install node
+#
+# Usage:
+#   ansible-playbook quality/ansible/setup.yml
+#
+# This playbook:
+#   1. Installs Python 3.12 via Homebrew
+#   2. Creates isolated Python venv at quality/venv/
+#   3. Installs Python dependencies from quality/requirements.txt
+#   4. Installs Playwright npm dependencies and Chromium browser
+#   5. Initialises staging secrets file from template (if not present)
+#   6. Validates the setup
+
+- name: Setup Vulcan Brownout Quality Environment (macOS)
+  hosts: localhost
+  gather_facts: yes
+  vars:
+    repo_root: "{{ playbook_dir | dirname | dirname }}"
+    env_dir: "{{ repo_root }}/quality/environments/staging"
+    venv_path: "{{ repo_root }}/quality/venv"
+    e2e_dir: "{{ repo_root }}/quality/e2e"
+
+  pre_tasks:
+    - name: Verify macOS
+      assert:
+        that:
+          - ansible_os_family == 'Darwin'
+        fail_msg: "This playbook only supports macOS. Current OS: {{ ansible_os_family }}"
+
+    - name: Check if staging config exists
+      stat:
+        path: "{{ env_dir }}/vulcan-brownout-config.yaml"
+      register: config_stat
+      failed_when: not config_stat.stat.exists
+
+  tasks:
+    # ─────────────────────────────────────────────────────────────────
+    # Homebrew System Dependencies
+    # ─────────────────────────────────────────────────────────────────
+    - name: Ensure Homebrew is installed
+      stat:
+        path: /opt/homebrew/bin/brew
+      register: homebrew_stat
+      failed_when: not homebrew_stat.stat.exists
+      changed_when: false
+
+    - name: Install Python 3.12 via Homebrew
+      homebrew:
+        name: python@3.12
+        state: present
+
+    - name: Check Node.js is installed
+      command: node --version
+      register: node_check
+      changed_when: false
+      failed_when: node_check.rc != 0
+
+    # ─────────────────────────────────────────────────────────────────
+    # Python Virtual Environment
+    # ─────────────────────────────────────────────────────────────────
+    - name: Create Python virtual environment at quality/venv/
+      command: /opt/homebrew/bin/python3.12 -m venv {{ venv_path }}
+      args:
+        creates: "{{ venv_path }}/bin/python"
+
+    - name: Upgrade pip in quality/venv/
+      shell: "{{ venv_path }}/bin/python -m pip install --upgrade pip"
+      changed_when: false
+
+    # ─────────────────────────────────────────────────────────────────
+    # Python Dependencies
+    # ─────────────────────────────────────────────────────────────────
+    - name: Install Python dependencies from quality/requirements.txt
+      shell: "{{ venv_path }}/bin/pip install -r {{ repo_root }}/quality/requirements.txt"
+      changed_when: false
+
+    # ─────────────────────────────────────────────────────────────────
+    # Playwright (Node.js) Setup
+    # ─────────────────────────────────────────────────────────────────
+    - name: Install Playwright npm dependencies
+      shell: npm install
+      args:
+        chdir: "{{ e2e_dir }}"
+        creates: "{{ e2e_dir }}/node_modules/.package-lock.json"
+
+    - name: Install Playwright Chromium browser
+      shell: npx playwright install chromium
+      args:
+        chdir: "{{ e2e_dir }}"
+      changed_when: false
+
+    # ─────────────────────────────────────────────────────────────────
+    # Staging Environment Configuration
+    # ─────────────────────────────────────────────────────────────────
+    - name: Check if staging secrets file exists
+      stat:
+        path: "{{ env_dir }}/vulcan-brownout-secrets.yaml"
+      register: secrets_stat
+
+    - name: Create staging secrets file from template
+      copy:
+        src: "{{ env_dir }}/vulcan-brownout-secrets.yaml.example"
+        dest: "{{ env_dir }}/vulcan-brownout-secrets.yaml"
+        mode: '0600'
+      when: not secrets_stat.stat.exists
+
+    - name: Display next steps
+      debug:
+        msg: |
+          ✓ Quality environment setup complete!
+
+          Next steps:
+          1. Edit staging secrets:
+             {{ env_dir }}/vulcan-brownout-secrets.yaml
+
+          2. Fill in your staging HA credentials:
+             - ha.token      — Long-Lived Access Token from HA Profile → Security
+             - ha.password   — Your HA admin password
+             - ssh.*         — SSH connection details for your staging HA server
+
+          3. Run the test suite:
+             ./quality/scripts/run-all-tests.sh
+
+          4. Deploy to staging:
+             ./quality/scripts/deploy.sh
+
+          Python venv:  {{ venv_path }}
+          E2E dir:      {{ e2e_dir }}
+          Config:       {{ env_dir }}/vulcan-brownout-config.yaml
+          Secrets:      {{ env_dir }}/vulcan-brownout-secrets.yaml
+
+  post_tasks:
+    - name: Validate ConfigLoader can read staging config
+      command: >
+        {{ venv_path }}/bin/python -c
+        "import sys; sys.path.insert(0, '{{ repo_root }}/development/scripts');
+        from config_loader import ConfigLoader;
+        cfg = ConfigLoader('staging', env_base_dir='quality/environments').load();
+        print('✓ Staging config loaded successfully')"
+      register: validation_result
+      changed_when: false
+
+    - name: Show validation result
+      debug:
+        msg: "{{ validation_result.stdout_lines }}"

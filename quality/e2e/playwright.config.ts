@@ -33,16 +33,15 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
 
-  globalSetup: isStaging
-    ? require.resolve('./global-setup-staging.ts')
-    : require.resolve('./global-setup.ts'),
+  ...(isStaging && {
+    globalSetup: require.resolve('./global-setup-staging.ts'),
+  }),
 
   projects: [
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        storageState: 'playwright/.auth/auth.json',
       },
     },
     {

@@ -19,11 +19,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 E2E_DIR="$PROJECT_ROOT/quality/e2e"
+QUALITY_VENV="$PROJECT_ROOT/quality/venv"
+QUALITY_PYTHON="$QUALITY_VENV/bin/python"
 
 # Python files to lint
 PYTHON_FILES=(
-    "$PROJECT_ROOT/quality/scripts/test_component_integration.py"
-    "$PROJECT_ROOT/quality/scripts/mock_fixtures.py"
+    "$PROJECT_ROOT/quality/integration-tests/test_component_integration.py"
+    "$PROJECT_ROOT/quality/integration-tests/mock_fixtures.py"
     "$PROJECT_ROOT/.github/docker/mock_ha/server.py"
     "$PROJECT_ROOT/.github/docker/mock_ha/fixtures.py"
 )
@@ -85,13 +87,9 @@ fi
 run_lint() {
     log_stage "Stage 1: Lint (flake8 + mypy)"
 
-    # Check flake8 is available
-    if ! command -v flake8 &>/dev/null; then
-        log_warn "flake8 not found — installing via pip"
-        pip install --quiet flake8 mypy 2>/dev/null || {
-            log_error "Failed to install flake8/mypy. Install manually: pip install flake8 mypy"
-            return 2
-        }
+    if [ ! -f "$QUALITY_PYTHON" ]; then
+        log_error "quality/venv/ not found — run: python3 -m venv quality/venv && quality/venv/bin/pip install -r quality/requirements.txt"
+        return 2
     fi
 
     # Collect existing files only
@@ -111,7 +109,7 @@ run_lint() {
 
     # flake8
     log_info "Running flake8..."
-    if flake8 --max-line-length=127 --max-complexity=10 "${files_to_lint[@]}"; then
+    if "$QUALITY_PYTHON" -m flake8 --max-line-length=127 --max-complexity=10 "${files_to_lint[@]}"; then
         log_info "flake8 passed"
     else
         log_error "flake8 failed"
@@ -120,7 +118,7 @@ run_lint() {
 
     # mypy
     log_info "Running mypy..."
-    if mypy --ignore-missing-imports "${files_to_lint[@]}"; then
+    if "$QUALITY_PYTHON" -m mypy --ignore-missing-imports "${files_to_lint[@]}"; then
         log_info "mypy passed"
     else
         log_error "mypy failed"

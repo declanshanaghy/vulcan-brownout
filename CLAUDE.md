@@ -49,11 +49,11 @@ npx playwright show-report                       # view HTML report
 ### Linting
 ```bash
 # flake8 (max-line-length=127, max-complexity=10)
-flake8 quality/scripts/test_component_integration.py quality/scripts/mock_fixtures.py \
+flake8 quality/integration-tests/test_component_integration.py quality/integration-tests/mock_fixtures.py \
   .github/docker/mock_ha/server.py .github/docker/mock_ha/fixtures.py
 
 # mypy
-mypy quality/scripts/test_component_integration.py quality/scripts/mock_fixtures.py \
+mypy quality/integration-tests/test_component_integration.py quality/integration-tests/mock_fixtures.py \
   .github/docker/mock_ha/server.py .github/docker/mock_ha/fixtures.py --ignore-missing-imports
 ```
 
@@ -66,7 +66,11 @@ GitHub Actions runs lint then Docker component tests on every push/PR. See `.git
 - `development/src/custom_components/vulcan_brownout/` — Main integration code (Python backend + JS frontend)
 - `architecture/` — System design, API contracts, sprint plans, ADRs
 - `design/` — UX specs, wireframes, interaction flows
-- `quality/scripts/` — Test runner script, Python component tests, mock fixtures, deploy script
+- `quality/scripts/` — Bash scripts only: `run-all-tests.sh`, `deploy.sh`
+- `quality/integration-tests/` — Python test suites (component, API, live, environment) and mock fixtures
+- `quality/environments/staging/` — Staging environment YAML config (mirrors `development/environments/docker/`)
+- `quality/ansible/` — Ansible playbook for one-time quality environment setup (`setup.yml`)
+- `quality/venv/` — Python venv for staging/QA work (gitignored, bootstrapped by `quality/ansible/setup.yml`)
 - `quality/e2e/` — Playwright E2E tests (Page Object Model in `pages/`, factories in `utils/`)
 - `.github/docker/mock_ha/` — Mock Home Assistant WebSocket server for testing
 - `vulcan-brownout-team/` — Team role definitions and workflow conventions
@@ -100,7 +104,7 @@ Two commands under `vulcan-brownout/*` namespace. See `architecture/api-contract
 - **Always use `./quality/scripts/run-all-tests.sh`** — never ad-hoc bash commands for running tests
 - `pytest.ini` sets `asyncio_mode = auto` — all async tests run automatically
 - Mock HA server in Docker provides pre-provisioned test entities
-- E2E tests authenticate via HA long-lived token in `.env`
+- E2E staging tests authenticate via HA long-lived token in `quality/environments/staging/vulcan-brownout-secrets.yaml`
 
 ### Configuration & Environment Setup (macOS)
 
@@ -112,30 +116,46 @@ Two commands under `vulcan-brownout/*` namespace. See `architecture/api-contract
 - **Ansible** — `brew install ansible`
 
 #### Initial Setup
-Run the Ansible playbook once to set up your development environment:
 
+**Docker dev environment** (run once):
 ```bash
 ansible-playbook development/ansible/docker.yml
 ```
+Creates `development/venv/`, installs pyyaml, initialises Docker environment config.
 
+**Quality / staging environment** (run once):
+```bash
+ansible-playbook quality/ansible/setup.yml
+```
 This automatically:
 - Installs Python 3.12 via Homebrew
-- Verifies Docker Desktop is installed
-- Creates isolated venv at `development/venv/`
-- Installs Python dependencies (pyyaml) from `development/requirements.txt`
-- Initializes configuration from templates
+- Creates isolated venv at `quality/venv/`
+- Installs all test dependencies from `quality/requirements.txt`
+- Installs Playwright npm dependencies and Chromium browser
+- Creates `quality/environments/staging/vulcan-brownout-secrets.yaml` from template
 
 #### Configuration Files (YAML)
-Each environment has config files in `development/environments/{env}/`:
+Each environment has config files in its own directory:
+- `development/environments/docker/` — Local Docker dev environment
+- `quality/environments/staging/` — Staging deployment environment
+
+Each directory contains:
 - `vulcan-brownout-config.yaml` — Main config (committed)
 - `vulcan-brownout-secrets.yaml.example` — Template (committed)
-- `vulcan-brownout-secrets.yaml` — Secrets (auto-created, in .gitignore)
+- `vulcan-brownout-secrets.yaml` — Secrets (gitignored, must be created locally)
 
 #### Setting Up Secrets
+
+**Docker (local dev):**
 1. After running the Ansible playbook, start Docker: `./development/environments/docker/up.sh`
 2. Log in at http://localhost:8123 (admin / sprocket)
 3. Get long-lived token: Profile → Security → Long-Lived Access Tokens
 4. Update `development/environments/docker/vulcan-brownout-secrets.yaml` with your token
+
+**Staging:**
+1. Run `ansible-playbook quality/ansible/setup.yml` — creates secrets file from template automatically
+2. Edit `quality/environments/staging/vulcan-brownout-secrets.yaml` with your staging HA token, password, and SSH details
+3. `deploy.sh` and all test tooling load config automatically from this file
 
 #### Using Configuration in Code
 Set PYTHONPATH before running Python:
@@ -150,7 +170,13 @@ Then import and use:
 ```python
 from config_loader import ConfigLoader
 
+# Docker (local dev) — uses development/environments/docker/
 loader = ConfigLoader('docker')
+config = loader.load()
+token = config['ha']['token']
+
+# Staging — uses quality/environments/staging/
+loader = ConfigLoader('staging', env_base_dir='quality/environments')
 config = loader.load()
 token = config['ha']['token']
 ```

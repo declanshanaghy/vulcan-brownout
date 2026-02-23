@@ -14,8 +14,17 @@ pnpm-lock.yaml
 playwright-report*/
 playwright/.auth/
 test-results/
+test-results.json
+test-results.log
+full-test-output.txt
 .playwright/
 debug-output/
+
+# Debug / scratch files
+DEBUG_*.md
+DEBUG_*.txt
+FILES_CREATED.txt
+START_HERE.md
 
 # IDE
 .vscode/

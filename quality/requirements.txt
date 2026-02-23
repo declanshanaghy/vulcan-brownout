@@ -1,0 +1,26 @@
+# Vulcan Brownout — Quality / Integration Test Dependencies
+#
+# Used by quality/venv/ — the staging integration test environment.
+# Create/update the venv with:
+#   python3 -m venv quality/venv
+#   quality/venv/bin/pip install -r quality/requirements.txt
+#
+# This venv is independent of development/venv/ (Docker dev environment).
+
+# Config loading
+pyyaml==6.0.2
+
+# Test runner
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# WebSocket clients (both async and sync variants used across test suites)
+websockets==12.0
+websocket-client==1.8.0
+
+# REST client (test_ha_environment.py)
+requests==2.32.3
+
+# Async HTTP (test_component_integration.py — also used by Docker component tests)
+aiohttp==3.9.1
+aiohttp-cors==0.7.0

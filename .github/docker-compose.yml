@@ -32,14 +32,14 @@ services:
       TEST_MODE: "component"
       PYTHONUNBUFFERED: "1"
     volumes:
-      - ../quality/scripts:/app/quality/scripts:ro
+      - ../quality/integration-tests:/app/quality/integration-tests:ro
       - ../development/src:/app/development/src:ro
     networks:
       - vulcan-test
     command: |-
       bash -c "
         pip install --no-cache-dir aiohttp==3.9.1 aiohttp-cors==0.7.0 websockets==12.0 pytest==7.4.3 pytest-asyncio==0.21.1 python-dotenv==1.0.0 &&
-        pytest quality/scripts/test_component_integration.py -v --tb=short
+        pytest quality/integration-tests/test_component_integration.py -v --tb=short
       "
 
 networks:

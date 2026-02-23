@@ -2,17 +2,66 @@
  * Global setup for staging tests: Real HA authentication
  * Launches a browser, performs the HA login form flow, and saves
  * authenticated browser state for all staging test contexts.
+ *
+ * Config resolution order:
+ *  1. quality/environments/staging/ YAML config via ConfigLoader
+ *  2. quality/e2e/.env.test  (local override, gitignored)
+ *  3. Process environment variables (set by deploy.sh or CI)
  */
 
 import { chromium, FullConfig } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { spawnSync } from 'child_process';
 import * as dotenv from 'dotenv';
 
-dotenv.config({ path: path.join(__dirname, '.env.test') });
+const repoRoot = path.resolve(__dirname, '..', '..');
+const pythonBin = path.join(repoRoot, 'quality', 'venv', 'bin', 'python');
+
+// 1. Load YAML config via ConfigLoader (primary source)
 if (!process.env.HA_USERNAME) {
-  dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
+  if (!fs.existsSync(pythonBin)) {
+    throw new Error(
+      'quality/venv/ not found.\n' +
+      'Run: ansible-playbook quality/ansible/setup.yml\n' +
+      '  or: python3 -m venv quality/venv && quality/venv/bin/pip install -r quality/requirements.txt'
+    );
+  }
+
+  const script = [
+    'import sys, json',
+    `sys.path.insert(0, ${JSON.stringify(path.join(repoRoot, 'development', 'scripts'))})`,
+    'from config_loader import ConfigLoader',
+    `loader = ConfigLoader('staging', env_base_dir='quality/environments')`,
+    'print(json.dumps(loader.get_env_vars()))',
+  ].join('\n');
+
+  const result = spawnSync(pythonBin, ['-c', script], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+
+  if (result.error) {
+    throw new Error(`Failed to invoke quality/venv Python: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      `ConfigLoader failed (exit ${result.status}):\n${result.stderr || '(no stderr)'}\n` +
+      'Check quality/environments/staging/vulcan-brownout-config.yaml and vulcan-brownout-secrets.yaml'
+    );
+  }
+
+  const cfg: Record<string, string> = JSON.parse(result.stdout.trim());
+  for (const [k, v] of Object.entries(cfg)) {
+    if (v && !process.env[k]) {
+      process.env[k] = v;
+    }
+  }
+  console.log('Loaded staging config from quality/environments/staging/ YAML');
 }
+
+// 2. Local .env.test override (optional, gitignored — for one-off local tweaks)
+dotenv.config({ path: path.join(__dirname, '.env.test'), override: false });
 
 const HA_URL = process.env.HA_URL || 'http://homeassistant.lan:8123';
 const HA_USERNAME = process.env.HA_USERNAME || '';
@@ -37,8 +86,8 @@ export default async function globalSetup(config: FullConfig) {
 
   if (!HA_USERNAME || !HA_PASSWORD) {
     throw new Error(
-      'Staging tests require HA_USERNAME and HA_PASSWORD in .env.test or root .env. ' +
-      'These must be valid credentials for the staging HA instance.'
+      'Staging tests require HA_USERNAME and HA_PASSWORD.\n' +
+      'Set them in quality/environments/staging/vulcan-brownout-secrets.yaml'
     );
   }
 
