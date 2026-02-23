@@ -283,22 +283,13 @@ export class VulcanBrownoutPanel {
   }
 
   /**
-   * Check if dark mode is active
+   * Get computed background color of the panel's top-level div.
+   * Useful for verifying theme changes.
    */
-  async isDarkMode(): Promise<boolean> {
-    const attr = await this.page.locator('html').getAttribute('data-theme');
-    return attr === 'dark' || attr === 'dark-theme';
-  }
-
-  /**
-   * Toggle dark mode
-   */
-  async toggleDarkMode(): Promise<void> {
-    const html = this.page.locator('html');
-    const currentTheme = await html.getAttribute('data-theme');
-    const newTheme = currentTheme === 'dark' || currentTheme === 'dark-theme' ? 'light' : 'dark';
-    await html.evaluate((el, theme) => el.setAttribute('data-theme', theme as string), newTheme);
-    await this.page.waitForTimeout(300);
+  async getPanelBackgroundColor(): Promise<string> {
+    return this.panel.locator('.battery-panel').evaluate((el) =>
+      window.getComputedStyle(el).backgroundColor,
+    );
   }
 
   /**

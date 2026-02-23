@@ -159,17 +159,22 @@ class VulcanBrownoutPanel extends LitElement {
   scroll_container = null;
   scroll_debounce_timer = null;
 
-  // Sprint 3: Theme observer (deprecated, replaced by event listener)
-  theme_observer = null;
-
-  // Sprint 4: Theme event listener for hass_themes_updated
+  // Theme event listener for hass_themes_updated
   _themeListener = null;
+
+  updated(changedProperties) {
+    super.updated(changedProperties);
+    // HA sets hass after connectedCallback — set up theme listener once available
+    if (changedProperties.has('hass') && this.hass && !this._themeListener) {
+      this._setup_theme_listener();
+      this._apply_theme(this._detect_theme());
+    }
+  }
 
   connectedCallback() {
     super.connectedCallback();
     this._load_ui_state_from_storage();
     this._apply_theme(this._detect_theme());
-    this._setup_theme_listener();
     // Sprint 5: Start filter options fetch in parallel with device load
     this._load_filter_options();
     this._load_devices();
@@ -196,10 +201,7 @@ class VulcanBrownoutPanel extends LitElement {
     if (this.scroll_observer) {
       this.scroll_observer.disconnect();
     }
-    if (this.theme_observer) {
-      this.theme_observer.disconnect();
-    }
-    // Sprint 4: Clean up theme listener to prevent memory leaks
+    // Clean up theme listener to prevent memory leaks
     if (this._themeListener && this.hass?.connection) {
       this.hass.connection.removeEventListener('hass_themes_updated', this._themeListener);
       this._themeListener = null;
@@ -216,37 +218,23 @@ class VulcanBrownoutPanel extends LitElement {
 
   static styles = css`
     :host {
-      --vb-bg-primary: #ffffff;
-      --vb-bg-card: #f5f5f5;
-      --vb-bg-divider: #e0e0e0;
-      --vb-text-primary: #212121;
-      --vb-text-secondary: #757575;
-      --vb-text-disabled: #bdbdbd;
-      --vb-color-critical: #f44336;
-      --vb-color-warning: #ff9800;
-      --vb-color-healthy: #4caf50;
-      --vb-color-unavailable: #9e9e9e;
-      --vb-color-primary-action: #03a9f4;
-      --vb-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      --vb-skeleton-bg: #e0e0e0;
-      --vb-skeleton-shimmer: #f5f5f5;
-    }
-
-    [data-theme="dark"],
-    [data-theme="dark-theme"] {
-      --vb-bg-primary: #1c1c1c;
-      --vb-bg-card: #2c2c2c;
-      --vb-bg-divider: #444444;
-      --vb-text-primary: #ffffff;
-      --vb-text-secondary: #b0b0b0;
-      --vb-text-disabled: #666666;
-      --vb-color-critical: #ff5252;
-      --vb-color-warning: #ffb74d;
-      --vb-color-healthy: #66bb6a;
-      --vb-color-unavailable: #bdbdbd;
-      --vb-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-      --vb-skeleton-bg: #444444;
-      --vb-skeleton-shimmer: #555555;
+      /* Map to HA theme CSS custom properties — these cascade into Shadow DOM
+         automatically, so light/dark/custom themes all work without JS toggling */
+      --vb-bg-primary: var(--primary-background-color, #fafafa);
+      --vb-bg-card: var(--card-background-color, #ffffff);
+      --vb-bg-divider: var(--divider-color, #e0e0e0);
+      --vb-border-color: var(--divider-color, #e0e0e0);
+      --vb-text-primary: var(--primary-text-color, #212121);
+      --vb-text-secondary: var(--secondary-text-color, #727272);
+      --vb-text-disabled: var(--disabled-text-color, #bdbdbd);
+      --vb-color-critical: var(--error-color, #db4437);
+      --vb-color-warning: var(--warning-color, #ff9800);
+      --vb-color-healthy: var(--success-color, #43a047);
+      --vb-color-unavailable: var(--disabled-text-color, #9e9e9e);
+      --vb-color-primary-action: var(--primary-color, #03a9f4);
+      --vb-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0, 0, 0, 0.1));
+      --vb-skeleton-bg: var(--divider-color, #e0e0e0);
+      --vb-skeleton-shimmer: var(--secondary-background-color, #f5f5f5);
     }
 
     .battery-panel {
@@ -1636,42 +1624,27 @@ class VulcanBrownoutPanel extends LitElement {
   }
 
   _detect_theme() {
-    // Sprint 4: Primary source - hass.themes.darkMode (authoritative HA theme setting)
+    // HA's CSS custom properties handle theming automatically via inheritance,
+    // but we track current_theme for any JS-side conditional logic.
     if (this.hass?.themes?.darkMode !== undefined) {
       return this.hass.themes.darkMode ? 'dark' : 'light';
     }
-
-    // Fallback 1: DOM attribute (legacy, from older HA versions)
-    const domTheme = document.documentElement.getAttribute('data-theme');
-    if (domTheme === 'dark' || domTheme === 'dark-theme') {
-      return 'dark';
-    }
-
-    // Fallback 2: OS preference (system-wide dark mode)
     if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
       return 'dark';
     }
-
-    // Default: light mode
     return 'light';
   }
 
   _apply_theme(theme) {
-    // Sprint 4: Apply theme to DOM and trigger re-render
-    const newTheme = theme || 'light';
-    document.documentElement.setAttribute('data-theme', newTheme);
-    this.current_theme = newTheme;
-    // Request update to apply CSS custom properties
-    this.requestUpdate();
+    // HA's CSS custom properties cascade into Shadow DOM automatically —
+    // no DOM attribute manipulation needed. Just track the value.
+    this.current_theme = theme || 'light';
   }
 
   _setup_theme_listener() {
-    // Sprint 4: Listen to hass_themes_updated event for real-time theme changes
-    if (!this.hass?.connection) {
-      return;
-    }
+    // Re-detect on HA theme changes so current_theme stays in sync
+    if (!this.hass?.connection) return;
 
-    // Arrow function to preserve 'this' context
     this._themeListener = () => {
       const newTheme = this._detect_theme();
       if (newTheme !== this.current_theme) {
@@ -1683,25 +1656,7 @@ class VulcanBrownoutPanel extends LitElement {
   }
 
   _setup_theme_observer() {
-    // Sprint 3 legacy: MutationObserver for older HA versions (deprecated)
-    // Kept as fallback if hass.connection unavailable
-    if (this.theme_observer) {
-      this.theme_observer.disconnect();
-    }
-
-    this.theme_observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === "data-theme") {
-          const newTheme = this._detect_theme();
-          this._apply_theme(newTheme);
-        }
-      });
-    });
-
-    this.theme_observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
+    // Legacy fallback — no longer needed since HA CSS vars cascade automatically
   }
 
   _load_ui_state_from_storage() {

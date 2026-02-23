@@ -11,10 +11,11 @@ pnpm-lock.yaml
 .env.*.local
 
 # Playwright artifacts
-playwright-report/
+playwright-report*/
 playwright/.auth/
 test-results/
 .playwright/
+debug-output/
 
 # IDE
 .vscode/
