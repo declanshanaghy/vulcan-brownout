@@ -24,6 +24,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import yaml
+
 # Single template that walks all states and returns unique device info as JSON.
 _DEVICES_TEMPLATE = """\
 {%- set ns = namespace(seen=[], result=[]) -%}
@@ -116,7 +118,7 @@ def main() -> None:
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(devices, indent=2) + "\n")
+    out_path.write_text(yaml.dump(devices, default_flow_style=False, allow_unicode=True))
     print(f"Written: {out_path}", file=sys.stderr)
 
 

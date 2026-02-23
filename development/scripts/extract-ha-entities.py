@@ -21,6 +21,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import yaml
+
 
 def load_dotenv(path: Path) -> dict[str, str]:
     env: dict[str, str] = {}
@@ -87,7 +89,7 @@ def main() -> None:
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(states, indent=2) + "\n")
+    out_path.write_text(yaml.dump(states, default_flow_style=False, allow_unicode=True))
     print(f"Written: {out_path}", file=sys.stderr)
 
 
