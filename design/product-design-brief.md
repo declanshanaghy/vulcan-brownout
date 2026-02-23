@@ -607,3 +607,356 @@ Dark mode values:
 - **Wireframes**: See wireframes.md — Wireframes 12–16 for Sprint 5 filter UI layouts
 - **Interactions**: See interactions.md — Interactions 11–13 for Sprint 5 filter behavior specs
 - **API Contract**: See architecture/api-contracts.md for `get_filter_options` and updated `query_devices` specs
+
+---
+
+# Product Design Brief — Sprint 6
+
+**By**: Freya (PO) + Luna (UX) | **Status**: IN PROGRESS | **Date**: 2026-02-23
+
+## Sprint 6 Problem Statement
+
+**Missing Unavailable Devices View**: The current Vulcan Brownout panel (v6.0.0) shows only battery entities below the fixed 15% threshold. Entities that are `unavailable` or `unknown` in Home Assistant are explicitly excluded from `query_entities`. There is no view in the panel where a user can inspect which battery-powered devices are currently unreachable.
+
+This is a monitoring gap. A device going unavailable is operationally significant — it may indicate a dead battery (so depleted the device stopped reporting), a network or pairing issue, or a physical hardware fault. Users who rely on the panel for battery health oversight have no way to distinguish "all devices are fine" from "half my devices are offline and not reporting at all."
+
+The existing table layout (entity name, area, manufacturer/model, last seen, % remaining) is well-suited to display unavailable entities with minimal modification: the "% Remaining" column becomes "Status" showing "unavailable" or "unknown". No new layout, columns, or interaction patterns are required.
+
+Sprint 6 adds a **tab switcher** to the panel header area with two tabs:
+- **Low Battery** — the existing view (entities below 15%, excluding unavailable/unknown)
+- **Unavailable Devices** — new view (entities that are unavailable or unknown state)
+
+Scope is strictly limited to the tab switcher and the second tab's data. No filtering, sorting controls, pagination, or animations beyond a simple active-tab bottom-border indicator.
+
+## Target User
+
+HA users who:
+- Monitor battery-powered devices across their home (door/window sensors, motion detectors, locks, remotes)
+- Need to know not just which batteries are low, but which devices have gone offline entirely
+- Open the panel as a triage tool — they want to see all problem devices in one place
+- May have devices that dropped off the network silently (no HA notification) and have no other way to discover them except visual inspection
+
+## Desired Outcome
+
+After Sprint 6 ships, the Vulcan Brownout panel will:
+1. Display two tabs: **Low Battery** and **Unavailable Devices**
+2. Default to the **Low Battery** tab on first load (existing behavior preserved)
+3. Allow one-click switching between tabs with no page reload or WebSocket reconnect
+4. Persist the active tab to `sessionStorage` so users returning to the panel within the same browser session land on the tab they last used
+5. Show the **Unavailable Devices** tab with the same table layout as the Low Battery tab, using "Status" in place of "% Remaining", populated by a new `query_unavailable` WebSocket command
+6. Show appropriate empty states for each tab when there is no data
+
+## Interactions & User Flow
+
+### Tab Switch — Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant P as Panel JS
+    participant SS as sessionStorage
+    participant WS as WebSocket API
+
+    P->>SS: Read active_tab (on connectedCallback)
+    alt Saved tab exists
+        SS-->>P: "unavailable" or "low-battery"
+    else No saved tab
+        SS-->>P: default to "low-battery"
+    end
+
+    P->>WS: query_entities (if active tab = low-battery)
+    WS-->>P: { entities: [...], total: N }
+    P->>U: Render Low Battery tab (active)
+
+    U->>P: Click "Unavailable Devices" tab
+    P->>P: Set active_tab = "unavailable"
+    P->>SS: Save active_tab = "unavailable"
+    P->>WS: query_unavailable
+    WS-->>P: { entities: [...], total: N }
+    P->>U: Render Unavailable Devices tab (active)
+
+    U->>P: Click "Low Battery" tab
+    P->>P: Set active_tab = "low-battery"
+    P->>SS: Save active_tab = "low-battery"
+    P->>P: Render cached low-battery data (no new API call if already loaded)
+    P->>U: Render Low Battery tab (active)
+```
+
+### Panel State Machine (Sprint 6)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Initializing: connectedCallback() fires
+
+    Initializing --> LowBatteryLoading: Restore tab = low-battery (default)
+    Initializing --> UnavailableLoading: Restore tab = unavailable (sessionStorage)
+
+    LowBatteryLoading --> LowBatteryLoaded: query_entities response received
+    LowBatteryLoading --> Error: query_entities failed
+
+    UnavailableLoading --> UnavailableLoaded: query_unavailable response received
+    UnavailableLoading --> Error: query_unavailable failed
+
+    LowBatteryLoaded --> LowBatteryEmpty: entities.length == 0
+    LowBatteryLoaded --> LowBatteryLoaded: entity_changed event (real-time update)
+    LowBatteryLoaded --> UnavailableLoading: User clicks Unavailable Devices tab
+
+    LowBatteryEmpty --> UnavailableLoading: User clicks Unavailable Devices tab
+
+    UnavailableLoaded --> UnavailableEmpty: entities.length == 0
+    UnavailableLoaded --> LowBatteryLoaded: User clicks Low Battery tab (data cached)
+    UnavailableLoaded --> LowBatteryLoading: User clicks Low Battery tab (not yet loaded)
+
+    UnavailableEmpty --> LowBatteryLoaded: User clicks Low Battery tab (data cached)
+
+    Error --> Initializing: User clicks Retry
+```
+
+## Wireframes Section
+
+See `design/wireframes.md` Wireframes 17–19 for full structural diagrams. Summary below.
+
+### Low Battery Tab Active
+
+```mermaid
+graph TD
+    classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef unavailable fill:#9E9E9E,stroke:#757575,color:#FFF
+    classDef critical fill:#F44336,stroke:#D32F2F,color:#FFF
+    classDef neutral fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+
+    header["HEADER (56px)<br/>🔋 Battery Monitoring | Connected 🟢"]
+
+    tabBar["TAB BAR (40px)<br/>border-bottom: 1px solid --vb-border-color"]
+
+    tabLowActive["[ Low Battery ] (active)<br/>color: --primary-color | font-weight: 600<br/>border-bottom: 2px solid --primary-color"]
+
+    tabUnavailInactive["[ Unavailable Devices ] (inactive)<br/>color: --secondary-text-color | font-weight: 400"]
+
+    table["TABLE: Last Seen | Entity | Area | Mfr/Model | % Remaining"]
+    row1["2m ago | Front Door Lock | Entrance | Schlage/BE469 | 8%"]
+    row2["5m ago | Motion Sensor | Kitchen | Aqara/MS-S02 | 12%"]
+
+    header --> tabBar
+    tabBar --> tabLowActive
+    tabBar --> tabUnavailInactive
+    tabBar --> table
+    table --> row1
+    table --> row2
+
+    class header primary
+    class tabLowActive primary
+    class tabUnavailInactive unavailable
+    class row1 critical
+    class row2 critical
+```
+
+### Unavailable Devices Tab Active
+
+```mermaid
+graph TD
+    classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef unavailable fill:#9E9E9E,stroke:#757575,color:#FFF
+    classDef neutral fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+
+    header["HEADER (56px)<br/>🔋 Battery Monitoring | Connected 🟢"]
+
+    tabBar["TAB BAR (40px)"]
+
+    tabLowInactive["[ Low Battery ] (inactive)<br/>color: --secondary-text-color | font-weight: 400"]
+
+    tabUnavailActive["[ Unavailable Devices ] (active)<br/>color: --primary-color | font-weight: 600<br/>border-bottom: 2px solid --primary-color"]
+
+    table["TABLE: Last Seen | Entity | Area | Mfr/Model | Status"]
+    row1["1h ago | Garage Door Sensor | Garage | Aqara/ | unavailable"]
+    row2["3h ago | Back Door Lock | Yard | Schlage/ | unknown"]
+
+    header --> tabBar
+    tabBar --> tabLowInactive
+    tabBar --> tabUnavailActive
+    tabBar --> table
+    table --> row1
+    table --> row2
+
+    class header primary
+    class tabUnavailActive primary
+    class tabLowInactive unavailable
+    class row1 unavailable
+    class row2 unavailable
+```
+
+### Empty State — Unavailable Devices Tab
+
+```mermaid
+graph TD
+    classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef unavailable fill:#9E9E9E,stroke:#757575,color:#FFF
+    classDef healthy fill:#4CAF50,stroke:#388E3C,color:#FFF
+    classDef neutral fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+
+    header["HEADER (56px)<br/>🔋 Battery Monitoring | Connected 🟢"]
+
+    tabBar["TAB BAR"]
+    tabLow["[ Low Battery ] (inactive)"]
+    tabUnavail["[ Unavailable Devices ] (active)<br/>border-bottom: 2px solid --primary-color"]
+
+    emptyState["EMPTY STATE (centered, 40px padding)<br/>─────────────────────────────────────"]
+    icon["✓ Status-ok icon (48px, green)<br/>margin-bottom: 16px"]
+    title["No unavailable devices.<br/>(18px, bold)"]
+    subtitle["All monitored devices are responding.<br/>(14px, --secondary-text-color)"]
+
+    header --> tabBar
+    tabBar --> tabLow
+    tabBar --> tabUnavail
+    tabBar --> emptyState
+    emptyState --> icon
+    emptyState --> title
+    emptyState --> subtitle
+
+    class header primary
+    class tabUnavail primary
+    class tabLow unavailable
+    class icon healthy
+    class emptyState neutral
+```
+
+## Look & Feel Direction
+
+### Tab Bar
+- **Placement**: Immediately below the panel header (56px), above the table. Full-width horizontal row.
+- **Height**: 40px tab row.
+- **Active tab**: Text in `--primary-color` (HA blue), 2px solid bottom border in `--primary-color`. Font-weight: 600.
+- **Inactive tab**: Text in `--secondary-text-color` (grey). No bottom border. Font-weight: 400.
+- **Tab indicator transition**: None. Active tab indicator moves instantly on click (no slide animation — keeps scope tight).
+- **Tab background**: Inherits panel background. No filled tab background.
+- **Spacing**: 16px left padding on first tab. 24px gap between tabs.
+- **Touch target**: Each tab is 40px height, minimum 80px width, full click area.
+
+### Unavailable Devices Table
+- **Same columns as Low Battery table** with one substitution:
+  - Low Battery: Last Seen | Entity Name | Area | Manufacturer & Model | % Remaining
+  - Unavailable: Last Seen | Entity Name | Area | Manufacturer & Model | Status
+- **"Status" column**: Shows "unavailable" (grey pill badge) or "unknown" (grey pill badge). Same grey (`#9E9E9E`) used for unavailable in the design system. Text: lowercase.
+- **Row hover**: Same hover style as Low Battery table (no change).
+- **Entity link**: Same clickable entity-link style (navigates to HA entity page).
+- **No battery percentage**: Unavailable entities have no valid battery level to display.
+
+### Visual Inheritance
+- All colors, typography, spacing, and row hover patterns are inherited from the existing Low Battery table without modification.
+- The tab switcher is the only new visual element.
+
+## Acceptance Criteria
+
+### Tab Bar
+- [ ] Tab bar renders below the header with exactly two tabs: "Low Battery" and "Unavailable Devices"
+- [ ] Active tab has a 2px bottom border in `--primary-color` and text in `--primary-color` at font-weight 600
+- [ ] Inactive tab has grey text (`--secondary-text-color`) and no bottom border
+- [ ] Clicking a tab switches the active view immediately (no delay, no loading flash if data already cached)
+- [ ] Tab bar is keyboard accessible: Tab moves focus between tabs, Enter/Space activates a tab
+- [ ] Both tabs have minimum 44px touch targets (40px height row achieves this via padding)
+
+### Low Battery Tab
+- [ ] Low Battery tab renders the existing entity table (unchanged from v6.0.0 behavior)
+- [ ] Low Battery tab is the default active tab on first load (no sessionStorage entry)
+- [ ] `query_entities` is called when Low Battery tab is active and data is not yet cached
+- [ ] `entity_changed` real-time events continue to update the Low Battery table when that tab is active
+
+### Unavailable Devices Tab
+- [ ] Unavailable Devices tab fetches data via `vulcan-brownout/query_unavailable` WebSocket command
+- [ ] `query_unavailable` is called when the Unavailable Devices tab is first selected (lazy load, not on panel open)
+- [ ] Table columns are: Last Seen | Entity Name | Area | Manufacturer & Model | Status
+- [ ] "Status" column shows "unavailable" or "unknown" as a grey pill badge
+- [ ] Table rows are sorted by `last_changed` descending (most recently changed first)
+- [ ] Empty state shows "No unavailable devices. All monitored devices are responding." when `entities` array is empty
+- [ ] Empty state icon is a green checkmark or status-ok icon (distinct from Low Battery empty state battery icon)
+
+### Session Persistence
+- [ ] Active tab is saved to `sessionStorage` under key `vulcan_brownout_active_tab` on every tab switch
+- [ ] On panel load, `sessionStorage` is read and the saved tab is activated before the initial data fetch
+- [ ] If `sessionStorage` is unavailable, defaults to "low-battery" without error
+
+### Data Fetching
+- [ ] `query_unavailable` is not called on panel open if the default tab is "low-battery" (lazy load)
+- [ ] `query_unavailable` is called at most once per panel session unless the panel is reconnected
+- [ ] Switching back to Low Battery tab after visiting Unavailable tab does not re-fetch `query_entities` (uses cached data)
+- [ ] Switching to Unavailable tab a second time within the same session does not re-fetch `query_unavailable` (uses cached data)
+
+### Accessibility
+- [ ] Tab bar has `role="tablist"`, each tab has `role="tab"`, `aria-selected="true/false"`, `aria-controls` pointing to the corresponding panel
+- [ ] Each tab content area has `role="tabpanel"` and `aria-labelledby` pointing to its tab
+- [ ] Screen reader announces tab activation: "Low Battery tab, selected" / "Unavailable Devices tab, selected"
+- [ ] WCAG AA contrast on active tab text (primary blue on panel background) and inactive tab text (grey on panel background)
+
+## Priority & Constraints
+
+- **Priority**: P1
+- **Sprint Target**: Sprint 6
+- **Scope constraint**: Tab switching ONLY. No new filters, no sort changes, no pagination. The Unavailable Devices table uses the exact same column layout and row component as the Low Battery table (with the "% Remaining" → "Status" substitution).
+- **No animations**: Tab indicator does not animate/slide. Active state is applied instantly on click.
+- **Lazy loading**: `query_unavailable` is only called when the user first clicks the Unavailable Devices tab, not on panel startup.
+- **Dependencies**: New `vulcan-brownout/query_unavailable` backend WebSocket command (see Handoff Notes).
+- **Max Stories**: 3 (backend command + frontend tab switcher + QA).
+- **Min HA Version**: 2026.2.0 (unchanged).
+
+## Handoff Notes for FiremanDecko
+
+### Key Product Decisions
+
+1. **Two tabs, not two pages**: Tab switching is purely frontend state — no URL routing, no panel reload, no WebSocket reconnect. The active tab is a `String` property on the Lit element (`_activeTab`). Switching tabs triggers a conditional render of the table content.
+
+2. **Lazy loading for Unavailable tab**: Do not call `query_unavailable` on panel startup. Call it only when the user first clicks the "Unavailable Devices" tab. Cache the result in `this._unavailableEntities`. If the user switches tabs back and forth, do not re-fetch — use the cached data. This minimizes unnecessary backend load.
+
+3. **New backend command required — `vulcan-brownout/query_unavailable`**: This is the only backend change needed for Sprint 6. See API spec below.
+
+4. **Session persistence**: Active tab stored in `sessionStorage` (not `localStorage`). It is a within-session preference, not a cross-session preference. Key: `vulcan_brownout_active_tab`. Values: `"low-battery"` or `"unavailable"`.
+
+5. **Real-time updates**: `entity_changed` subscription events apply only to the Low Battery tab data. Unavailable entities are a point-in-time snapshot (no real-time push needed for the unavailable tab in this sprint).
+
+### New Backend Command: `vulcan-brownout/query_unavailable`
+
+Full API specification is in `architecture/api-contracts.md` (Sprint 6 section). Summary:
+
+- **Request**: `{ "type": "vulcan-brownout/query_unavailable" }` — no parameters
+- **Response**: `{ "entities": [...], "total": N }` — same entity shape as `query_entities`, with:
+  - `battery_level` omitted (or `null`)
+  - `state` field set to `"unavailable"` or `"unknown"`
+  - All other device metadata fields (`entity_id`, `device_name`, `manufacturer`, `model`, `area_name`, `last_changed`, `last_updated`) included
+- **Backend logic**: Query all `device_class=battery` entities where state is `unavailable` or `unknown`. Sort by `last_changed` descending.
+- **File to update**: `websocket_api.py` (add handler), `battery_monitor.py` (add `get_unavailable_entities()` method), `__init__.py` (register new command).
+
+### Frontend Implementation Checklist
+
+- [ ] Add `_activeTab` reactive property to `VulcanBrownoutPanel` (default: `"low-battery"`)
+- [ ] Add `_unavailableEntities` and `_unavailableTotal` properties (initially `null`)
+- [ ] Read `sessionStorage.getItem("vulcan_brownout_active_tab")` in `connectedCallback()` before first data fetch
+- [ ] Render tab bar below header: two `<button role="tab">` elements in a `<div role="tablist">`
+- [ ] Conditional render: if `_activeTab === "low-battery"` render existing entity table; else render unavailable table
+- [ ] On Unavailable tab click: if `_unavailableEntities === null`, call `query_unavailable`; else render from cache
+- [ ] Unavailable table uses same row component as Low Battery table with "Status" column substitution
+- [ ] "Status" column renders a grey pill badge: `<span class="status-badge status-unavailable">unavailable</span>`
+- [ ] Add CSS for `.tab-bar`, `.tab`, `.tab.active` (bottom border indicator), `.status-badge`
+- [ ] Empty state for Unavailable tab: different icon (ok/checkmark) and copy from Low Battery empty state
+- [ ] Add ARIA attributes: `role="tablist"`, `role="tab"`, `aria-selected`, `role="tabpanel"`, `aria-labelledby`
+- [ ] Save `sessionStorage.setItem("vulcan_brownout_active_tab", tab)` on every tab switch
+
+### UX Constraints (Non-Negotiable)
+
+- No tab slide animation — active indicator is immediate
+- Unavailable tab is lazy-loaded (not fetched on startup)
+- Both tabs use the exact same table row component — do not create a separate component for unavailable rows
+- "Status" column in unavailable tab replaces "% Remaining" — it is the last column in the same position
+- Empty state messages are different between the two tabs (do not reuse the same message)
+
+### Areas with Technical Flexibility
+
+- Whether to use `sessionStorage` key as a constant or inline string
+- Whether `_unavailableEntities` is initialized to `null` or `[]` (either works for the lazy-load guard)
+- CSS class naming for the tab bar and active indicator, provided the visual spec is met
+- Whether the "Status" pill badge is implemented as a `<span>` with class or a separate sub-component
+
+## Sprint 6 Design Artifacts
+
+- **Wireframes**: See wireframes.md — Wireframes 17–19 for Sprint 6 tab layout
+- **Interactions**: See interactions.md — Interaction 14 for tab switching behavior
+- **API Contract**: See architecture/api-contracts.md — Sprint 6 section for `query_unavailable`
+- **ADR**: See architecture/adrs/ADR-016-tab-navigation.md

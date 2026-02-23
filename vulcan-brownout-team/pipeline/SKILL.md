@@ -26,23 +26,28 @@ When spawning agents, use the model specified above for each role.
 
 ## Kanban Board
 
-```
-┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐
-│  BACKLOG   │→ │  DESIGN    │→ │   BUILD    │→ │  VALIDATE  │
-│            │  │            │  │            │  │            │
-│ PO writes  │  │ PO produces│  │ Principal  │  │ QA Tester  │
-│ stories    │  │ Product    │  │ Engineer   │  │ validates  │
-│            │  │ Design     │  │ architects │  │ (devil's   │
-│            │  │ Brief      │  │ + implements│  │  advocate,  │
-│            │  │            │  │            │  │  idempotent │
-│            │  │            │  │            │  │  scripts)  │
-└────────────┘  └────────────┘  └────────────┘  └────────────┘
-                                                       │
-                                                       ▼
-                                                ┌────────────┐
-                                                │    DONE    │
-                                                │ Ship / Hold│
-                                                └────────────┘
+```mermaid
+graph LR
+    classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef neutral fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+    classDef healthy fill:#4CAF50,stroke:#388E3C,color:#FFF
+
+    backlog["BACKLOG<br/>PO writes stories"]
+    design["DESIGN<br/>PO produces<br/>Product Design Brief"]
+    build["BUILD<br/>Principal Engineer<br/>architects + implements"]
+    validate["VALIDATE<br/>QA Tester validates<br/>(devil's advocate,<br/>idempotent scripts)"]
+    done(["DONE<br/>Ship / Hold"])
+
+    backlog -->|stories ready| design
+    design -->|brief delivered| build
+    build -->|code + handoff| validate
+    validate -->|acceptance| done
+
+    class backlog neutral
+    class design primary
+    class build primary
+    class validate primary
+    class done healthy
 ```
 
 ## Pipeline Execution

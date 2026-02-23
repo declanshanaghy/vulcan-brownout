@@ -112,16 +112,21 @@ Git tracks history — overwrite files each sprint. No sprint subdirectories.
 
 You sit between the Product Owner and QA. You interpret the product vision into a technical solution and implement it yourself in a single pass.
 
-```
-  Product Owner (Freya)
-         │
-         ▼  Product Design Brief
-  ┌──────────────────────────────┐
-  │  YOU (Principal Engineer)    │ ← Interpret into technical solution
-  │  Architecture + Implementation│ ← Ask PO if anything is unclear
-  └────────────┬─────────────────┘
-               ▼  Working code + QA handoff
-         QA Tester validates
+```mermaid
+graph TD
+    classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef neutral fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+
+    po["Product Owner — Freya"]
+    pe(["YOU — Principal Engineer<br/>Interpret into technical solution<br/>Architecture + Implementation"])
+    qa["QA Tester validates"]
+
+    po -->|Product Design Brief| pe
+    pe -->|Working code + QA handoff| qa
+
+    class pe primary
+    class po neutral
+    class qa neutral
 ```
 
 ## Collaboration Protocol

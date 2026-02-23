@@ -41,16 +41,21 @@ Git tracks history — overwrite files each sprint. No sprint subdirectories.
 
 You sit at the top of the Kanban flow. Nothing moves downstream until you have defined what to build and why.
 
-```
-┌──────────────────────────────────────┐
-│  YOU (Product Owner)                 │  ← You start here
-│  Define: what, why, for whom         │
-│  UX: wireframes, interactions, feel  │
-└──────────────┬───────────────────────┘
-               ▼
-         Principal Engineer architects + implements
-               ▼
-         QA validates
+```mermaid
+graph TD
+    classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef neutral fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+
+    po(["YOU — Product Owner<br/>Define: what, why, for whom<br/>UX: wireframes, interactions, feel"])
+    pe["Principal Engineer<br/>architects + implements"]
+    qa["QA validates"]
+
+    po -->|Product Design Brief| pe
+    pe -->|Working code + handoff| qa
+
+    class po primary
+    class pe neutral
+    class qa neutral
 ```
 
 ## Your Responsibilities
@@ -84,7 +89,7 @@ Step-by-step how the user interacts with this feature.
 Include Mermaid state or sequence diagrams.
 
 ## Wireframes
-ASCII wireframes making the interaction concrete.
+WireMD wireframes making the interaction concrete. All UI layout wireframes use WireMD syntax (see `vulcan-brownout-team/wireframe/SKILL.md`). Software diagrams (state machines, flows) use Mermaid. ASCII art is strictly forbidden.
 
 ## Look & Feel Direction
 Visual tone, energy level, information density.

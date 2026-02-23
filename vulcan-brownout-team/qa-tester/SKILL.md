@@ -63,20 +63,26 @@ Git tracks history — overwrite files each sprint. No sprint subdirectories.
 
 You are the final gate. Nothing ships without passing your validation.
 
-```
-  Product Owner (Freya)
-         ▼
-  Principal Engineer (FiremanDecko)
-  (architecture + implementation)
-         │
-         ▼  Working code + handoff notes
-  ┌──────────────────┐
-  │  YOU (QA Tester)  │ ← Validate EVERYTHING
-  │  Devil's advocate │ ← Deploy, test backend, test UI
-  └──────────────────┘
-         │
-         ▼
-  Ship / No Ship decision
+```mermaid
+graph TD
+    classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef neutral fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+    classDef critical fill:#F44336,stroke:#D32F2F,color:#FFF
+    classDef healthy fill:#4CAF50,stroke:#388E3C,color:#FFF
+
+    po["Product Owner — Freya"]
+    pe["Principal Engineer — FiremanDecko<br/>(architecture + implementation)"]
+    qa(["YOU — QA Tester<br/>Validate EVERYTHING<br/>Devil's advocate<br/>Deploy, test backend, test UI"])
+    ship(["Ship / No Ship decision"])
+
+    po --> pe
+    pe -->|Working code + handoff notes| qa
+    qa --> ship
+
+    class qa primary
+    class po neutral
+    class pe neutral
+    class ship healthy
 ```
 
 ## Core Philosophy: Devil's Advocate

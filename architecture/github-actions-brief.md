@@ -114,13 +114,28 @@ Dek has decided: **Component tests are fast and automated (GH Actions). Integrat
 - Repeatable — exact same mock behavior every time
 
 **Infrastructure**:
-```
-GitHub Actions (ubuntu-latest)
-    ↓
-Docker Compose (2 services):
-    ├─ Mock HA: Python/Flask WebSocket server
-    ├─ Custom Integration: Python asyncio process
-    └─ Test Runner: pytest with mock control
+
+```mermaid
+graph TD
+    classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef neutral fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+
+    gha["GitHub Actions (ubuntu-latest)"]
+    compose["Docker Compose"]
+    mockHA["Mock HA<br/>Python/Flask WebSocket server"]
+    integration["Custom Integration<br/>Python asyncio process"]
+    tests["Test Runner<br/>pytest with mock control"]
+
+    gha --> compose
+    compose --> mockHA
+    compose --> integration
+    compose --> tests
+
+    class gha primary
+    class compose neutral
+    class mockHA neutral
+    class integration neutral
+    class tests neutral
 ```
 
 ### Integration Test Mode (Manual / Scheduled)
@@ -166,15 +181,31 @@ Docker Compose (2 services):
 - Runs only when needed (manual + nightly, not on every PR)
 
 **Infrastructure**:
-```
-Developer/QA Machine (or Dek's CI runner)
-    ↓
-.env file (never in GitHub)
-    ↓
-Real HA Instance (homeassistant.lan)
-    ├─ Custom integration deployed via SSH
-    ├─ Real battery entities
-    └─ Real WebSocket & REST API
+
+```mermaid
+graph TD
+    classDef primary fill:#03A9F4,stroke:#0288D1,color:#FFF
+    classDef neutral fill:#F5F5F5,stroke:#E0E0E0,color:#212121
+
+    devMachine["Developer/QA Machine<br/>(or Dek's CI runner)"]
+    envFile["`.env` file<br/>(never in GitHub)"]
+    ha["Real HA Instance<br/>(homeassistant.lan)"]
+    ssh["Custom integration<br/>deployed via SSH"]
+    entities["Real battery entities"]
+    api["Real WebSocket & REST API"]
+
+    devMachine --> envFile
+    envFile --> ha
+    ha --> ssh
+    ha --> entities
+    ha --> api
+
+    class ha primary
+    class devMachine neutral
+    class envFile neutral
+    class ssh neutral
+    class entities neutral
+    class api neutral
 ```
 
 ---
