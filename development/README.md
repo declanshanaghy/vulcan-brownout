@@ -169,6 +169,17 @@ ha_url = config['ha']['url']
 - The Ansible playbook auto-creates it from `.example`
 - If missing, manually create: `cp development/environments/docker/vulcan-brownout-secrets.yaml.example development/environments/docker/vulcan-brownout-secrets.yaml`
 
+## HA Config: Seed vs Runtime
+
+`development/environments/docker/config/` is **not tracked by git**. It is seeded once by the Ansible playbook from `development/ansible/seed/` and then owned by HA at runtime.
+
+- `development/ansible/seed/` — committed, canonical initial state (`.storage/`, `home-assistant_v2.db`, `configuration.yaml`, blueprints)
+- `development/environments/docker/config/` — runtime directory, git-ignored, HA mutates it freely
+
+The Ansible playbook copies `seed/` → `config/` only if `config/configuration.yaml` does not already exist. A running HA instance is never overwritten by re-running the playbook.
+
+To update the seed (e.g. after intentional HA config changes you want to preserve for other developers), manually copy the relevant files from `config/` back into `seed/` and commit them.
+
 ## Next Steps
 
 Once Docker environment is working:

@@ -36,3 +36,6 @@ tmp/
 # OS
 .DS_Store
 Thumbs.db
+
+# Docker HA runtime config — seeded by ansible, mutated at runtime, never committed
+development/environments/docker/config/

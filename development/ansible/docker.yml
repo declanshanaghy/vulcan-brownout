@@ -28,6 +28,8 @@
     env_type: "docker"
     env_dir: "{{ repo_root }}/development/environments/{{ env_type }}"
     venv_path: "{{ repo_root }}/development/venv"
+    config_dir: "{{ env_dir }}/config"
+    seed_dir: "{{ repo_root }}/development/ansible/seed"
 
   pre_tasks:
     - name: Verify macOS
@@ -115,6 +117,31 @@
         dest: "{{ env_dir }}/vulcan-brownout-secrets.yaml"
         mode: '0600'
       when: not secrets_stat.stat.exists
+
+    # ─────────────────────────────────────────────────────────────────
+    # HA Config Seed (first-time only)
+    # Copies development/ansible/seed/ → config/ if config has not
+    # been seeded yet. Once seeded, HA mutates config/ freely and
+    # those changes are intentionally not tracked by git.
+    # ─────────────────────────────────────────────────────────────────
+    - name: Check if HA config has already been seeded
+      stat:
+        path: "{{ config_dir }}/configuration.yaml"
+      register: ha_config_stat
+
+    - name: Create HA config directory
+      file:
+        path: "{{ config_dir }}"
+        state: directory
+        mode: '0755'
+      when: not ha_config_stat.stat.exists
+
+    - name: Seed HA config from seed directory (first-time only)
+      copy:
+        src: "{{ seed_dir }}/"
+        dest: "{{ config_dir }}/"
+        force: false
+      when: not ha_config_stat.stat.exists
 
     - name: Display next steps
       debug:
