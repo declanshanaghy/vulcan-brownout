@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
-"""Extract battery entities from a Home Assistant server.
+"""Dump all entity states from a Home Assistant server.
 
 Reads HA_URL, HA_PORT, and HA_TOKEN from .env at the project root.
 CLI flags override .env values.
 
-Output format matches template.yaml — copy the output to
-  development/environments/docker/config/ha-entities.yaml
-then switch configuration.yaml to:
-  template: !include ha-entities.yaml
+Output: tmp/ha-entities.yaml  (raw JSON from GET /api/states)
 
 Usage:
     python development/scripts/extract-ha-entities.py
     python development/scripts/extract-ha-entities.py -u http://localhost -p 8123 -t TOKEN
-    python development/scripts/extract-ha-entities.py --all   # all entities, not just battery
-    python development/scripts/extract-ha-entities.py -o development/environments/docker/config/ha-entities.yaml
+    python development/scripts/extract-ha-entities.py -o /path/to/output.yaml
 """
 
 from __future__ import annotations
@@ -23,12 +19,8 @@ import json
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
-
-# ── .env loader ───────────────────────────────────────────────────────────────
 
 def load_dotenv(path: Path) -> dict[str, str]:
     env: dict[str, str] = {}
@@ -44,11 +36,9 @@ def load_dotenv(path: Path) -> dict[str, str]:
     return env
 
 
-# ── CLI ───────────────────────────────────────────────────────────────────────
-
 def build_parser(env: dict[str, str]) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Extract battery entities from HA as template sensor YAML.",
+        description="Dump all entity states from HA as raw JSON.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument("-u", "--ha-url",
@@ -63,61 +53,9 @@ def build_parser(env: dict[str, str]) -> argparse.ArgumentParser:
                    help="HA long-lived access token")
     p.add_argument("-o", "--output",
                    default="tmp/ha-entities.yaml",
-                   help="Output file (copy to docker/config/ to use with !include)")
-    p.add_argument("--all",
-                   action="store_true",
-                   help="Include all entity states, not just device_class=battery")
+                   help="Output file path")
     return p
 
-
-# ── HA REST ───────────────────────────────────────────────────────────────────
-
-def api_get(url: str, token: str) -> Any:
-    req = urllib.request.Request(
-        url,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        print(f"HTTP {e.code}: {url}", file=sys.stderr)
-        sys.exit(1)
-    except urllib.error.URLError as e:
-        print(f"Cannot connect to {url}: {e.reason}", file=sys.stderr)
-        sys.exit(1)
-
-
-# ── YAML formatting ───────────────────────────────────────────────────────────
-
-def slugify(text: str) -> str:
-    return text.lower().replace(" ", "_").replace("-", "_").replace(".", "_")
-
-
-def sort_key(state: dict[str, Any]) -> float:
-    try:
-        return float(state["state"])
-    except (ValueError, KeyError):
-        return float("inf")
-
-
-def entity_to_yaml(state: dict[str, Any]) -> list[str]:
-    attrs = state.get("attributes", {})
-    name = attrs.get("friendly_name", state["entity_id"])
-    value = state["state"]
-    unit = attrs.get("unit_of_measurement", "%")
-    device_class = attrs.get("device_class", "battery")
-    unique_id = f"extracted_{slugify(state['entity_id'])}"
-    return [
-        f'    - name: "{name}"',
-        f"      unique_id: {unique_id}",
-        f'      state: "{value}"',
-        f"      device_class: {device_class}",
-        f'      unit_of_measurement: "{unit}"',
-    ]
-
-
-# ── main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     repo_root = Path(__file__).resolve().parents[2]
@@ -128,43 +66,29 @@ def main() -> None:
         print("ERROR: No HA token. Set HA_TOKEN in .env or pass --ha-token.", file=sys.stderr)
         sys.exit(1)
 
-    ha_url = args.ha_url.rstrip("/")
-    base = f"{ha_url}:{args.ha_port}"
+    base = f"{args.ha_url.rstrip('/')}:{args.ha_port}"
     print(f"Connecting to {base} …", file=sys.stderr)
 
-    states: list[dict[str, Any]] = api_get(f"{base}/api/states", args.ha_token)
-    print(f"Retrieved {len(states)} total entities.", file=sys.stderr)
+    req = urllib.request.Request(
+        f"{base}/api/states",
+        headers={"Authorization": f"Bearer {args.ha_token}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            states = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        print(f"HTTP {e.code}: {base}/api/states", file=sys.stderr)
+        sys.exit(1)
+    except urllib.error.URLError as e:
+        print(f"Cannot connect to {base}: {e.reason}", file=sys.stderr)
+        sys.exit(1)
 
-    targets = states if args.all else [
-        s for s in states
-        if s.get("attributes", {}).get("device_class") == "battery"
-    ]
-    targets.sort(key=sort_key)
-    print(f"Writing {len(targets)} entities.", file=sys.stderr)
-
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    lines: list[str] = [
-        f"# ha-entities.yaml — battery entities extracted from {ha_url}:{args.ha_port}",
-        f"# Generated: {now}  Entities: {len(targets)}",
-        "#",
-        "# Include from configuration.yaml:",
-        "#   template: !include ha-entities.yaml",
-        "",
-        "- sensor:",
-    ]
-
-    for i, state in enumerate(targets):
-        lines.extend(entity_to_yaml(state))
-        if i < len(targets) - 1:
-            lines.append("")
+    print(f"Retrieved {len(states)} entities.", file=sys.stderr)
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text("\n".join(lines) + "\n")
+    out_path.write_text(json.dumps(states, indent=2) + "\n")
     print(f"Written: {out_path}", file=sys.stderr)
-    print(f"\nTo use in Docker environment:", file=sys.stderr)
-    print(f"  cp {out_path} development/environments/docker/config/ha-entities.yaml", file=sys.stderr)
-    print(f"  # then set in configuration.yaml:  template: !include ha-entities.yaml", file=sys.stderr)
 
 
 if __name__ == "__main__":
