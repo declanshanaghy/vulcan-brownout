@@ -1,0 +1,5 @@
+# Vulcan Brownout Development Environment Requirements
+# Python dependencies for macOS development
+
+# Configuration & File Handling
+pyyaml>=6.0.1

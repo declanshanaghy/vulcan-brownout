@@ -102,8 +102,60 @@ Two commands under `vulcan-brownout/*` namespace. See `architecture/api-contract
 - Mock HA server in Docker provides pre-provisioned test entities
 - E2E tests authenticate via HA long-lived token in `.env`
 
-### Configuration
-- `.env` contains secrets (HA token, SSH keys) — **never commit**. Use `.env.example` as template.
+### Configuration & Environment Setup (macOS)
+
+**Supported: macOS only** (Sonoma or later)
+
+#### Prerequisites
+- **Docker Desktop** — https://www.docker.com/products/docker-desktop
+- **Homebrew** — https://brew.sh
+- **Ansible** — `brew install ansible`
+
+#### Initial Setup
+Run the Ansible playbook once to set up your development environment:
+
+```bash
+ansible-playbook development/ansible/docker.yml
+```
+
+This automatically:
+- Installs Python 3.12 via Homebrew
+- Verifies Docker Desktop is installed
+- Creates isolated venv at `development/venv/`
+- Installs Python dependencies (pyyaml) from `development/requirements.txt`
+- Initializes configuration from templates
+
+#### Configuration Files (YAML)
+Each environment has config files in `development/environments/{env}/`:
+- `vulcan-brownout-config.yaml` — Main config (committed)
+- `vulcan-brownout-secrets.yaml.example` — Template (committed)
+- `vulcan-brownout-secrets.yaml` — Secrets (auto-created, in .gitignore)
+
+#### Setting Up Secrets
+1. After running the Ansible playbook, start Docker: `./development/environments/docker/up.sh`
+2. Log in at http://localhost:8123 (admin / sprocket)
+3. Get long-lived token: Profile → Security → Long-Lived Access Tokens
+4. Update `development/environments/docker/vulcan-brownout-secrets.yaml` with your token
+
+#### Using Configuration in Code
+Set PYTHONPATH before running Python:
+
+```bash
+export PYTHONPATH=development/scripts
+python your_script.py
+```
+
+Then import and use:
+
+```python
+from config_loader import ConfigLoader
+
+loader = ConfigLoader('docker')
+config = loader.load()
+token = config['ha']['token']
+```
+
+#### Linting
 - Python lint: flake8 with `max-line-length=127`, `max-complexity=10`
 
 ### Team Workflow

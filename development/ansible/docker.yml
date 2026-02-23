@@ -1,0 +1,155 @@
+---
+# Ansible Playbook: Setup Docker Development Environment for Vulcan Brownout
+#
+# macOS only - uses Homebrew for package management
+#
+# Prerequisites:
+#   - macOS (Sonoma or later)
+#   - Docker Desktop installed (https://www.docker.com/products/docker-desktop)
+#   - Homebrew installed (https://brew.sh)
+#   - Ansible installed: brew install ansible
+#
+# Usage:
+#   ansible-playbook development/ansible/docker.yml
+#
+# This playbook:
+#   1. Installs system dependencies via Homebrew (Python 3.12)
+#   2. Verifies Docker Desktop is installed
+#   3. Creates isolated Python venv
+#   4. Installs Python dependencies from development/requirements.txt
+#   5. Initializes environment configuration
+#   6. Validates setup
+
+- name: Setup Vulcan Brownout Docker Environment (macOS)
+  hosts: localhost
+  gather_facts: yes
+  vars:
+    repo_root: "{{ playbook_dir | dirname | dirname }}"
+    env_type: "docker"
+    env_dir: "{{ repo_root }}/development/environments/{{ env_type }}"
+    venv_path: "{{ repo_root }}/development/venv"
+
+  pre_tasks:
+    - name: Verify macOS
+      assert:
+        that:
+          - ansible_os_family == 'Darwin'
+        fail_msg: "This playbook only supports macOS. Current OS: {{ ansible_os_family }}"
+
+    - name: Check Docker Desktop is installed
+      stat:
+        path: /Applications/Docker.app
+      register: docker_app_stat
+      failed_when: not docker_app_stat.stat.exists
+      changed_when: false
+
+    - name: Check if environment configuration exists
+      stat:
+        path: "{{ env_dir }}/vulcan-brownout-config.yaml"
+      register: config_stat
+
+    - name: Fail if configuration is missing
+      fail:
+        msg: |
+          Configuration not found: {{ env_dir }}/vulcan-brownout-config.yaml
+          The environment directory structure is incomplete.
+      when: not config_stat.stat.exists
+
+  tasks:
+    # ─────────────────────────────────────────────────────────────────
+    # Homebrew System Dependencies
+    # ─────────────────────────────────────────────────────────────────
+    - name: Ensure Homebrew is installed
+      stat:
+        path: /opt/homebrew/bin/brew
+      register: homebrew_stat
+      failed_when: not homebrew_stat.stat.exists
+      changed_when: false
+
+    - name: Install Python 3 via Homebrew
+      homebrew:
+        name: python@3.12
+        state: present
+
+    - name: Ensure Docker Desktop is running
+      shell: |
+        if ! pgrep -q Docker; then
+          open -a Docker
+          sleep 10
+          until pgrep -q Docker; do
+            sleep 2
+          done
+        fi
+      changed_when: false
+
+    # ─────────────────────────────────────────────────────────────────
+    # Python Virtual Environment
+    # ─────────────────────────────────────────────────────────────────
+    - name: Create Python virtual environment
+      command: /opt/homebrew/bin/python3.12 -m venv {{ venv_path }}
+      args:
+        creates: "{{ venv_path }}/bin/python"
+
+    - name: Upgrade pip in venv
+      shell: "{{ venv_path }}/bin/python -m pip install --upgrade pip"
+      changed_when: false
+
+    # ─────────────────────────────────────────────────────────────────
+    # Python Dependencies
+    # ─────────────────────────────────────────────────────────────────
+    - name: Install Python dependencies from requirements.txt
+      shell: "{{ venv_path }}/bin/pip install -r {{ repo_root }}/development/requirements.txt"
+      changed_when: false
+
+    # ─────────────────────────────────────────────────────────────────
+    # Environment Configuration
+    # ─────────────────────────────────────────────────────────────────
+    - name: Check if secrets file exists
+      stat:
+        path: "{{ env_dir }}/vulcan-brownout-secrets.yaml"
+      register: secrets_stat
+
+    - name: Create secrets file from template
+      copy:
+        src: "{{ env_dir }}/vulcan-brownout-secrets.yaml.example"
+        dest: "{{ env_dir }}/vulcan-brownout-secrets.yaml"
+        mode: '0600'
+      when: not secrets_stat.stat.exists
+
+    - name: Display next steps
+      debug:
+        msg: |
+          ✓ Docker environment setup complete!
+
+          Next steps:
+          1. Edit environment secrets:
+             {{ env_dir }}/vulcan-brownout-secrets.yaml
+
+          2. Add your HA token:
+             - Start Docker: ./development/environments/docker/up.sh
+             - Log in at http://localhost:8123 (admin / sprocket)
+             - Get token from Profile → Security → Long-Lived Access Tokens
+             - Update vulcan-brownout-secrets.yaml with the token
+
+          3. Use the configured environment:
+             source {{ venv_path }}/bin/activate
+             python development/scripts/config_loader.py docker
+
+          Virtual Environment: {{ venv_path }}
+          Config: {{ env_dir }}/vulcan-brownout-config.yaml
+          Secrets: {{ env_dir }}/vulcan-brownout-secrets.yaml
+
+  post_tasks:
+    - name: Validate configuration can be loaded
+      command: |
+        {{ venv_path }}/bin/python \
+        -c "import sys; sys.path.insert(0, '{{ repo_root }}/development/scripts'); \
+            from config_loader import ConfigLoader; \
+            ConfigLoader('{{ env_type }}').load(); \
+            print('✓ Configuration loaded successfully')"
+      register: validation_result
+      changed_when: false
+
+    - name: Show validation result
+      debug:
+        msg: "{{ validation_result.stdout_lines }}"

@@ -1,0 +1,29 @@
+# Vulcan Brownout Docker Environment Configuration
+#
+# This file contains the configuration for the local Docker environment.
+# Secrets (tokens, passwords) are stored separately in vulcan-config.secrets.yaml
+# which is NOT committed to the repository.
+#
+# To set up this environment:
+# 1. Copy vulcan-config.secrets.yaml.example to vulcan-config.secrets.yaml
+# 2. Fill in your actual HA token and password
+# 3. Run: ./development/environments/docker/up.sh
+
+# Home Assistant Connection
+ha:
+  url: http://localhost
+  port: 8123
+  username: sprocket
+  # password and token are in vulcan-config.secrets.yaml
+
+# SSH / Deployment Credentials
+# Note: Docker environment does NOT require SSH — integration is bind-mounted
+ssh:
+  host: homeassistant.lan
+  port: 2222
+  user: root
+  key_path: .secrets/vulcan_deploy
+  ha_config_path: /root/homeassistant
+
+# Load secrets from separate file (keep out of version control)
+secrets_file: vulcan-config.secrets.yaml

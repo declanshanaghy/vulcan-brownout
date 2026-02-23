@@ -5,6 +5,10 @@
 !.env.example
 .secrets/
 
+# Vulcan Brownout YAML Configuration Secrets
+development/environments/**/vulcan-brownout-secrets.yaml
+!development/environments/**/vulcan-brownout-secrets.yaml.example
+
 # Python
 __pycache__/
 *.py[cod]
@@ -12,6 +16,7 @@ __pycache__/
 dist/
 build/
 .venv/
+development/venv/
 
 # Node/Frontend
 node_modules/

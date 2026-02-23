@@ -16,15 +16,35 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-ENV_FILE="$REPO_ROOT/.env"
+VENV_PATH="${REPO_ROOT}/development/venv"
 
 TIMEOUT=90
 
-# Load .env if present (provides HA_URL, HA_TOKEN, HA_USERNAME, HA_PASSWORD)
-# shellcheck source=/dev/null
-[ -f "$ENV_FILE" ] && source "$ENV_FILE"
+# Load YAML configuration from development/environments/docker/
+# Note: Environment must be set up first with: ansible-playbook development/ansible/docker.yml
+if [[ ! -d "$VENV_PATH" ]]; then
+    echo "ERROR: Development environment not initialized."
+    echo "Run: ansible-playbook development/ansible/docker.yml"
+    exit 1
+fi
 
-HA_URL="${HA_URL:-http://localhost:8123}"
+# Activate venv and load configuration
+export PYTHONPATH="$REPO_ROOT/development/scripts:${PYTHONPATH:-}"
+eval "$("$VENV_PATH/bin/python" << 'PYTHON_EOF'
+import sys
+from config_loader import ConfigLoader
+
+try:
+    loader = ConfigLoader('docker')
+    env_vars = loader.get_env_vars()
+    for key, value in env_vars.items():
+        escaped_value = value.replace("'", "'\\''")
+        print(f"export {key}='{escaped_value}'")
+except Exception as e:
+    print(f"ERROR: Failed to load configuration: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_EOF
+)"
 
 # ── Colours ───────────────────────────────────────────────────────────────────
 GREEN='\033[0;32m'
@@ -46,11 +66,11 @@ info "Container started."
 # ── Wait for HA to be ready ───────────────────────────────────────────────────
 # Use /api/onboarding — always returns 200 without authentication
 section "Waiting for Home Assistant to be ready (up to ${TIMEOUT}s)"
-info "HA_URL=${HA_URL}:${HA_PORT}"
+info "HA_URL=${HA_URL}"
 info "HA_USERNAME=${HA_USERNAME}"
 
 elapsed=0
-until curl -sf "${HA_URL}:${HA_PORT}" >/dev/null 2>&1; do
+until curl -sf "${HA_URL}" >/dev/null 2>&1; do
   if [ "$elapsed" -ge "$TIMEOUT" ]; then
     error "HA did not become ready within ${TIMEOUT}s."
     error "Check logs with: docker logs vulcan-brownout-ha"
@@ -70,12 +90,14 @@ echo -e "${GREEN}  Local Docker environment is ready!${RESET}"
 echo -e "${BOLD}============================================================${RESET}"
 echo ""
 echo -e "  ${BOLD}HA UI:${RESET}    ${HA_URL}"
-echo -e "  ${BOLD}Login:${RESET}    see .env for credentials"
+echo -e "  ${BOLD}Config:${RESET}    development/environments/docker/vulcan-brownout-secrets.yaml"
 echo ""
 echo -e "  ${BOLD}Next steps:${RESET}"
-echo -e "  1. Open ${HA_URL} and log in"
-echo -e "  2. Verify vulcan-brownout panel is visible in the sidebar"
-echo -e "  3. Run E2E tests:"
+echo -e "  1. Open ${HA_URL} and log in (admin / sprocket)"
+echo -e "  2. Get long-lived token from Profile → Security"
+echo -e "  3. Update vulcan-brownout-secrets.yaml with your token"
+echo -e "  4. Verify vulcan-brownout panel is visible in the sidebar"
+echo -e "  5. Run E2E tests:"
 echo -e "     ${YELLOW}HA_URL=${HA_URL} ./quality/scripts/run-all-tests.sh --docker${RESET}"
 echo ""
 echo -e "  ${BOLD}After editing Python source:${RESET}"

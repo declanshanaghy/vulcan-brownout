@@ -1,0 +1,29 @@
+# Vulcan Brownout Staging Environment Configuration
+#
+# This file contains the configuration for the staging environment.
+# Secrets (tokens, passwords) are stored separately in vulcan-config.secrets.yaml
+# which is NOT committed to the repository.
+#
+# To set up this environment:
+# 1. Copy vulcan-config.secrets.yaml.example to vulcan-config.secrets.yaml
+# 2. Fill in your actual HA staging instance credentials
+# 3. Use this config when deploying to staging
+
+# Home Assistant Connection
+ha:
+  url: http://homeassistant.lan
+  port: 8123
+  username: admin
+  # password and token are in vulcan-config.secrets.yaml
+
+# SSH / Deployment Credentials
+# These are used for deploying the integration to the staging HA instance
+ssh:
+  host: homeassistant.lan
+  port: 22
+  user: root
+  key_path: .secrets/vulcan_deploy
+  ha_config_path: /root/homeassistant
+
+# Load secrets from separate file (keep out of version control)
+secrets_file: vulcan-config.secrets.yaml
