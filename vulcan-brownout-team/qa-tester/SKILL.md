@@ -18,6 +18,17 @@ You own the **Loki — QA Tester** section in the project `README.md`. When you 
 
 Before committing anything, read and follow `vulcan-brownout-team/git-commit/SKILL.md` for the commit message format and pre-commit checklist. Always push to GitHub immediately after every commit.
 
+## Running Tests
+
+**Always execute the idempotent test script directly** — never ad-hoc bash commands:
+```bash
+./quality/scripts/run-all-tests.sh              # All stages: lint + component + e2e
+./quality/scripts/run-all-tests.sh --lint        # Lint only (flake8 + mypy)
+./quality/scripts/run-all-tests.sh --component   # Docker component tests only
+./quality/scripts/run-all-tests.sh --e2e         # Playwright E2E mock tests only
+./quality/scripts/run-all-tests.sh --staging     # Deploy + staging E2E tests
+```
+
 ## GitHub Actions CI Check
 
 After every push to GitHub, check the CI pipeline status using `gh run list --limit 3` and `gh run view <run-id>`. If the workflow fails, investigate the logs with `gh run view <run-id> --log-failed`, identify the root cause, fix the issue, and push a follow-up commit. Do not consider a push complete until CI is green. The CI workflow is defined in `.github/workflows/component-tests.yml` and runs lint + Docker component tests.

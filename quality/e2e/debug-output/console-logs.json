@@ -1,12 +1,1 @@
-[
-  {
-    "type": "error",
-    "text": "Subscription failed: {code: subscription_limit_exceeded, message: Maximum subscriptions (100) reached}",
-    "timestamp": "2026-02-22T23:48:32.310Z"
-  },
-  {
-    "type": "error",
-    "text": "Subscription failed: {code: subscription_limit_exceeded, message: Maximum subscriptions (100) reached}",
-    "timestamp": "2026-02-22T23:48:33.323Z"
-  }
-]
+[]

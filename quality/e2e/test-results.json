@@ -11,7 +11,7 @@
     "grepInvert": null,
     "maxFailures": 0,
     "metadata": {
-      "actualWorkers": 1
+      "actualWorkers": 4
     },
     "preserveOutput": "always",
     "projects": [
@@ -20,7 +20,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 1
+          "actualWorkers": 4
         },
         "id": "chromium",
         "name": "chromium",
@@ -36,7 +36,7 @@
         "repeatEach": 1,
         "retries": 1,
         "metadata": {
-          "actualWorkers": 1
+          "actualWorkers": 4
         },
         "id": "staging",
         "name": "staging",
@@ -110,7 +110,7 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "failed",
-                      "duration": 3683,
+                      "duration": 4307,
                       "error": {
                         "message": "Error: Could not find ha-formfield with label=\"Dark\" on profile page",
                         "stack": "Error: Could not find ha-formfield with label=\"Dark\" on profile page\n    at setThemeViaProfile (/Users/declanshanaghy/src/github.com/declanshanaghy/vulcan-brownout/quality/e2e/tests/dark-mode.spec.ts:70:11)\n    at /Users/declanshanaghy/src/github.com/declanshanaghy/vulcan-brownout/quality/e2e/tests/dark-mode.spec.ts:91:5",
@@ -134,7 +134,7 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-23T00:45:41.613Z",
+                      "startTime": "2026-02-23T02:11:06.561Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -160,10 +160,10 @@
                       }
                     },
                     {
-                      "workerIndex": 1,
+                      "workerIndex": 4,
                       "parallelIndex": 0,
                       "status": "failed",
-                      "duration": 3562,
+                      "duration": 4957,
                       "error": {
                         "message": "Error: Could not find ha-formfield with label=\"Dark\" on profile page",
                         "stack": "Error: Could not find ha-formfield with label=\"Dark\" on profile page\n    at setThemeViaProfile (/Users/declanshanaghy/src/github.com/declanshanaghy/vulcan-brownout/quality/e2e/tests/dark-mode.spec.ts:70:11)\n    at /Users/declanshanaghy/src/github.com/declanshanaghy/vulcan-brownout/quality/e2e/tests/dark-mode.spec.ts:91:5",
@@ -187,7 +187,7 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 1,
-                      "startTime": "2026-02-23T00:45:47.010Z",
+                      "startTime": "2026-02-23T02:11:15.432Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -229,13 +229,529 @@
           ]
         }
       ]
+    },
+    {
+      "title": "debug-panel.spec.ts",
+      "file": "debug-panel.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Debug: vulcan-brownout-panel rendering",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "staging",
+              "projectName": "staging",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 4338,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "\n=== Starting Debug Test ===\n"
+                    },
+                    {
+                      "text": "Target URL: http://homeassistant.lan:8123/vulcan-brownout\n"
+                    },
+                    {
+                      "text": "Step 1: Navigating to panel...\n"
+                    },
+                    {
+                      "text": "Current URL: http://homeassistant.lan:8123/vulcan-brownout\n"
+                    },
+                    {
+                      "text": "Step 2: Already authenticated\n"
+                    },
+                    {
+                      "text": "Step 3: Capturing page HTML...\n"
+                    },
+                    {
+                      "text": "HTML saved (37500 bytes)\n"
+                    },
+                    {
+                      "text": "Step 4: Checking for DOM elements...\n"
+                    },
+                    {
+                      "text": "HA shell elements: 1\n"
+                    },
+                    {
+                      "text": "vulcan-brownout-panel elements: 1\n"
+                    },
+                    {
+                      "text": "Step 5: Analyzing page structure...\n"
+                    },
+                    {
+                      "text": "\n=== Page Structure ===\n"
+                    },
+                    {
+                      "text": "{\n  \"documentTitle\": \"Battery Monitoring – Home Assistant\",\n  \"bodyClass\": \"\",\n  \"htmlLang\": \"en\",\n  \"hasHomeAssistant\": true,\n  \"hasPanelElement\": false,\n  \"rootElements\": [\n    {\n      \"tag\": \"html\",\n      \"class\": \"\"\n    }\n  ],\n  \"foundCustomElements\": [\n    \"home-assistant\",\n    \"action-handler\"\n  ],\n  \"undefinedElements\": []\n}\n"
+                    },
+                    {
+                      "text": "=== End Structure ===\n\n"
+                    },
+                    {
+                      "text": "Step 6: Taking screenshot...\n"
+                    },
+                    {
+                      "text": "Screenshot saved\n"
+                    },
+                    {
+                      "text": "\n=== HTML snippet around panel ===\n"
+                    },
+                    {
+                      "text": " fixed; width: 50px; height: 50px; transform: translate(-50%, -50%) scale(0); pointer-events: none; z-index: 999; background: var(--primary-color); opacity: 0.2; border-radius: 50%; transition: transform 180ms ease-in-out;\"></action-handler><script async=\"\" type=\"module\" src=\"/vulcan_brownout_panel/vulcan-brownout-panel.js\"></script></body></html>\n"
+                    },
+                    {
+                      "text": "=== End snippet ===\n\n"
+                    },
+                    {
+                      "text": "Step 7: Saving diagnostic data...\n"
+                    },
+                    {
+                      "text": "\n=== SUMMARY ===\n"
+                    },
+                    {
+                      "text": "Console messages: 0\n"
+                    },
+                    {
+                      "text": "JS errors: 0\n"
+                    },
+                    {
+                      "text": "HA shell found: YES\n"
+                    },
+                    {
+                      "text": "Panel found: YES\n"
+                    },
+                    {
+                      "text": "HTML size: 37500 bytes\n"
+                    },
+                    {
+                      "text": "\nOutput files:\n"
+                    },
+                    {
+                      "text": "  - console-logs.json (2 bytes)\n"
+                    },
+                    {
+                      "text": "  - debug-screenshot.png (67697 bytes)\n"
+                    },
+                    {
+                      "text": "  - js-errors.json (2 bytes)\n"
+                    },
+                    {
+                      "text": "  - page-content.html (37502 bytes)\n"
+                    },
+                    {
+                      "text": "  - page-structure.json (335 bytes)\n"
+                    },
+                    {
+                      "text": "=== END SUMMARY ===\n\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-02-23T02:11:06.614Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "d972d666bb7b43186273-798252f8f4d3f40645b0",
+          "file": "debug-panel.spec.ts",
+          "line": 24,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "device-list.spec.ts",
+      "file": "device-list.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Vulcan Brownout - Device List",
+          "file": "device-list.spec.ts",
+          "line": 16,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should display devices with correct data",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "staging",
+                  "projectName": "staging",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 4380,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-23T02:11:06.573Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "206863d03f56a3c00e52-3f5eca2768eb533bce8b",
+              "file": "device-list.spec.ts",
+              "line": 17,
+              "column": 7
+            },
+            {
+              "title": "should display named devices in order",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "staging",
+                  "projectName": "staging",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 4392,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-23T02:11:06.601Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "206863d03f56a3c00e52-7a2e00c248ffcb43c6ab",
+              "file": "device-list.spec.ts",
+              "line": 38,
+              "column": 7
+            },
+            {
+              "title": "should display battery levels for all devices",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "staging",
+                  "projectName": "staging",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1868,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-23T02:11:12.430Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "206863d03f56a3c00e52-871c71c4ce142a44caf3",
+              "file": "device-list.spec.ts",
+              "line": 60,
+              "column": 7
+            },
+            {
+              "title": "should show critical status for all devices",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "staging",
+                  "projectName": "staging",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1964,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-23T02:11:12.462Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "206863d03f56a3c00e52-9e164e5152b8b5a8e7ea",
+              "file": "device-list.spec.ts",
+              "line": 80,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "panel-load.spec.ts",
+      "file": "panel-load.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Vulcan Brownout - Panel Loading",
+          "file": "panel-load.spec.ts",
+          "line": 16,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should load panel and verify DOM structure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "staging",
+                  "projectName": "staging",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 2291,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-23T02:11:12.482Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6a4b2a6dcfdb471c3c1c-185135834b975f011ef3",
+              "file": "panel-load.spec.ts",
+              "line": 17,
+              "column": 7
+            },
+            {
+              "title": "should display device list with correct count",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "staging",
+                  "projectName": "staging",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 3063,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-23T02:11:14.325Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6a4b2a6dcfdb471c3c1c-e2fcef4dd7c543a78db2",
+              "file": "panel-load.spec.ts",
+              "line": 31,
+              "column": 7
+            },
+            {
+              "title": "should render device items with name, status, and level",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "staging",
+                  "projectName": "staging",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 3512,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-23T02:11:14.459Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6a4b2a6dcfdb471c3c1c-ff72f488032e578f9c79",
+              "file": "panel-load.spec.ts",
+              "line": 49,
+              "column": 7
+            },
+            {
+              "title": "should show connection status badge",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "staging",
+                  "projectName": "staging",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 5146,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-23T02:11:14.790Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6a4b2a6dcfdb471c3c1c-b19e80ff01a006047096",
+              "file": "panel-load.spec.ts",
+              "line": 83,
+              "column": 7
+            },
+            {
+              "title": "should load within acceptable time",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "staging",
+                  "projectName": "staging",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 2626,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-23T02:11:17.407Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6a4b2a6dcfdb471c3c1c-bb973e89be294d1818ea",
+              "file": "panel-load.spec.ts",
+              "line": 98,
+              "column": 7
+            },
+            {
+              "title": "should verify panel is accessible",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "staging",
+                  "projectName": "staging",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 2164,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-23T02:11:18.013Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6a4b2a6dcfdb471c3c1c-271498c324d58d081978",
+              "file": "panel-load.spec.ts",
+              "line": 114,
+              "column": 7
+            }
+          ]
+        }
+      ]
     }
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-02-23T00:45:40.587Z",
-    "duration": 10744.060000000001,
-    "expected": 0,
+    "startTime": "2026-02-23T02:11:04.076Z",
+    "duration": 17341.085000000003,
+    "expected": 11,
     "skipped": 0,
     "unexpected": 1,
     "flaky": 0

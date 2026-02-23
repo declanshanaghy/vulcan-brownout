@@ -6,17 +6,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Vulcan Brownout is a Home Assistant custom integration that provides real-time battery monitoring for battery-powered devices with a dedicated sidebar panel. Backend is Python (async), frontend is a Lit Element web component, E2E tests use Playwright.
 
-**Min HA Version**: 2026.2.0 | **Integration Domain**: `vulcan_brownout`
+**Version**: 6.0.0 | **Min HA Version**: 2026.2.0 | **Integration Domain**: `vulcan_brownout`
+
+**Simplified architecture**: Fixed 15% battery threshold. Shows only `device_class=battery` entities below 15%. No filtering, sorting, pagination, configurable thresholds, or notifications. Two WebSocket commands: `query_entities` (no params) and `subscribe`.
 
 ## Commands
+
+### Run All Tests (PREFERRED — use this instead of custom bash commands)
+```bash
+# Run all stages: lint + component tests + E2E mock tests
+./quality/scripts/run-all-tests.sh
+
+# Run individual stages
+./quality/scripts/run-all-tests.sh --lint       # flake8 + mypy only
+./quality/scripts/run-all-tests.sh --component  # Docker component tests only
+./quality/scripts/run-all-tests.sh --e2e        # Playwright E2E mock tests only
+./quality/scripts/run-all-tests.sh --staging    # Deploy + staging E2E tests
+./quality/scripts/run-all-tests.sh --verbose    # Verbose output
+```
 
 ### Component Tests (Python/pytest via Docker)
 ```bash
 # Run all component tests (requires Docker)
 docker compose -f .github/docker-compose.yml up --build --abort-on-container-exit component_tests
-
-# Run tests directly (if mock HA is already running)
-cd quality/scripts && pytest test_component_integration.py -v --tb=short
 
 # Run a single test
 cd quality/scripts && pytest test_component_integration.py::TestClassName::test_name -v
@@ -27,11 +39,11 @@ cd quality/scripts && pytest test_component_integration.py::TestClassName::test_
 cd quality/e2e
 npm install && npx playwright install chromium  # first time setup
 
-npx playwright test                          # all tests, headless
-npx playwright test panel-load.spec.ts       # single suite
-npx playwright test -g "test name pattern"   # single test by name
-npx playwright test --headed                 # with browser visible
-npx playwright show-report                   # view HTML report
+npx playwright test --project=chromium           # mock tests, headless
+npx playwright test panel-load.spec.ts           # single suite
+npx playwright test -g "test name pattern"       # single test by name
+npx playwright test --headed                     # with browser visible
+npx playwright show-report                       # view HTML report
 ```
 
 ### Linting
@@ -52,31 +64,30 @@ GitHub Actions runs lint then Docker component tests on every push/PR. See `.git
 
 ### Directory Layout
 - `development/src/custom_components/vulcan_brownout/` — Main integration code (Python backend + JS frontend)
-- `architecture/` — System design, API contracts, sprint plans, ADRs (14 decisions in `adrs/`)
+- `architecture/` — System design, API contracts, sprint plans, ADRs
 - `design/` — UX specs, wireframes, interaction flows
-- `quality/scripts/` — Python component tests with mock fixtures
+- `quality/scripts/` — Test runner script, Python component tests, mock fixtures, deploy script
 - `quality/e2e/` — Playwright E2E tests (Page Object Model in `pages/`, factories in `utils/`)
 - `.github/docker/mock_ha/` — Mock Home Assistant WebSocket server for testing
 - `vulcan-brownout-team/` — Team role definitions and workflow conventions
 
 ### Backend (Python, async)
 - **Entry point**: `__init__.py` — `async_setup_entry()` registers WebSocket commands, starts BatteryMonitor
-- **`battery_monitor.py`** — Entity discovery, filtering, cursor-based pagination, status calculation
-- **`websocket_api.py`** — Command handlers (`vulcan-brownout/query_devices`, `subscribe`, `set_threshold`, etc.)
+- **`battery_monitor.py`** — Entity discovery, returns entities below fixed 15% threshold sorted by level
+- **`websocket_api.py`** — Two command handlers: `query_entities` (no params) and `subscribe`
 - **`subscription_manager.py`** — Real-time WebSocket push to subscribers on `state_changed` events
-- **`notification_manager.py`** — Threshold alerts with per-device frequency caps
-- **`config_flow.py`** — Settings UI; thresholds stored in `ConfigEntry.options`
+- **`config_flow.py`** — Minimal config flow for integration setup (no options)
 
 ### Frontend (Lit Element, Shadow DOM)
-- **Single file**: `frontend/vulcan-brownout-panel.js` — `VulcanBrownoutPanel` class
+- **Single file**: `frontend/vulcan-brownout-panel.js` — `VulcanBrownoutPanel` class (~300 lines)
 - Uses Shadow DOM (E2E selectors must use `>>` piercing: `page.locator('vulcan-brownout-panel >> .battery-list')`)
-- Theme detection: `hass.themes.darkMode` → DOM attribute fallback → OS `prefers-color-scheme` → default light
-- Cursor-based infinite scroll pagination via WebSocket
+- Theme: inherits HA CSS custom properties (auto/light/dark)
+- Shows flat device list with real-time updates; empty state: "All batteries above 15%"
 
-### WebSocket Protocol
-Custom commands under `vulcan-brownout/*` namespace. See `architecture/api-contracts.md` for full spec.
-- Cursor format: `base64("{last_changed}|{entity_id}")`
-- Pagination: `limit` (1-100), `cursor`, response has `devices`, `total`, `has_more`, `next_cursor`
+### WebSocket Protocol (v6.0.0)
+Two commands under `vulcan-brownout/*` namespace. See `architecture/api-contracts.md`.
+- `query_entities`: no params, returns `{ entities: [...], total: N }` — all battery entities below 15%
+- `subscribe`: returns `{ subscription_id, status }` — pushes `entity_changed` events
 
 ## Key Conventions
 
@@ -86,6 +97,7 @@ Custom commands under `vulcan-brownout/*` namespace. See `architecture/api-contr
 - Push to GitHub after every commit.
 
 ### Testing
+- **Always use `./quality/scripts/run-all-tests.sh`** — never ad-hoc bash commands for running tests
 - `pytest.ini` sets `asyncio_mode = auto` — all async tests run automatically
 - Mock HA server in Docker provides pre-provisioned test entities
 - E2E tests authenticate via HA long-lived token in `.env`
@@ -95,4 +107,4 @@ Custom commands under `vulcan-brownout/*` namespace. See `architecture/api-contr
 - Python lint: flake8 with `max-line-length=127`, `max-complexity=10`
 
 ### Team Workflow
-Multi-agent Kanban: Product Owner → Principal Engineer → QA. Max 5 stories/sprint, mandatory deployment story. Architecture decisions documented as ADRs.
+Multi-agent Kanban: Product Owner (Freya) → Principal Engineer (FiremanDecko) → QA (Loki). Max 5 stories/sprint, mandatory deployment story. Architecture decisions documented as ADRs.

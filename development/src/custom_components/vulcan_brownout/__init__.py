@@ -1,4 +1,4 @@
-"""Vulcan Brownout: Battery device monitoring for Home Assistant."""
+"""Vulcan Brownout: Battery entity monitoring for Home Assistant."""
 
 import logging
 from typing import Any, Dict
@@ -6,19 +6,19 @@ from typing import Any, Dict
 from homeassistant.core import HomeAssistant, Event, callback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_STATE_CHANGED
-from homeassistant.helpers import entity_registry as er
 
 from .const import (
+    BATTERY_THRESHOLD,
     DOMAIN,
+    STATUS_CRITICAL,
     VERSION,
     PANEL_NAME,
     PANEL_TITLE,
     PANEL_ICON,
 )
 from .battery_monitor import BatteryMonitor
-from .websocket_api import register_websocket_commands, send_status_event
+from .websocket_api import register_websocket_commands
 from .subscription_manager import WebSocketSubscriptionManager
-from .notification_manager import NotificationManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,66 +30,52 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         _LOGGER.info("Setting up Vulcan Brownout integration v%s", VERSION)
 
-        # Initialize data store for domain
-        if DOMAIN not in hass.data:
-            hass.data[DOMAIN] = {}
-
-        # Create and initialize battery monitor service
-        battery_monitor = BatteryMonitor(hass, config_entry=entry)
+        # Create and initialize battery monitor
+        battery_monitor = BatteryMonitor(hass)
         await battery_monitor.discover_entities()
-
-        # Store battery monitor in hass.data
         hass.data[DOMAIN] = battery_monitor
 
-        # Create and initialize WebSocket subscription manager
+        # Create subscription manager
         subscription_manager = WebSocketSubscriptionManager(hass)
         hass.data[f"{DOMAIN}_subscriptions"] = subscription_manager
 
-        # Create and initialize notification manager (Sprint 3)
-        notification_manager = NotificationManager(hass)
-        await notification_manager.async_setup(entry)
-        hass.data[f"{DOMAIN}_notifications"] = notification_manager
-
-        # Register WebSocket command handlers
+        # Register WebSocket commands
         register_websocket_commands(hass)
 
-        # Register event listener for state changes
+        # Listen for state changes
         @callback
         def on_state_changed(event: Event) -> None:
-            """Handle HA state_changed events."""
             entity_id = event.data.get("entity_id")
             new_state = event.data.get("new_state")
-
-            # Update battery monitor cache and broadcast if subscribed
             hass.create_task(
                 _on_battery_state_changed(
-                    hass, battery_monitor, subscription_manager, entity_id, new_state
+                    hass, battery_monitor, subscription_manager,
+                    entity_id, new_state,
                 )
             )
 
         hass.bus.async_listen(EVENT_STATE_CHANGED, on_state_changed)
 
-        # Listen to config entry option updates
-        entry.async_on_unload(
-            entry.add_update_listener(async_options_update_listener)
-        )
-
         # Register sidebar panel
         try:
             import pathlib
             from homeassistant.components.http import StaticPathConfig
-            from homeassistant.components.frontend import async_register_built_in_panel
+            from homeassistant.components.frontend import (
+                async_register_built_in_panel,
+            )
 
-            # Serve the frontend JS directory as a static path
             frontend_path = pathlib.Path(__file__).parent / "frontend"
             try:
                 await hass.http.async_register_static_paths(
-                    [StaticPathConfig("/vulcan_brownout_panel", str(frontend_path), False)]
+                    [StaticPathConfig(
+                        "/vulcan_brownout_panel",
+                        str(frontend_path),
+                        False,
+                    )]
                 )
             except RuntimeError:
-                _LOGGER.debug("Vulcan Brownout static path already registered")
+                _LOGGER.debug("Static path already registered")
 
-            # Register as a custom panel in the HA sidebar
             async_register_built_in_panel(
                 hass,
                 component_name="custom",
@@ -100,31 +86,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 config={
                     "_panel_custom": {
                         "name": "vulcan-brownout-panel",
-                        "module_url": "/vulcan_brownout_panel/vulcan-brownout-panel.js",
+                        "module_url":
+                            "/vulcan_brownout_panel/vulcan-brownout-panel.js",
                     }
                 },
             )
-
-            _LOGGER.info("Registered Vulcan Brownout sidebar panel at /%s", PANEL_NAME)
+            _LOGGER.info(
+                "Registered Vulcan Brownout sidebar panel at /%s", PANEL_NAME
+            )
         except Exception as e:
-            _LOGGER.warning(f"Could not register custom panel: {e}")
-            # Continue anyway - WebSocket API should still work
+            _LOGGER.warning("Could not register custom panel: %s", e)
 
-        # Mark entry as loaded
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-        # Send initial status event
-        await send_status_event(hass, status="connected")
+        # Send initial status
+        subscription_manager.broadcast_status("connected")
 
         _LOGGER.info(
-            f"Vulcan Brownout integration setup complete. "
-            f"Discovered {len(battery_monitor.entities)} battery entities. "
-            f"Global threshold: {battery_monitor.global_threshold}%"
+            "Vulcan Brownout setup complete. "
+            "Discovered %d battery entities. Threshold: %d%%",
+            len(battery_monitor.entities), BATTERY_THRESHOLD,
         )
         return True
 
     except Exception as e:
-        _LOGGER.error(f"Error setting up Vulcan Brownout: {e}")
+        _LOGGER.error("Error setting up Vulcan Brownout: %s", e)
         return False
 
 
@@ -135,103 +121,57 @@ async def _on_battery_state_changed(
     entity_id: str,
     new_state: Any,
 ) -> None:
-    """Handle battery entity state changes.
-
-    Sprint 3: Also checks for notifications if battery drops below threshold.
-    """
+    """Handle battery entity state changes and broadcast to subscribers."""
     try:
-        # Update battery monitor
         await battery_monitor.on_state_changed(entity_id, new_state)
 
-        # If this is a battery entity and we have subscribers, broadcast update
-        if battery_monitor._is_battery_entity(entity_id) and entity_id in battery_monitor.entities:
-            device = battery_monitor.entities[entity_id]
-            status = battery_monitor.get_status_for_device(device)
+        if (
+            battery_monitor._is_battery_entity(entity_id)
+            and entity_id in battery_monitor.entities
+        ):
+            entity = battery_monitor.entities[entity_id]
 
-            # Sprint 3: Check if notification should be sent
-            notification_manager: NotificationManager = hass.data.get(
-                f"{DOMAIN}_notifications"
-            )
-            if notification_manager and device.available:
-                device_name = device.device_name or entity_id
-                await notification_manager.check_and_send_notification(
-                    entity_id=entity_id,
-                    status=status,
-                    battery_level=device.battery_level,
-                    device_name=device_name,
-                )
-
-            # Only broadcast if there are active subscriptions
             if subscription_manager.get_subscription_count() > 0:
-                subscription_manager.broadcast_device_changed(
+                subscription_manager.broadcast_entity_changed(
                     entity_id=entity_id,
-                    battery_level=device.battery_level,
-                    available=device.available,
-                    status=status,
-                    last_changed=device.state.last_changed.isoformat()
-                    if device.state.last_changed
-                    else None,
-                    last_updated=device.state.last_updated.isoformat()
-                    if device.state.last_updated
-                    else None,
-                    attributes=dict(device.state.attributes),
+                    battery_level=entity.battery_level,
+                    status=STATUS_CRITICAL,
+                    last_changed=(
+                        entity.state.last_changed.isoformat()
+                        if entity.state.last_changed else None
+                    ),
+                    last_updated=(
+                        entity.state.last_updated.isoformat()
+                        if entity.state.last_updated else None
+                    ),
+                    attributes=dict(entity.state.attributes),
                 )
     except Exception as e:
-        _LOGGER.error(f"Error in battery state change handler: {e}")
+        _LOGGER.error("Error in battery state change handler: %s", e)
 
 
-async def async_options_update_listener(
-    hass: HomeAssistant, config_entry: ConfigEntry
-) -> None:
-    """Listen for config entry option updates."""
-    try:
-        # Get battery monitor
-        battery_monitor: BatteryMonitor = hass.data.get(DOMAIN)
-        if battery_monitor:
-            # Update thresholds
-            battery_monitor.on_options_updated(config_entry.options)
-
-            # Broadcast threshold update to all subscribers
-            subscription_manager: WebSocketSubscriptionManager = hass.data.get(
-                f"{DOMAIN}_subscriptions"
-            )
-            if subscription_manager:
-                subscription_manager.broadcast_threshold_updated(
-                    global_threshold=battery_monitor.global_threshold,
-                    device_rules=battery_monitor.device_rules,
-                )
-
-            _LOGGER.debug("Options updated for Vulcan Brownout")
-    except Exception as e:
-        _LOGGER.error(f"Error updating options: {e}")
-
-
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload Vulcan Brownout from a config entry."""
+async def async_unload_entry(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> bool:
+    """Unload Vulcan Brownout."""
     try:
         _LOGGER.info("Unloading Vulcan Brownout integration")
 
-        # Clean up subscription manager
-        subscription_manager: WebSocketSubscriptionManager = hass.data.get(
+        sub_mgr: WebSocketSubscriptionManager = hass.data.get(
             f"{DOMAIN}_subscriptions"
         )
-        if subscription_manager:
-            subscription_manager.cleanup()
+        if sub_mgr:
+            sub_mgr.cleanup()
 
-        # Remove data
         hass.data.pop(DOMAIN, None)
         hass.data.pop(f"{DOMAIN}_subscriptions", None)
-        hass.data.pop(f"{DOMAIN}_notifications", None)  # Sprint 3
 
-        _LOGGER.info("Vulcan Brownout integration unloaded")
         return True
     except Exception as e:
-        _LOGGER.error(f"Error unloading Vulcan Brownout: {e}")
+        _LOGGER.error("Error unloading Vulcan Brownout: %s", e)
         return False
 
 
 async def async_setup(hass: HomeAssistant, config: Dict[str, Any]) -> bool:
-    """Set up Vulcan Brownout from YAML configuration (if present)."""
-    # YAML configuration not used in Sprint 2
-    # Config flow is the primary method
+    """Set up from YAML (not used)."""
     return True
