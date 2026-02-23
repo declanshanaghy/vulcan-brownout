@@ -1,4 +1,4 @@
-# Local Docker Staging Environment
+# Local Docker Environment
 
 A local Home Assistant instance running in Docker for testing the Vulcan Brownout integration before opening a PR. Any developer can spin it up without access to the physical `homeassistant.lan` server.
 
@@ -7,7 +7,7 @@ A local Home Assistant instance running in Docker for testing the Vulcan Brownou
 ## Prerequisites
 
 - Docker Desktop (or Docker Engine + Compose plugin)
-- `curl` and `python3` in your `$PATH` (used by `up.sh` for onboarding)
+- `curl` in your `$PATH`
 - Port `8123` free on localhost
 
 ---
@@ -15,18 +15,13 @@ A local Home Assistant instance running in Docker for testing the Vulcan Brownou
 ## How to Start
 
 ```bash
-./development/environments/staging/up.sh
+./development/environments/docker/up.sh
 ```
 
 `up.sh` will:
 1. Pull and start `ghcr.io/home-assistant/home-assistant:stable`
-2. Wait for HA to be healthy (up to 90s)
-3. Run the full HA onboarding sequence via REST API (creates admin user)
-4. Generate a long-lived access token
-5. Configure the `vulcan_brownout` integration via the config flow API
-6. Enable debug logging for `custom_components.vulcan_brownout`
-7. Write `HA_URL`, `HA_TOKEN`, `HA_USERNAME`, `HA_PASSWORD` to `.env` in the project root
-8. Print a summary with login credentials and next steps
+2. Wait for HA to be ready (up to 90s)
+3. Print a summary with next steps
 
 Open **http://localhost:8123** after the script completes.
 
@@ -35,25 +30,24 @@ Open **http://localhost:8123** after the script completes.
 ## How to Stop
 
 ```bash
-./development/environments/staging/down.sh
+./development/environments/docker/down.sh
 ```
 
-Stops and removes the container. All HA state is discarded.
+Stops and removes the container. HA state in `config/` is preserved.
 
 ---
 
-## What Resets on Each `up`
-
-Everything. HA starts fresh on every `docker compose up`:
-- No users, no config entries, no history
-- `up.sh` re-runs the full onboarding sequence each time
-- A new long-lived token is generated and written to `.env`
-
-This is intentional — fresh state prevents test pollution.
-
 ## What Persists
 
-Nothing. There is no Docker volume for HA data.
+The entire `config/` directory is bind-mounted into the container. HA state — users, tokens, config entries, history — survives container restarts. To reset to a clean state, clear the HA-generated files:
+
+```bash
+./development/environments/docker/down.sh
+git clean -fdx development/environments/docker/config/
+./development/environments/docker/up.sh
+```
+
+After a clean wipe you will need to complete HA onboarding at http://localhost:8123 before the integration is usable.
 
 ---
 
@@ -100,14 +94,14 @@ Wait ~15s for HA to come back up, then reload the browser.
 
 ---
 
-## Running Staging E2E Tests
+## Running E2E Tests
 
 ```bash
-# Load the token written by up.sh
+# Load credentials from .env
 source .env
 
-# Run staging tests against local Docker HA
-HA_URL=http://localhost:8123 ./quality/scripts/run-all-tests.sh --staging
+# Run E2E tests against local Docker HA
+HA_URL=http://localhost:8123 ./quality/scripts/run-all-tests.sh --docker
 ```
 
 Or set `HA_URL` in your `.env` and run without the prefix.
@@ -116,14 +110,7 @@ Or set `HA_URL` in your `.env` and run without the prefix.
 
 ## Credentials
 
-`up.sh` prints credentials to the terminal and writes them to `.env`. Default values:
-
-| | Value |
-|---|---|
-| URL | http://localhost:8123 |
-| Username | admin |
-| Password | vulcan-staging-2026 |
-| Token | generated — see `.env` |
+Credentials are set during initial HA onboarding and stored in `config/.storage/`. They are also saved in `.env`. See `.env.example` for the variable names.
 
 `.env` is gitignored. Never commit it.
 
@@ -139,9 +126,6 @@ lsof -i :8123
 docker logs vulcan-brownout-ha
 ```
 
-**`up.sh` says "already onboarded"**
-Run `down.sh` first to remove the container, then `up.sh` again.
-
 **Integration not showing in sidebar**
 Check HA logs for errors:
 ```bash
@@ -152,5 +136,5 @@ Verify the bind-mount path exists:
 ls development/src/custom_components/vulcan_brownout/
 ```
 
-**Staging tests fail with auth errors**
-Re-run `up.sh` to generate a fresh token, then `source .env`.
+**E2E tests fail with auth errors**
+Ensure `HA_TOKEN` in `.env` is valid. Generate a new long-lived token from the HA UI at **http://localhost:8123/profile/security** and update `.env`.

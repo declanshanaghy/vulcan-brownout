@@ -26,7 +26,7 @@ Before committing anything, read and follow `vulcan-brownout-team/git-commit/SKI
 ./quality/scripts/run-all-tests.sh --lint        # Lint only (flake8 + mypy)
 ./quality/scripts/run-all-tests.sh --component   # Docker component tests only
 ./quality/scripts/run-all-tests.sh --e2e         # Playwright E2E mock tests only
-./quality/scripts/run-all-tests.sh --staging     # Deploy + staging E2E tests
+./quality/scripts/run-all-tests.sh --docker     # Deploy + staging E2E tests
 ```
 
 ## GitHub Actions CI Check
@@ -71,25 +71,25 @@ If a design decision would create a poor user experience, push back on it. Advoc
 - **Implementation Plan**: `development/implementation-plan.md`
 - **QA Handoff**: `development/qa-handoff.md`
 - **Deploy Script**: `development/scripts/deploy.sh`
-- **Local Staging Environment**: `development/environments/staging/`
+- **Local Docker Environment**: `development/environments/docker/`
 
 ### Local Development Environment
 
-Location: `development/environments/staging/`
+Location: `development/environments/docker/`
 
 Use this for feature branches, pre-PR testing, and E2E debugging — no SSH access or physical HA server required.
 
 **Start:**
 ```bash
-./development/environments/staging/up.sh
+./development/environments/docker/up.sh
 ```
-Starts HA in Docker, runs automated onboarding, configures the integration, and writes credentials to `.env`.
+Starts HA in Docker and waits for it to be ready. HA state in `config/` persists across restarts.
 
 **Stop:**
 ```bash
-./development/environments/staging/down.sh
+./development/environments/docker/down.sh
 ```
-Removes the container. All HA state is discarded (no persistent volume — fresh on every `up`).
+Removes the container. HA state in `config/` is preserved for the next `up`.
 
 **Code changes:**
 - Frontend (JS): take effect immediately on browser reload (bind-mounted live)
@@ -99,9 +99,9 @@ Removes the container. All HA state is discarded (no persistent volume — fresh
   curl -X POST -H "Authorization: Bearer $HA_TOKEN" http://localhost:8123/api/services/homeassistant/restart
   ```
 
-**Run staging E2E tests:**
+**Run E2E tests:**
 ```bash
-HA_URL=http://localhost:8123 ./quality/scripts/run-all-tests.sh --staging
+HA_URL=http://localhost:8123 ./quality/scripts/run-all-tests.sh --docker
 ```
 
 No SSH needed. No deploy script needed. Integration is always mounted from source.

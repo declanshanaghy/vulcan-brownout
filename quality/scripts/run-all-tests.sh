@@ -9,7 +9,7 @@
 #   ./quality/scripts/run-all-tests.sh --lint       # Lint only
 #   ./quality/scripts/run-all-tests.sh --component  # Docker component tests only
 #   ./quality/scripts/run-all-tests.sh --e2e        # Playwright E2E mock tests only
-#   ./quality/scripts/run-all-tests.sh --staging    # Deploy + Playwright staging tests
+#   ./quality/scripts/run-all-tests.sh --docker    # Deploy + Playwright staging tests
 #   ./quality/scripts/run-all-tests.sh --verbose    # Verbose output
 #
 # Exit codes: 0 = all passed, 1 = test failure, 2 = environment error
@@ -62,10 +62,10 @@ while [[ $# -gt 0 ]]; do
         --lint)      RUN_LINT=true; RUN_ALL=false; shift ;;
         --component) RUN_COMPONENT=true; RUN_ALL=false; shift ;;
         --e2e)       RUN_E2E=true; RUN_ALL=false; shift ;;
-        --staging)   RUN_STAGING=true; RUN_ALL=false; shift ;;
+        --docker)   RUN_STAGING=true; RUN_ALL=false; shift ;;
         --verbose|-v) VERBOSE=true; shift ;;
         --help|-h)
-            echo "Usage: $0 [--lint] [--component] [--e2e] [--staging] [--verbose]"
+            echo "Usage: $0 [--lint] [--component] [--e2e] [--docker] [--verbose]"
             echo "  No flags = run all stages (lint + component + e2e)"
             exit 0
             ;;

@@ -26,7 +26,7 @@ Before committing anything, read and follow `vulcan-brownout-team/git-commit/SKI
 ./quality/scripts/run-all-tests.sh --lint        # Lint only (flake8 + mypy)
 ./quality/scripts/run-all-tests.sh --component   # Docker component tests only
 ./quality/scripts/run-all-tests.sh --e2e         # Playwright E2E mock tests only
-./quality/scripts/run-all-tests.sh --staging     # Deploy + staging E2E tests
+./quality/scripts/run-all-tests.sh --docker     # Deploy + staging E2E tests
 ```
 
 ## GitHub Actions CI Check

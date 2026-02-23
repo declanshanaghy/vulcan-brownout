@@ -3,17 +3,17 @@ services:
     container_name: vulcan-brownout-ha
     image: "ghcr.io/home-assistant/home-assistant:stable"
     volumes:
+      # Seed configuration.yaml with mock entities and logger settings
+      - ./config:/config
       # Bind-mount integration source live — code changes reflect immediately
       - ../../src/custom_components/vulcan_brownout:/config/custom_components/vulcan_brownout:ro
-      # Seed configuration.yaml with mock entities and logger settings
-      - ./config/configuration.yaml:/config/configuration.yaml:ro
     environment:
       - TZ=America/Los_Angeles
     ports:
       - "8123:8123"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8123/api/"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8123/api/onboarding"]
       interval: 10s
       timeout: 5s
       retries: 12

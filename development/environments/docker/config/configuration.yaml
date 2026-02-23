@@ -5,6 +5,13 @@ logger:
   logs:
     custom_components.vulcan_brownout: debug
 
+homeassistant:
+  name: Sprocket's Gaff
+  unit_system: us_customary
+  time_zone: America/Los_Angeles
+  country: US
+  internal_url: http://localhost:8123
+
 template:
   - sensor:
       # Below threshold (should appear in panel)
