@@ -27,7 +27,7 @@ export default defineConfig({
   ],
 
   use: {
-    baseURL: 'http://homeassistant.lan:8123',
+    baseURL: process.env.HA_URL || 'http://homeassistant.lan:8123',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

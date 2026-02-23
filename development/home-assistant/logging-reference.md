@@ -31,12 +31,12 @@ Without this field, HA has no way to associate your log output with your integra
 ### Deep-link to your integration's logs
 
 ```
-http://{HOME_ASSISTANT_URL}/config/logs?provider={DOMAIN}
+http://{HA_URL}/config/logs?provider={DOMAIN}
 ```
 
 Example for Vulcan Brownout:
 ```
-http://homeassistant.lan:8123/config/logs?provider=vulcan_brownout
+http://localhost:8123/config/logs?provider=vulcan_brownout
 ```
 
 ---

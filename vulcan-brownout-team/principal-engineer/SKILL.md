@@ -71,6 +71,40 @@ If a design decision would create a poor user experience, push back on it. Advoc
 - **Implementation Plan**: `development/implementation-plan.md`
 - **QA Handoff**: `development/qa-handoff.md`
 - **Deploy Script**: `development/scripts/deploy.sh`
+- **Local Staging Environment**: `development/environments/staging/`
+
+### Local Development Environment
+
+Location: `development/environments/staging/`
+
+Use this for feature branches, pre-PR testing, and E2E debugging — no SSH access or physical HA server required.
+
+**Start:**
+```bash
+./development/environments/staging/up.sh
+```
+Starts HA in Docker, runs automated onboarding, configures the integration, and writes credentials to `.env`.
+
+**Stop:**
+```bash
+./development/environments/staging/down.sh
+```
+Removes the container. All HA state is discarded (no persistent volume — fresh on every `up`).
+
+**Code changes:**
+- Frontend (JS): take effect immediately on browser reload (bind-mounted live)
+- Backend (Python): restart HA to pick up changes:
+  ```bash
+  source .env
+  curl -X POST -H "Authorization: Bearer $HA_TOKEN" http://localhost:8123/api/services/homeassistant/restart
+  ```
+
+**Run staging E2E tests:**
+```bash
+HA_URL=http://localhost:8123 ./quality/scripts/run-all-tests.sh --staging
+```
+
+No SSH needed. No deploy script needed. Integration is always mounted from source.
 
 Git tracks history — overwrite files each sprint. No sprint subdirectories.
 
