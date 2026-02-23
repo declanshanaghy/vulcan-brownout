@@ -245,14 +245,22 @@ custom_components/vulcan_brownout/
 ## Technical Standards
 
 ### Python Backend
-- Python 3.11+ with modern async/await patterns
-- Full type hints on all function signatures (no `Any` shortcuts)
-- Use `homeassistant.helpers` utilities wherever available
+- Python 3.10+ with modern async/await patterns
+- **Full type hints on all function signatures (strict typing)**:
+  - Every function parameter must be typed (no untyped parameters except `self`, `cls`)
+  - Every function must have a return type annotation (including `-> None` for void functions)
+  - Every class attribute must be typed (at class level or in `__init__`)
+  - Prefer specific types over generic ones: use `Dict[str, str]` not `Dict[str, Any]`
+  - Avoid bare `Any` without documentation; when unavoidable, add a comment explaining why
+  - Use `Optional[T]` for nullable types; never leave a type implicitly optional
+  - Example: `def validate_config(name: str, value: int) -> bool:` not `def validate_config(name, value):`
+- Use `homeassistant.helpers` utilities and proper registry types (DeviceRegistry, EntityRegistry, AreaRegistry) wherever available
 - Entity state access via `hass.states.get()` / `hass.states.async_all()`
 - WebSocket handlers with `vol.Schema` validation
 - Config flow using `config_entries` framework
 - Structured logging via `_LOGGER = logging.getLogger(__name__)`
 - Dataclasses or TypedDict for data models
+- Type aliases for complex types: `DeviceInfo = Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]`
 
 ### Frontend Panel
 - Lit Element for the custom panel (HA's current standard)
@@ -262,9 +270,10 @@ custom_components/vulcan_brownout/
 - Proper lifecycle management (connectedCallback, disconnectedCallback)
 
 ### Code Quality
-- No `# type: ignore` without explanation
+- **Type Safety**: All code must pass `mypy` type checking without `type: ignore` comments (unless strictly necessary with inline documentation)
+- No `# type: ignore` without explanation — justify why static typing cannot be used
 - Docstrings on all public functions
-- Constants in `const.py`, no magic numbers
+- Constants in `const.py` with type annotations, no magic numbers
 - Specific exception types for error handling
 - Unit-testable: functions should be pure where possible, side effects isolated
 

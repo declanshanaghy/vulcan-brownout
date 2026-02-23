@@ -1,9 +1,9 @@
 """Vulcan Brownout: Battery entity monitoring for Home Assistant."""
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from homeassistant.core import HomeAssistant, Event, callback
+from homeassistant.core import HomeAssistant, Event, State, callback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_STATE_CHANGED
 
@@ -155,7 +155,7 @@ async def _on_battery_state_changed(
     battery_monitor: BatteryMonitor,
     subscription_manager: WebSocketSubscriptionManager,
     entity_id: str,
-    new_state: Any,
+    new_state: Optional[State],
 ) -> None:
     """Handle battery entity state changes and broadcast to subscribers."""
     new_state_value = new_state.state if new_state else None

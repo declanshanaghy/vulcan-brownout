@@ -1,7 +1,7 @@
 """Core battery monitoring service for Vulcan Brownout integration."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from homeassistant.core import HomeAssistant, State
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
@@ -10,14 +10,28 @@ from homeassistant.helpers import (
     device_registry as dr,
     entity_registry as er,
 )
+from homeassistant.helpers.device_registry import DeviceRegistry
+from homeassistant.helpers.entity_registry import EntityRegistry
+from homeassistant.helpers.area_registry import AreaRegistry
 
 from .const import BATTERY_DEVICE_CLASS, BATTERY_THRESHOLD, STATUS_CRITICAL
 
 _LOGGER = logging.getLogger(__name__)
 
+# Type alias for device info tuple: (device_name, manufacturer, model, area_name)
+DeviceInfo = Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]
+
 
 class BatteryEntity:
     """Represents a battery entity with parsed data."""
+
+    entity_id: str
+    state: State
+    device_name: str
+    battery_level: float
+    manufacturer: Optional[str]
+    model: Optional[str]
+    area_name: Optional[str]
 
     def __init__(
         self,
@@ -96,9 +110,12 @@ class BatteryEntity:
 class BatteryMonitor:
     """Discovers battery entities and returns those below the fixed threshold."""
 
+    hass: HomeAssistant
+    entities: Dict[str, BatteryEntity]
+
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
-        self.entities: Dict[str, BatteryEntity] = {}
+        self.entities = {}
         _LOGGER.debug(
             "BatteryMonitor.__init__: threshold=%d%% device_class=%s",
             BATTERY_THRESHOLD, BATTERY_DEVICE_CLASS,
@@ -109,17 +126,17 @@ class BatteryMonitor:
         entity_id: str,
         device_id: Optional[str],
         entity_area_id: Optional[str],
-        device_registry: Any,
-        area_registry: Any,
-    ) -> tuple:
+        device_registry: DeviceRegistry,
+        area_registry: AreaRegistry,
+    ) -> DeviceInfo:
         """Resolve device name, manufacturer, model, and area name from registries.
 
         Returns (device_name, manufacturer, model, area_name).
         """
-        device_name = None
-        manufacturer = None
-        model = None
-        area_id = entity_area_id
+        device_name: Optional[str] = None
+        manufacturer: Optional[str] = None
+        model: Optional[str] = None
+        area_id: Optional[str] = entity_area_id
 
         if device_id:
             device = device_registry.async_get(device_id)
@@ -162,7 +179,7 @@ class BatteryMonitor:
 
         return device_name, manufacturer, model, area_name
 
-    def _get_cached_or_lookup_device_info(self, entity_id: str) -> tuple:
+    def _get_cached_or_lookup_device_info(self, entity_id: str) -> DeviceInfo:
         """Return (device_name, manufacturer, model, area_name) for an entity.
 
         Uses the cached BatteryEntity if already tracked, otherwise performs a

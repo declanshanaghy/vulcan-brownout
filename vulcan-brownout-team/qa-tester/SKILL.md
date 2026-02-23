@@ -300,6 +300,26 @@ Overall quality assessment.
 ## Idempotent: Yes/No (can this test run twice without cleanup?)
 ```
 
+## Code Review Checklist (Before Testing)
+
+Before approving implementation from FiremanDecko, verify:
+
+### Type Safety (STRICT — block if failed)
+- [ ] **All function parameters are typed** (no untyped parameters except `self`, `cls`)
+- [ ] **All functions have return type annotations** (including `-> None` for void functions)
+- [ ] **All class attributes are typed** (at class level or in `__init__`)
+- [ ] **No bare `Any` without documentation** — if `Any` is used, there's an inline comment explaining why
+- [ ] **mypy passes**: Run `./quality/scripts/run-all-tests.sh --lint` and verify no mypy errors
+- [ ] **Specific types used**: `Dict[str, str]` not `Dict[str, Any]`, `Optional[State]` not implicitly nullable
+
+If these fail, **request fixes from FiremanDecko before proceeding to functional testing**. Type safety is non-negotiable.
+
+### Example Code Review Comments
+- ❌ `def query_entities(self):` — ADD RETURN TYPE: `def query_entities(self) -> Dict[str, Any]:`
+- ❌ `battery_monitor: Any = hass.data.get(DOMAIN)` — USE SPECIFIC TYPE: `battery_monitor: BatteryMonitor = hass.data.get(DOMAIN)`
+- ❌ Missing type annotation on class attribute `self.entities = {}` — ADD: `self.entities: Dict[str, BatteryEntity] = {}`
+- ✅ `def _is_battery_entity(self, entity_id: str) -> bool:` — GOOD
+
 ## Testing Focus Areas for Vulcan Brownout
 
 ### Battery Entity Monitoring

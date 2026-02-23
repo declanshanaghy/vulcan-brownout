@@ -159,7 +159,7 @@ async def handle_subscribe(
             subscription_manager.get_subscription_count(),
         )
 
-        async def on_disconnect():
+        async def on_disconnect() -> None:
             _LOGGER.debug(
                 "handle_subscribe.on_disconnect: subscription_id=%s cleaning_up=true",
                 subscription_id,
