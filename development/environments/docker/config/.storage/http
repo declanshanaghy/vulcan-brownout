@@ -7,9 +7,9 @@
     "cors_allowed_origins": [
       "https://cast.home-assistant.io"
     ],
-    "use_x_frame_options": true,
     "server_port": 8123,
+    "ip_ban_enabled": true,
     "ssl_profile": "modern",
-    "ip_ban_enabled": true
+    "use_x_frame_options": true
   }
 }

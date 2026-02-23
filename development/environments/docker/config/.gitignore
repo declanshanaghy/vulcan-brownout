@@ -1,3 +1,6 @@
 custom_components
 .ha_run.lock
 home-assistant.log*
+*.db
+*.db-shm
+*.db-wal
