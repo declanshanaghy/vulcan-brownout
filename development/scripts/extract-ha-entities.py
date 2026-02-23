@@ -4,7 +4,10 @@
 Reads HA_URL, HA_PORT, and HA_TOKEN from .env at the project root.
 CLI flags override .env values.
 
-Output: tmp/ha-entities.yaml  (raw JSON from GET /api/states)
+Each entity is enriched with a device_id field via a single bulk
+POST /api/template call — no WebSocket or third-party dependencies required.
+
+Output: tmp/ha-entities.yaml  (all entity states with device_id injected)
 
 Usage:
     python development/scripts/extract-ha-entities.py
@@ -22,6 +25,15 @@ import urllib.request
 from pathlib import Path
 
 import yaml
+
+# Bulk template that maps every entity_id → device_id in a single round-trip.
+_DEVICE_ID_TEMPLATE = """\
+{%- set ns = namespace(result=[]) -%}
+{%- for state in states -%}
+  {%- set ns.result = ns.result + [{"entity_id": state.entity_id, "device_id": device_id(state.entity_id)}] -%}
+{%- endfor -%}
+{{ ns.result | tojson }}\
+"""
 
 
 def load_dotenv(path: Path) -> dict[str, str]:
@@ -87,9 +99,39 @@ def main() -> None:
 
     print(f"Retrieved {len(states)} entities.", file=sys.stderr)
 
+    # Fetch entity → device_id mapping via a bulk template call.
+    print("Fetching device_id mapping …", file=sys.stderr)
+    tpl_data = json.dumps({"template": _DEVICE_ID_TEMPLATE}).encode()
+    tpl_req = urllib.request.Request(
+        f"{base}/api/template",
+        data=tpl_data,
+        headers={"Authorization": f"Bearer {args.ha_token}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(tpl_req, timeout=30) as resp:
+            device_id_map: dict[str, str | None] = {
+                entry["entity_id"]: entry["device_id"]
+                for entry in json.loads(resp.read().decode())
+            }
+    except urllib.error.HTTPError as e:
+        print(f"HTTP {e.code}: {base}/api/template", file=sys.stderr)
+        sys.exit(1)
+    except urllib.error.URLError as e:
+        print(f"Cannot connect to {base}: {e.reason}", file=sys.stderr)
+        sys.exit(1)
+
+    # Inject device_id as the second key in each state dict.
+    enriched = []
+    for state in states:
+        eid = state.get("entity_id", "")
+        enriched_state = {"entity_id": eid, "device_id": device_id_map.get(eid)}
+        enriched_state.update({k: v for k, v in state.items() if k != "entity_id"})
+        enriched.append(enriched_state)
+
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(yaml.dump(states, default_flow_style=False, allow_unicode=True))
+    out_path.write_text(yaml.dump(enriched, default_flow_style=False, allow_unicode=True))
     print(f"Written: {out_path}", file=sys.stderr)
 
 

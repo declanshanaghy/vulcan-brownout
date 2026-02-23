@@ -4,10 +4,10 @@
 Reads HA_URL, HA_PORT, and HA_TOKEN from .env at the project root.
 CLI flags override .env values.
 
-Uses a single bulk HA template call to enumerate all unique devices —
-no WebSocket or third-party dependencies required.
+Uses a single bulk HA template call to enumerate all unique devices with
+their associated entity list — no WebSocket or third-party dependencies required.
 
-Output: tmp/ha-devices.yaml  (raw JSON from HA template API)
+Output: tmp/ha-devices.yaml  (devices with id, name, manufacturer, model, entities)
 
 Usage:
     python development/scripts/extract-ha-devices.py
@@ -40,6 +40,7 @@ _DEVICES_TEMPLATE = """\
       "model": device_attr(d, "model"),
       "hw_version": device_attr(d, "hw_version"),
       "sw_version": device_attr(d, "sw_version"),
+      "entities": device_entities(d) | list,
     } -%}
     {%- set ns.result = ns.result + [entry] -%}
   {%- endif -%}
