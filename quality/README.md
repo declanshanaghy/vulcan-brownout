@@ -1,23 +1,28 @@
-# Quality Assurance
+# Quality — Loki (QA Tester)
 
-## Current Status
-- **Sprint 4**: SHIP IT (14/14 code checks pass, see sprint4-quality-report.md)
-- **Sprint 3**: FIXED IN CODE (All 3 bugs verified resolved)
-- **Sprint 2**: 5 critical defects identified (see quality-report.md)
+This directory owns everything related to testing, deployment, and quality assurance for Vulcan Brownout.
 
-## Test Infrastructure
-- Component tests: `python3 -m pytest quality/scripts/test_component_integration.py -v`
-- API integration tests: `python3 -m pytest quality/scripts/test_api_integration.py -v`
-- E2E tests: `cd quality/e2e && npx playwright test`
-- Deploy: `bash development/scripts/deploy.sh`
-- Test entities: `./quality/scripts/setup-test-env.sh --create --count 15`
+## Environment Setup
 
-## Test Environment
-HA 2026.2.2 at homeassistant.lan:8123. Credentials in .env. SSH deploy via port 2222.
+Run once to bootstrap the full quality environment (Python venv, Playwright, secrets template):
 
-## Key Docs
-- **sprint4-quality-report.md** — Latest report (SHIP IT verdict)
-- SPRINT3-INDEX.md — Previous sprint findings
-- EXECUTIVE-SUMMARY.md — High-level status
-- ENVIRONMENT-VALIDATION.md — Staging server info + credentials
-- e2e/START_HERE.md — Panel rendering and test automation notes
+```bash
+ansible-playbook quality/ansible/setup.yml
+```
+
+See `CLAUDE.md` for prerequisites and secrets configuration.
+
+## Running Tests
+
+```bash
+./quality/scripts/run-all-tests.sh              # All stages: lint + component + e2e
+./quality/scripts/run-all-tests.sh --lint        # flake8 + mypy only
+./quality/scripts/run-all-tests.sh --component   # Docker component tests only
+./quality/scripts/run-all-tests.sh --e2e         # Playwright E2E mock tests only
+./quality/scripts/run-all-tests.sh --docker      # Deploy + staging E2E tests
+```
+
+## Documents
+
+- [E2E Testing Framework](e2e/README.md) — Playwright setup, test suites, commands, and architecture for the E2E layer.
+- [E2E Architecture Decisions](ux-testing-decisions.md) — Recorded rulings on auth strategy, selector approach, test data, and CI integration.

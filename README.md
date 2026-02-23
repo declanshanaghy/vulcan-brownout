@@ -1,6 +1,6 @@
 # Vulcan Brownout
 
-HA custom integration: real-time battery monitoring panel with notifications, infinite scroll, dark mode.
+HA custom integration: real-time battery monitoring panel for devices below 15% charge.
 
 **Status**: Sprint 3 on HOLD (24/28 tests pass, bugs triaged). Sprint 4 architecture ready.
 
@@ -24,7 +24,7 @@ PO → Design Brief → Principal Engineer → Architecture + Implementation →
 - [Sprint Plan](architecture/sprint-plan.md) — Current sprint stories
 - [Design Brief](design/product-design-brief.md) — UX specs
 - [Implementation Status](development/implementation-plan.md) — What's built
-- [QA Status](quality/SPRINT3-INDEX.md) — Test results
+- [QA](quality/README.md) — Test framework, environment setup, architecture decisions
 - [ADR Summary](architecture/adrs/SUMMARY.md) — All architecture decisions
 - [Source Code](development/src/custom_components/vulcan_brownout/)
 - [Pipeline](vulcan-brownout-team/pipeline/SKILL.md) | [Git Convention](vulcan-brownout-team/git-commit/SKILL.md)

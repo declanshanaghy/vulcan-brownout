@@ -7,15 +7,15 @@ Playwright-based end-to-end tests for the Vulcan Brownout Home Assistant panel.
 ```bash
 cd quality/e2e
 
-# Install (one-time)
+# Install (one-time — or run: ansible-playbook quality/ansible/setup.yml)
 npm install
 npx playwright install chromium
 
-# Run all tests
+# Run mock tests (no real HA needed)
 npm test
 
-# Run with browser UI
-npm test -- --headed
+# Run staging tests (requires real HA + YAML config)
+npm run test:staging
 
 # View report
 npm run report
@@ -25,17 +25,13 @@ npm run report
 
 ```
 .
-├── .env.test                       # HA token (git-ignored)
-├── playwright.config.ts            # Configuration
-├── pages/
-│   └── vulcan-panel.page.ts       # Page Object Model
+├── playwright.config.ts            # Configuration (chromium mock + staging projects)
+├── global-setup-staging.ts        # Real HA auth for staging project
 ├── tests/
-│   ├── panel-load.spec.ts         # Panel initialization (8 tests)
-│   ├── device-list.spec.ts        # Device list rendering (11 tests)
-│   ├── sorting.spec.ts            # Sorting (10 tests)
-│   ├── infinite-scroll.spec.ts    # Pagination (12 tests)
-│   ├── dark-mode.spec.ts          # Theme support (12 tests)
-│   └── modals.spec.ts             # Modals (15 tests)
+│   ├── panel-load.spec.ts         # Panel initialization and DOM structure (7 tests)
+│   ├── device-list.spec.ts        # Battery device list rendering (5 tests)
+│   ├── dark-mode.spec.ts          # Theme detection — staging only (1 test)
+│   └── debug-panel.spec.ts        # Debug panel — staging only (1 test)
 └── utils/
     ├── device-factory.ts          # Test data generation
     └── ws-mock.ts                 # WebSocket mock
@@ -43,72 +39,72 @@ npm run report
 
 ## Test Coverage
 
-**68 tests** covering major panel functionality:
+**14 tests** covering the panel's core functionality:
 
-| Suite | Tests | Coverage |
-|-------|-------|----------|
-| Panel Load | 8 | Initialization, DOM structure |
-| Device List | 11 | Rendering, filtering |
-| Sorting | 10 | All sort methods |
-| Infinite Scroll | 12 | Pagination, loading |
-| Dark Mode | 12 | Theme detection, CSS |
-| Modals | 15 | Settings, notifications |
+| Suite | Tests | Project | Coverage |
+|-------|-------|---------|----------|
+| Panel Load | 7 | chromium | Initialization, DOM structure, empty state, connection badge |
+| Device List | 5 | chromium | Battery rendering, threshold filtering, ordering |
+| Dark Mode | 1 | staging | Theme detection via HA profile |
+| Debug Panel | 1 | staging | Debug panel rendering |
+
+Tests tagged `@mock-only` are skipped by the staging project.
 
 ## Common Commands
 
 ```bash
-npm test                          # All tests, headless
-npm test -- --headed              # Browser visible
-npm test -- device-list.spec.ts   # Specific file
-npm test -- --grep "sorting"      # Pattern match
-npm test -- --debug               # Inspector
-npm run report                    # HTML report
+# Mock tests (fast, no real HA)
+npx playwright test --project=chromium
+
+# Staging tests (requires real HA)
+STAGING_MODE=true npx playwright test --project=staging
+
+# Single file
+npx playwright test panel-load.spec.ts
+
+# Pattern match
+npx playwright test -g "empty state"
+
+# Debug inspector
+npx playwright test --debug
+
+# HTML report
+npx playwright show-report
 ```
 
 ## Key Architecture
 
-**Page Object Model**: Encapsulates all panel interactions
-```typescript
-const panel = new VulcanBrownoutPanel(page);
-await panel.goto();
-await panel.clickSort();
-expect(await panel.getDeviceCount()).toBe(20);
-```
-
-**WebSocket Mocking**: Fast, controlled API responses
+**WebSocket Mocking**: Fast, controlled API responses against the mock server
 ```typescript
 const wsMock = new WebSocketMock(page);
 await wsMock.setup();
-wsMock.mockQueryDevices(generateDeviceList(0, 20));
+wsMock.mockQueryDevices(generateDeviceList(5));  // 5 low-battery entities
 ```
 
 **Device Factory**: Realistic test data
 ```typescript
-const devices = generateDeviceList(0, 9);        // Random
-const critical = generateCriticalDevice();        // Low battery
+const devices = generateDeviceList(5);    // 5 devices below 15%
+const critical = generateCriticalDevice(); // Single low-battery device
 ```
+
+**Shadow DOM selectors**: The panel uses Shadow DOM — use `>>` piercing
+```typescript
+page.locator('vulcan-brownout-panel >> .battery-list')
+```
+
+## Staging Setup
+
+Staging tests authenticate against a real HA instance. Config is loaded from
+`quality/environments/staging/vulcan-brownout-config.yaml` + secrets via ConfigLoader.
+
+See `quality/ansible/setup.yml` for one-command environment bootstrap.
 
 ## Performance
 
-- Single test: 2-3 seconds
-- Full suite: 20-25 seconds
+- Single mock test: 2-3 seconds
+- Full mock suite: ~10 seconds
 - Headless: -20% faster
-- Headed: +30% slower
-
-## Documentation
-
-See [../TESTING.md](../TESTING.md) for:
-- Setup instructions
-- Authentication details
-- Architecture overview
-- Common patterns
-- Debugging guide
-- Adding new tests
-- Troubleshooting
 
 ## Status
 
-**Ready for deployment** — Framework established, tests passing, documentation complete.
-
-Framework: Playwright 1.48+
-Last Updated: February 2026
+Framework: Playwright 1.48+ | Last Updated: February 2026
