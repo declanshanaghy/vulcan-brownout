@@ -8,7 +8,7 @@
 #   ./quality/scripts/run-all-tests.sh              # Run all stages
 #   ./quality/scripts/run-all-tests.sh --lint       # Lint only
 #   ./quality/scripts/run-all-tests.sh --e2e        # Playwright E2E mock tests only
-#   ./quality/scripts/run-all-tests.sh --docker     # Deploy + Playwright staging tests
+#   ./quality/scripts/run-all-tests.sh --docker     # Playwright staging tests (deploy separately first)
 #   ./quality/scripts/run-all-tests.sh --verbose    # Verbose output
 #
 # Exit codes: 0 = all passed, 1 = test failure, 2 = environment error
@@ -164,24 +164,8 @@ run_e2e() {
 # ─── Stage 4: Staging Tests (optional) ──────────────────────────────────────
 
 run_staging() {
-    log_stage "Stage 4: Deploy + Staging E2E Tests"
+    log_stage "Stage 4: Staging E2E Tests"
 
-    # Deploy first
-    local deploy_script="$SCRIPT_DIR/deploy.sh"
-    if [ ! -f "$deploy_script" ]; then
-        log_error "deploy.sh not found: $deploy_script"
-        return 2
-    fi
-
-    log_info "Deploying to staging..."
-    if "$deploy_script"; then
-        log_info "Deploy succeeded"
-    else
-        log_error "Deploy failed"
-        return 1
-    fi
-
-    # Run staging E2E tests
     cd "$E2E_DIR"
 
     log_info "Running staging E2E tests..."
