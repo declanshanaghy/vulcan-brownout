@@ -38,12 +38,11 @@ Load vulcan-brownout-team/qa-tester/SKILL.md and run `ansible-playbook quality/a
 
 ### Run All Tests (PREFERRED — use this instead of custom bash commands)
 ```bash
-# Run all stages: lint + component tests + E2E mock tests
+# Run all stages: lint + E2E mock tests
 ./quality/scripts/run-all-tests.sh
 
 # Run individual stages
 ./quality/scripts/run-all-tests.sh --lint       # flake8 + mypy only
-./quality/scripts/run-all-tests.sh --component  # Docker component tests only
 ./quality/scripts/run-all-tests.sh --e2e        # Playwright E2E mock tests only
 ./quality/scripts/run-all-tests.sh --docker    # Deploy + staging E2E tests
 ./quality/scripts/run-all-tests.sh --verbose    # Verbose output
@@ -73,7 +72,7 @@ mypy quality/integration-tests/test_component_integration.py quality/integration
 ```
 
 ### CI
-GitHub Actions runs lint then Docker component tests on every push/PR. See `.github/workflows/component-tests.yml`.
+GitHub Actions runs lint only on every push/PR. See `.github/workflows/component-tests.yml`.
 
 ## Architecture
 

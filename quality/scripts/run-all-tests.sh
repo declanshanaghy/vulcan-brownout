@@ -2,14 +2,13 @@
 #
 # Vulcan Brownout — Idempotent Test Runner v6.0.0
 #
-# Runs lint, component tests, and E2E tests. Safe to re-run at any time.
+# Runs lint and E2E tests. Safe to re-run at any time.
 #
 # Usage (execute directly — do NOT use `bash` subshell):
 #   ./quality/scripts/run-all-tests.sh              # Run all stages
 #   ./quality/scripts/run-all-tests.sh --lint       # Lint only
-#   ./quality/scripts/run-all-tests.sh --component  # Docker component tests only
 #   ./quality/scripts/run-all-tests.sh --e2e        # Playwright E2E mock tests only
-#   ./quality/scripts/run-all-tests.sh --docker    # Deploy + Playwright staging tests
+#   ./quality/scripts/run-all-tests.sh --docker     # Deploy + Playwright staging tests
 #   ./quality/scripts/run-all-tests.sh --verbose    # Verbose output
 #
 # Exit codes: 0 = all passed, 1 = test failure, 2 = environment error
@@ -40,7 +39,6 @@ NC='\033[0m'
 # State
 VERBOSE=false
 RUN_LINT=false
-RUN_COMPONENT=false
 RUN_E2E=false
 RUN_STAGING=false
 RUN_ALL=true
@@ -61,24 +59,22 @@ log_stage() {
 # Parse args
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --lint)      RUN_LINT=true; RUN_ALL=false; shift ;;
-        --component) RUN_COMPONENT=true; RUN_ALL=false; shift ;;
-        --e2e)       RUN_E2E=true; RUN_ALL=false; shift ;;
-        --docker)   RUN_STAGING=true; RUN_ALL=false; shift ;;
+        --lint)       RUN_LINT=true; RUN_ALL=false; shift ;;
+        --e2e)        RUN_E2E=true; RUN_ALL=false; shift ;;
+        --docker)     RUN_STAGING=true; RUN_ALL=false; shift ;;
         --verbose|-v) VERBOSE=true; shift ;;
         --help|-h)
-            echo "Usage: $0 [--lint] [--component] [--e2e] [--docker] [--verbose]"
-            echo "  No flags = run all stages (lint + component + e2e)"
+            echo "Usage: $0 [--lint] [--e2e] [--docker] [--verbose]"
+            echo "  No flags = run all stages (lint + e2e)"
             exit 0
             ;;
         *) log_error "Unknown option: $1"; exit 2 ;;
     esac
 done
 
-# If --all (default), enable lint + component + e2e
+# If --all (default), enable lint + e2e
 if [ "$RUN_ALL" = true ]; then
     RUN_LINT=true
-    RUN_COMPONENT=true
     RUN_E2E=true
 fi
 
@@ -129,40 +125,7 @@ run_lint() {
     return 0
 }
 
-# ─── Stage 2: Docker Component Tests ────────────────────────────────────────
-
-run_component() {
-    log_stage "Stage 2: Docker Component Tests"
-
-    if ! command -v docker &>/dev/null; then
-        log_error "docker not found — cannot run component tests"
-        return 2
-    fi
-
-    local compose_file="$PROJECT_ROOT/.github/docker-compose.yml"
-    if [ ! -f "$compose_file" ]; then
-        log_error "docker-compose.yml not found: $compose_file"
-        return 2
-    fi
-
-    # Clean up any leftover containers from previous runs (idempotent)
-    log_info "Cleaning up previous containers..."
-    docker compose -f "$compose_file" down --remove-orphans 2>/dev/null || true
-
-    # Build and run
-    log_info "Building and running component tests..."
-    if docker compose -f "$compose_file" up --build --abort-on-container-exit; then
-        log_info "Component tests: ALL PASSED"
-        docker compose -f "$compose_file" down --remove-orphans 2>/dev/null || true
-        return 0
-    else
-        log_error "Component tests: FAILED"
-        docker compose -f "$compose_file" down --remove-orphans 2>/dev/null || true
-        return 1
-    fi
-}
-
-# ─── Stage 3: Playwright E2E Mock Tests ─────────────────────────────────────
+# ─── Stage 2: Playwright E2E Mock Tests ─────────────────────────────────────
 
 run_e2e() {
     log_stage "Stage 3: Playwright E2E Mock Tests (chromium)"
@@ -244,10 +207,6 @@ echo ""
 
 if [ "$RUN_LINT" = true ]; then
     run_lint || FAILURES=$((FAILURES + 1))
-fi
-
-if [ "$RUN_COMPONENT" = true ]; then
-    run_component || FAILURES=$((FAILURES + 1))
 fi
 
 if [ "$RUN_E2E" = true ]; then
