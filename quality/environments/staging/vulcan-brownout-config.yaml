@@ -13,7 +13,7 @@
 ha:
   url: http://homeassistant.lan
   port: 8123
-  username: admin
+  username: sprocket
   # password and token are in vulcan-brownout-secrets.yaml
 
 # SSH / Deployment Credentials

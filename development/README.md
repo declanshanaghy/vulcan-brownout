@@ -171,7 +171,7 @@ ha_url = config['ha']['url']
 
 ## HA Config: Seed vs Runtime
 
-`development/environments/docker/config/` is **not tracked by git**. It is seeded once by the Ansible playbook from `development/ansible/seed/` and then owned by HA at runtime.
+`development/environments/docker/ansible/seed/` is **not tracked by git**. It is seeded once by the Ansible playbook from `development/ansible/seed/` and then owned by HA at runtime.
 
 - `development/ansible/seed/` — committed, canonical initial state (`.storage/`, `home-assistant_v2.db`, `configuration.yaml`, blueprints)
 - `development/environments/docker/config/` — runtime directory, git-ignored, HA mutates it freely
