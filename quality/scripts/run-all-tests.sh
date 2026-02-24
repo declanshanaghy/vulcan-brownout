@@ -44,6 +44,7 @@ VERBOSE=false
 RUN_LINT=false
 RUN_E2E=false
 RUN_DOCKER=false
+RUN_STAGING=false
 RUN_ALL=true
 FAILURES=0
 
@@ -65,20 +66,19 @@ while [[ $# -gt 0 ]]; do
         --lint)       RUN_LINT=true; RUN_ALL=false; shift ;;
         --e2e)        RUN_E2E=true; RUN_ALL=false; shift ;;
         --docker)     RUN_DOCKER=true; RUN_ALL=false; shift ;;
+        --staging)    RUN_STAGING=true; RUN_ALL=false; shift ;;
         --verbose|-v) VERBOSE=true; shift ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  (none)     Run all stages: lint + mock E2E tests"
-            echo "  --lint     Lint only (flake8 + mypy)"
-            echo "  --e2e      Playwright mock E2E tests  (TARGET_ENV=mock,   --project=mock)"
-            echo "  --docker   Playwright docker E2E tests (TARGET_ENV=docker, --project=docker)"
-            echo "  --verbose  Enable debug output"
-            echo "  --help     Show this help message"
-            echo ""
-            echo "Staging tests (manual — deploy first):"
-            echo "  cd quality/e2e && npm run test:staging"
+            echo "  (none)      Run all stages: lint + mock E2E tests"
+            echo "  --lint      Lint only (flake8 + mypy)"
+            echo "  --e2e       Playwright mock E2E tests    (TARGET_ENV=mock,    --project=mock)"
+            echo "  --docker    Playwright docker E2E tests  (TARGET_ENV=docker,  --project=docker)"
+            echo "  --staging   Playwright staging E2E tests (TARGET_ENV=staging, --project=staging)"
+            echo "  --verbose   Enable debug output"
+            echo "  --help      Show this help message"
             echo ""
             echo "Exit codes: 0 = all passed, 1 = test failure, 2 = environment error"
             exit 0
@@ -199,6 +199,26 @@ run_docker() {
     fi
 }
 
+# ─── Stage 4: Staging E2E Tests (optional) ───────────────────────────────────
+
+run_staging() {
+    log_stage "Stage 4: Playwright E2E Tests (TARGET_ENV=staging)"
+
+    _e2e_setup || return $?
+
+    log_info "Running Playwright E2E tests (staging)..."
+    if TARGET_ENV=staging npx playwright test --project=staging; then
+        log_info "Staging E2E tests: ALL PASSED"
+        cd "$PROJECT_ROOT"
+        return 0
+    else
+        log_error "Staging E2E tests: FAILED"
+        log_info "View report: cd $E2E_DIR && npx playwright show-report"
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+}
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 echo ""
@@ -217,6 +237,10 @@ fi
 
 if [ "$RUN_DOCKER" = true ]; then
     run_docker || FAILURES=$((FAILURES + 1))
+fi
+
+if [ "$RUN_STAGING" = true ]; then
+    run_staging || FAILURES=$((FAILURES + 1))
 fi
 
 # Summary

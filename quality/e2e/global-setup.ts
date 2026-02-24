@@ -135,7 +135,15 @@ export default async function globalSetup(config: FullConfig) {
       await page.waitForURL(
         (url) => !url.toString().includes('/auth/'),
         { timeout: 20000 }
-      );
+      ).catch(async (err) => {
+        const screenshotPath = path.join(__dirname, 'playwright', '.auth', `${targetEnv}-login-failure.png`);
+        await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+        console.error(`Login failed — screenshot saved to ${screenshotPath}`);
+        console.error(`Current URL: ${page.url()}`);
+        const bodyText = await page.locator('body').innerText().catch(() => '(could not read body)');
+        console.error(`Page text: ${bodyText.slice(0, 500)}`);
+        throw err;
+      });
 
       // Wait for HA to fully load after login
       await page.waitForTimeout(3000);
