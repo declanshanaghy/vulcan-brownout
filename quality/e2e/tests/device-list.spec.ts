@@ -2,8 +2,8 @@
  * Test: Device List Rendering (v6 simplified)
  * All shown devices are below 15% threshold (critical status)
  *
- * Mock mode: uses WebSocketMock with generated data
- * Staging mode: hits real HA backend with real entities
+ * Mock mode (TARGET_ENV=mock): uses WebSocketMock with generated data
+ * Real mode (TARGET_ENV=docker|staging): hits real HA backend
  */
 
 import { test, expect } from '@playwright/test';
@@ -11,11 +11,11 @@ import { VulcanBrownoutPanel } from '../pages/vulcan-panel.page';
 import { WebSocketMock } from '../utils/ws-mock';
 import { generateDeviceList, generateDevicesByName } from '../utils/device-factory';
 
-const isStaging = process.env.STAGING_MODE === 'true';
+const isMock = (process.env.TARGET_ENV || 'mock') === 'mock';
 
 test.describe('Vulcan Brownout - Device List', () => {
   test('should display devices with correct data', async ({ page }) => {
-    if (!isStaging) {
+    if (isMock) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
       wsMock.mockQueryEntities(generateDeviceList(0, 5));
@@ -25,7 +25,7 @@ test.describe('Vulcan Brownout - Device List', () => {
     await panel.goto();
 
     const count = await panel.getDeviceCount();
-    if (isStaging) {
+    if (!isMock) {
       expect(count).toBeGreaterThanOrEqual(0);
     } else {
       expect(count).toBe(5);
@@ -36,7 +36,7 @@ test.describe('Vulcan Brownout - Device List', () => {
   });
 
   test('should display named devices in order', async ({ page }) => {
-    if (!isStaging) {
+    if (isMock) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
       wsMock.mockQueryEntities(generateDevicesByName(['Alpha', 'Bravo', 'Charlie']));
@@ -46,8 +46,8 @@ test.describe('Vulcan Brownout - Device List', () => {
     await panel.goto();
 
     const names = await panel.getDeviceNames();
-    if (isStaging) {
-      // On staging, just verify we got device names (real data)
+    if (!isMock) {
+      // On real HA, just verify we got device names (real data)
       expect(names.length).toBeGreaterThanOrEqual(0);
       names.forEach((name) => expect(name.length).toBeGreaterThan(0));
     } else {
@@ -58,7 +58,7 @@ test.describe('Vulcan Brownout - Device List', () => {
   });
 
   test('should display battery levels for all devices', async ({ page }) => {
-    if (!isStaging) {
+    if (isMock) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
       wsMock.mockQueryEntities(generateDeviceList(0, 5));
@@ -68,7 +68,7 @@ test.describe('Vulcan Brownout - Device List', () => {
     await panel.goto();
 
     const levels = await panel.getDeviceLevels();
-    if (!isStaging) {
+    if (isMock) {
       expect(levels.length).toBe(5);
     }
     levels.forEach((level) => {
@@ -78,7 +78,7 @@ test.describe('Vulcan Brownout - Device List', () => {
   });
 
   test('should show all devices below 15% threshold', async ({ page }) => {
-    if (!isStaging) {
+    if (isMock) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
       wsMock.mockQueryEntities(generateDeviceList(0, 3));

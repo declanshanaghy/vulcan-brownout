@@ -2,7 +2,8 @@
  * WebSocket mock helper for intercepting and mocking HA API calls
  * Simplified for v6: only query_entities (no params) and subscribe
  *
- * In staging mode (STAGING_MODE=true), all methods become no-ops.
+ * Only active when TARGET_ENV=mock (default). All methods become no-ops
+ * in docker or staging mode where real HA WebSocket traffic is used.
  */
 
 import { Page, WebSocketRoute } from '@playwright/test';
@@ -24,18 +25,18 @@ export interface HAWebSocketResponse {
 export class WebSocketMock {
   private page: Page;
   private messageHandlers: Map<string, (data: any) => any> = new Map();
-  private isStaging: boolean;
+  private isMock: boolean;
 
   constructor(page: Page) {
     this.page = page;
-    this.isStaging = process.env.STAGING_MODE === 'true';
-    if (!this.isStaging) {
+    this.isMock = (process.env.TARGET_ENV || 'mock') === 'mock';
+    if (this.isMock) {
       this.setupDefaultHandlers();
     }
   }
 
   async setup(): Promise<void> {
-    if (this.isStaging) return;
+    if (!this.isMock) return;
     await this.page.routeWebSocket('/api/websocket', async (route) => {
       await this.handleWebSocket(route);
     });
@@ -104,7 +105,7 @@ export class WebSocketMock {
     messageType: string,
     handler: (data: HAWebSocketMessage) => HAWebSocketResponse | null
   ): void {
-    if (this.isStaging) return;
+    if (!this.isMock) return;
     this.messageHandlers.set(messageType, handler);
   }
 
@@ -112,7 +113,7 @@ export class WebSocketMock {
    * Mock vulcan-brownout/query_entities response (no params in v6)
    */
   mockQueryEntities(entities: Device[]): void {
-    if (this.isStaging) return;
+    if (!this.isMock) return;
     this.registerHandler('vulcan-brownout/query_entities', (data) => ({
       id: data.id,
       type: 'result',
@@ -128,7 +129,7 @@ export class WebSocketMock {
    * Mock subscription response
    */
   mockSubscribe(subscriptionId: string): void {
-    if (this.isStaging) return;
+    if (!this.isMock) return;
     this.registerHandler('vulcan-brownout/subscribe', (data) => ({
       id: data.id,
       type: 'result',

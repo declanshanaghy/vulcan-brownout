@@ -38,26 +38,40 @@ Load vulcan-brownout-team/qa-tester/SKILL.md and run `ansible-playbook quality/a
 
 ### Run All Tests (PREFERRED — use this instead of custom bash commands)
 ```bash
-# Run all stages: lint + E2E mock tests
+# Run all stages: lint + mock E2E tests
 ./quality/scripts/run-all-tests.sh
 
 # Run individual stages
 ./quality/scripts/run-all-tests.sh --lint       # flake8 + mypy only
-./quality/scripts/run-all-tests.sh --e2e        # Playwright E2E mock tests only
-./quality/scripts/run-all-tests.sh --docker    # Deploy + staging E2E tests
+./quality/scripts/run-all-tests.sh --e2e        # Playwright mock E2E tests (TARGET_ENV=mock)
+./quality/scripts/run-all-tests.sh --docker     # Playwright docker E2E tests (TARGET_ENV=docker)
 ./quality/scripts/run-all-tests.sh --verbose    # Verbose output
 ```
 
 ### E2E Tests (Playwright)
+
+Three environments controlled via `TARGET_ENV`:
+- `mock` (default): Docker HA frontend + intercepted vulcan-brownout WebSocket
+- `docker`: Docker HA with real vulcan-brownout integration (localhost:8123)
+- `staging`: Staging HA server (homeassistant.lan:8123)
+
 ```bash
 cd quality/e2e
 npm install && npx playwright install chromium  # first time setup
 
-npx playwright test --project=chromium           # mock tests, headless
-npx playwright test panel-load.spec.ts           # single suite
-npx playwright test -g "test name pattern"       # single test by name
-npx playwright test --headed                     # with browser visible
-npx playwright show-report                       # view HTML report
+npm run test:mock                                # mock tests (default)
+npm run test:docker                              # docker tests
+npm run test:staging                             # staging tests
+npm run test:mock:headed                         # with browser visible
+
+# Or directly with Playwright:
+TARGET_ENV=mock    npx playwright test --project=mock
+TARGET_ENV=docker  npx playwright test --project=docker
+TARGET_ENV=staging npx playwright test --project=staging
+
+npx playwright test panel-load.spec.ts          # single suite (add TARGET_ENV as needed)
+npx playwright test -g "test name pattern"      # single test by name
+npx playwright show-report                      # view HTML report
 ```
 
 ### Linting

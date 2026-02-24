@@ -5,11 +5,14 @@
 # Runs lint and E2E tests. Safe to re-run at any time.
 #
 # Usage (execute directly — do NOT use `bash` subshell):
-#   ./quality/scripts/run-all-tests.sh              # Run all stages
+#   ./quality/scripts/run-all-tests.sh              # Run all stages (lint + mock E2E)
 #   ./quality/scripts/run-all-tests.sh --lint       # Lint only
-#   ./quality/scripts/run-all-tests.sh --e2e        # Playwright E2E mock tests only
-#   ./quality/scripts/run-all-tests.sh --docker     # Playwright staging tests (deploy separately first)
+#   ./quality/scripts/run-all-tests.sh --e2e        # Playwright mock E2E tests (TARGET_ENV=mock)
+#   ./quality/scripts/run-all-tests.sh --docker     # Playwright docker E2E tests (TARGET_ENV=docker)
 #   ./quality/scripts/run-all-tests.sh --verbose    # Verbose output
+#
+# Staging tests: run manually — deploy first, then:
+#   cd quality/e2e && npm run test:staging
 #
 # Exit codes: 0 = all passed, 1 = test failure, 2 = environment error
 
@@ -40,7 +43,7 @@ NC='\033[0m'
 VERBOSE=false
 RUN_LINT=false
 RUN_E2E=false
-RUN_STAGING=false
+RUN_DOCKER=false
 RUN_ALL=true
 FAILURES=0
 
@@ -61,11 +64,13 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --lint)       RUN_LINT=true; RUN_ALL=false; shift ;;
         --e2e)        RUN_E2E=true; RUN_ALL=false; shift ;;
-        --docker)     RUN_STAGING=true; RUN_ALL=false; shift ;;
+        --docker)     RUN_DOCKER=true; RUN_ALL=false; shift ;;
         --verbose|-v) VERBOSE=true; shift ;;
         --help|-h)
             echo "Usage: $0 [--lint] [--e2e] [--docker] [--verbose]"
-            echo "  No flags = run all stages (lint + e2e)"
+            echo "  No flags = run all stages (lint + mock E2E)"
+            echo "  --e2e    = Playwright mock tests  (TARGET_ENV=mock,   --project=mock)"
+            echo "  --docker = Playwright docker tests (TARGET_ENV=docker, --project=docker)"
             exit 0
             ;;
         *) log_error "Unknown option: $1"; exit 2 ;;
@@ -125,11 +130,9 @@ run_lint() {
     return 0
 }
 
-# ─── Stage 2: Playwright E2E Mock Tests ─────────────────────────────────────
+# ─── Stage 2: Playwright E2E Mock Tests ──────────────────────────────────────
 
-run_e2e() {
-    log_stage "Stage 3: Playwright E2E Mock Tests (chromium)"
-
+_e2e_setup() {
     if [ ! -d "$E2E_DIR" ]; then
         log_error "E2E directory not found: $E2E_DIR"
         return 2
@@ -146,10 +149,15 @@ run_e2e() {
     # Ensure Playwright browsers are installed
     log_info "Ensuring Playwright browsers are installed..."
     npx playwright install chromium 2>/dev/null || true
+}
 
-    # Run tests
-    log_info "Running Playwright E2E tests (chromium)..."
-    if npx playwright test --project=chromium; then
+run_e2e() {
+    log_stage "Stage 2: Playwright E2E Tests (TARGET_ENV=mock)"
+
+    _e2e_setup || return $?
+
+    log_info "Running Playwright E2E tests (mock)..."
+    if TARGET_ENV=mock npx playwright test --project=mock; then
         log_info "E2E mock tests: ALL PASSED"
         cd "$PROJECT_ROOT"
         return 0
@@ -161,20 +169,20 @@ run_e2e() {
     fi
 }
 
-# ─── Stage 4: Staging Tests (optional) ──────────────────────────────────────
+# ─── Stage 3: Docker E2E Tests (optional) ────────────────────────────────────
 
-run_staging() {
-    log_stage "Stage 4: Staging E2E Tests"
+run_docker() {
+    log_stage "Stage 3: Playwright E2E Tests (TARGET_ENV=docker)"
 
-    cd "$E2E_DIR"
+    _e2e_setup || return $?
 
-    log_info "Running staging E2E tests..."
-    if STAGING_MODE=true npx playwright test --project=staging; then
-        log_info "Staging E2E tests: ALL PASSED"
+    log_info "Running Playwright E2E tests (docker)..."
+    if TARGET_ENV=docker npx playwright test --project=docker; then
+        log_info "Docker E2E tests: ALL PASSED"
         cd "$PROJECT_ROOT"
         return 0
     else
-        log_error "Staging E2E tests: FAILED"
+        log_error "Docker E2E tests: FAILED"
         log_info "View report: cd $E2E_DIR && npx playwright show-report"
         cd "$PROJECT_ROOT"
         return 1
@@ -197,8 +205,8 @@ if [ "$RUN_E2E" = true ]; then
     run_e2e || FAILURES=$((FAILURES + 1))
 fi
 
-if [ "$RUN_STAGING" = true ]; then
-    run_staging || FAILURES=$((FAILURES + 1))
+if [ "$RUN_DOCKER" = true ]; then
+    run_docker || FAILURES=$((FAILURES + 1))
 fi
 
 # Summary

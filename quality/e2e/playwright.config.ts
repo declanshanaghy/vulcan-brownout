@@ -3,15 +3,21 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright configuration for Vulcan Brownout E2E tests
  *
- * Projects:
- * - chromium: Mock WebSocket (fast feedback, <5s per test)
- * - staging: Real HA backend (integration tests against staging environment)
+ * Target environments (set via TARGET_ENV):
+ * - mock    (default): Docker HA frontend + intercepted vulcan-brownout WebSocket (fast feedback)
+ * - docker: Docker HA with real vulcan-brownout integration (full local stack)
+ * - staging: Staging HA server with real integration (end-to-end validation)
  *
- * Run staging tests: STAGING_MODE=true npx playwright test --project=staging
- * Or use: npm run test:staging
+ * Usage:
+ *   TARGET_ENV=mock    npx playwright test --project=mock
+ *   TARGET_ENV=docker  npx playwright test --project=docker
+ *   TARGET_ENV=staging npx playwright test --project=staging
+ * Or use the npm scripts:
+ *   npm run test:mock | test:docker | test:staging
  */
 
-const isStaging = process.env.STAGING_MODE === 'true';
+const targetEnv = (process.env.TARGET_ENV || 'mock') as 'mock' | 'docker' | 'staging';
+const isMock = targetEnv === 'mock';
 
 export default defineConfig({
   testDir: './tests',
@@ -27,27 +33,41 @@ export default defineConfig({
   ],
 
   use: {
-    baseURL: process.env.HA_URL || 'http://homeassistant.lan:8123',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
 
-  ...(isStaging && {
-    globalSetup: require.resolve('./global-setup-staging.ts'),
+  ...(!isMock && {
+    globalSetup: require.resolve('./global-setup.ts'),
   }),
 
   projects: [
     {
-      name: 'chromium',
+      name: 'mock',
       use: {
         ...devices['Desktop Chrome'],
+        baseURL: process.env.HA_URL || 'http://localhost:8123',
       },
+    },
+    {
+      name: 'docker',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: process.env.HA_URL || 'http://localhost:8123',
+        storageState: 'playwright/.auth/docker-auth.json',
+        actionTimeout: 15000,
+        navigationTimeout: 30000,
+      },
+      timeout: 60000,
+      retries: 1,
+      grepInvert: /@mock-only/,
     },
     {
       name: 'staging',
       use: {
         ...devices['Desktop Chrome'],
+        baseURL: process.env.HA_URL || 'http://homeassistant.lan:8123',
         storageState: 'playwright/.auth/staging-auth.json',
         actionTimeout: 15000,
         navigationTimeout: 30000,

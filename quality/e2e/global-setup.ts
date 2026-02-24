@@ -1,12 +1,18 @@
 /**
- * Global setup for staging tests: Real HA authentication
+ * Global setup for non-mock tests: Real HA authentication
  * Launches a browser, performs the HA login form flow, and saves
- * authenticated browser state for all staging test contexts.
+ * authenticated browser state for all test contexts.
+ *
+ * Runs for TARGET_ENV=docker and TARGET_ENV=staging.
  *
  * Config resolution order:
- *  1. quality/environments/staging/ YAML config via ConfigLoader
+ *  1. YAML config via ConfigLoader (primary source, env-specific)
  *  2. quality/e2e/.env.test  (local override, gitignored)
- *  3. Process environment variables (set by deploy.sh or CI)
+ *  3. Process environment variables
+ *
+ * Auth state is saved per environment:
+ *  - docker:  playwright/.auth/docker-auth.json
+ *  - staging: playwright/.auth/staging-auth.json
  */
 
 import { chromium, FullConfig } from '@playwright/test';
@@ -17,6 +23,14 @@ import * as dotenv from 'dotenv';
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const pythonBin = path.join(repoRoot, 'quality', 'venv', 'bin', 'python');
+const targetEnv = (process.env.TARGET_ENV || 'staging') as 'docker' | 'staging';
+
+// Map TARGET_ENV to ConfigLoader arguments
+const configLoaderEnv = targetEnv === 'docker' ? 'docker' : 'staging';
+const configLoaderBaseDir = targetEnv === 'docker' ? 'development/environments' : 'quality/environments';
+
+// Auth file is per environment
+const AUTH_FILE = path.join(__dirname, 'playwright', '.auth', `${targetEnv}-auth.json`);
 
 // 1. Load YAML config via ConfigLoader (primary source)
 if (!process.env.HA_USERNAME) {
@@ -32,7 +46,7 @@ if (!process.env.HA_USERNAME) {
     'import sys, json',
     `sys.path.insert(0, ${JSON.stringify(path.join(repoRoot, 'development', 'scripts'))})`,
     'from config_loader import ConfigLoader',
-    `loader = ConfigLoader('staging', env_base_dir='quality/environments')`,
+    `loader = ConfigLoader('${configLoaderEnv}', env_base_dir='${configLoaderBaseDir}')`,
     'print(json.dumps(loader.get_env_vars()))',
   ].join('\n');
 
@@ -47,7 +61,7 @@ if (!process.env.HA_USERNAME) {
   if (result.status !== 0) {
     throw new Error(
       `ConfigLoader failed (exit ${result.status}):\n${result.stderr || '(no stderr)'}\n` +
-      'Check quality/environments/staging/vulcan-brownout-config.yaml and vulcan-brownout-secrets.yaml'
+      `Check ${configLoaderBaseDir}/${configLoaderEnv}/vulcan-brownout-config.yaml and vulcan-brownout-secrets.yaml`
     );
   }
 
@@ -57,16 +71,15 @@ if (!process.env.HA_USERNAME) {
       process.env[k] = v;
     }
   }
-  console.log('Loaded staging config from quality/environments/staging/ YAML');
+  console.log(`Loaded ${targetEnv} config from ${configLoaderBaseDir}/${configLoaderEnv}/ YAML`);
 }
 
 // 2. Local .env.test override (optional, gitignored — for one-off local tweaks)
 dotenv.config({ path: path.join(__dirname, '.env.test'), override: false });
 
-const HA_URL = process.env.HA_URL || 'http://homeassistant.lan:8123';
+const HA_URL = process.env.HA_URL || (targetEnv === 'docker' ? 'http://localhost:8123' : 'http://homeassistant.lan:8123');
 const HA_USERNAME = process.env.HA_USERNAME || '';
 const HA_PASSWORD = process.env.HA_PASSWORD || '';
-const AUTH_FILE = path.join(__dirname, 'playwright', '.auth', 'staging-auth.json');
 
 export default async function globalSetup(config: FullConfig) {
   const authDir = path.dirname(AUTH_FILE);
@@ -78,20 +91,20 @@ export default async function globalSetup(config: FullConfig) {
   if (fs.existsSync(AUTH_FILE)) {
     const ageMs = Date.now() - fs.statSync(AUTH_FILE).mtime.getTime();
     if (ageMs < 30 * 60 * 1000) {
-      console.log(`Reusing staging auth (${Math.round(ageMs / 60000)} min old)`);
+      console.log(`Reusing ${targetEnv} auth (${Math.round(ageMs / 60000)} min old)`);
       return;
     }
-    console.log('Staging auth expired, re-authenticating...');
+    console.log(`${targetEnv} auth expired, re-authenticating...`);
   }
 
   if (!HA_USERNAME || !HA_PASSWORD) {
     throw new Error(
-      'Staging tests require HA_USERNAME and HA_PASSWORD.\n' +
-      'Set them in quality/environments/staging/vulcan-brownout-secrets.yaml'
+      `${targetEnv} tests require HA_USERNAME and HA_PASSWORD.\n` +
+      `Set them in ${configLoaderBaseDir}/${configLoaderEnv}/vulcan-brownout-secrets.yaml`
     );
   }
 
-  console.log(`Performing real HA login for staging tests (${HA_URL})...`);
+  console.log(`Performing real HA login for ${targetEnv} tests (${HA_URL})...`);
 
   const browser = await chromium.launch();
   const context = await browser.newContext();
@@ -133,7 +146,7 @@ export default async function globalSetup(config: FullConfig) {
 
     // Save authenticated browser state
     await context.storageState({ path: AUTH_FILE });
-    console.log(`Staging auth saved to ${AUTH_FILE}`);
+    console.log(`${targetEnv} auth saved to ${AUTH_FILE}`);
   } finally {
     await browser.close();
   }

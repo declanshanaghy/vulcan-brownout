@@ -25,16 +25,16 @@ npm run report
 
 ```
 .
-├── playwright.config.ts            # Configuration (chromium mock + staging projects)
-├── global-setup-staging.ts        # Real HA auth for staging project
+├── playwright.config.ts            # Configuration (mock + docker + staging projects)
+├── global-setup.ts                # Real HA auth for docker and staging projects
 ├── tests/
 │   ├── panel-load.spec.ts         # Panel initialization and DOM structure (7 tests)
 │   ├── device-list.spec.ts        # Battery device list rendering (5 tests)
-│   ├── dark-mode.spec.ts          # Theme detection — staging only (1 test)
-│   └── debug-panel.spec.ts        # Debug panel — staging only (1 test)
+│   ├── dark-mode.spec.ts          # Theme detection — real HA only (1 test)
+│   └── debug-panel.spec.ts        # Debug panel — real HA only (1 test)
 └── utils/
     ├── device-factory.ts          # Test data generation
-    └── ws-mock.ts                 # WebSocket mock
+    └── ws-mock.ts                 # WebSocket mock (active only when TARGET_ENV=mock)
 ```
 
 ## Test Coverage
@@ -43,24 +43,40 @@ npm run report
 
 | Suite | Tests | Project | Coverage |
 |-------|-------|---------|----------|
-| Panel Load | 7 | chromium | Initialization, DOM structure, empty state, connection badge |
-| Device List | 5 | chromium | Battery rendering, threshold filtering, ordering |
-| Dark Mode | 1 | staging | Theme detection via HA profile |
-| Debug Panel | 1 | staging | Debug panel rendering |
+| Panel Load | 7 | mock | Initialization, DOM structure, empty state, connection badge |
+| Device List | 5 | mock | Battery rendering, threshold filtering, ordering |
+| Dark Mode | 1 | docker/staging | Theme detection via HA profile |
+| Debug Panel | 1 | docker/staging | Debug panel rendering |
 
-Tests tagged `@mock-only` are skipped by the staging project.
+Tests tagged `@mock-only` are skipped by docker and staging projects.
+
+## Environment Control
+
+Set `TARGET_ENV` to select the target environment:
+
+| `TARGET_ENV` | Project | HA URL | WebSocket | Auth |
+|---|---|---|---|---|
+| `mock` (default) | `mock` | localhost:8123 | intercepted | none |
+| `docker` | `docker` | localhost:8123 | real | storageState |
+| `staging` | `staging` | homeassistant.lan:8123 | real | storageState |
 
 ## Common Commands
 
 ```bash
-# Mock tests (fast, no real HA)
-npx playwright test --project=chromium
+# Mock tests (Docker HA frontend + mocked vulcan-brownout WS)
+TARGET_ENV=mock npx playwright test --project=mock
+npm run test:mock
 
-# Staging tests (requires real HA)
-STAGING_MODE=true npx playwright test --project=staging
+# Docker tests (real vulcan-brownout integration at localhost:8123)
+TARGET_ENV=docker npx playwright test --project=docker
+npm run test:docker
 
-# Single file
-npx playwright test panel-load.spec.ts
+# Staging tests (real HA at homeassistant.lan:8123)
+TARGET_ENV=staging npx playwright test --project=staging
+npm run test:staging
+
+# Single file (set TARGET_ENV as needed)
+TARGET_ENV=mock npx playwright test panel-load.spec.ts
 
 # Pattern match
 npx playwright test -g "empty state"

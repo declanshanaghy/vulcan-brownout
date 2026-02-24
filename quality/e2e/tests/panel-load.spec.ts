@@ -2,8 +2,8 @@
  * Test: Panel Loading & Initialization (v6 simplified)
  * Validates that the Vulcan Brownout panel loads and displays devices below 15%
  *
- * Mock mode: uses WebSocketMock with generated data
- * Staging mode: hits real HA backend with real entities
+ * Mock mode (TARGET_ENV=mock): uses WebSocketMock with generated data
+ * Real mode (TARGET_ENV=docker|staging): hits real HA backend
  */
 
 import { test, expect } from '@playwright/test';
@@ -11,11 +11,11 @@ import { VulcanBrownoutPanel } from '../pages/vulcan-panel.page';
 import { WebSocketMock } from '../utils/ws-mock';
 import { generateDeviceList } from '../utils/device-factory';
 
-const isStaging = process.env.STAGING_MODE === 'true';
+const isMock = (process.env.TARGET_ENV || 'mock') === 'mock';
 
 test.describe('Vulcan Brownout - Panel Loading', () => {
   test('should load panel and verify DOM structure', async ({ page }) => {
-    if (!isStaging) {
+    if (isMock) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
       wsMock.mockQueryEntities(generateDeviceList(0, 5));
@@ -29,7 +29,7 @@ test.describe('Vulcan Brownout - Panel Loading', () => {
   });
 
   test('should display device list with correct count', async ({ page }) => {
-    if (!isStaging) {
+    if (isMock) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
       wsMock.mockQueryEntities(generateDeviceList(0, 5));
@@ -39,7 +39,7 @@ test.describe('Vulcan Brownout - Panel Loading', () => {
     await panel.goto();
 
     const deviceCount = await panel.getDeviceCount();
-    if (isStaging) {
+    if (!isMock) {
       expect(deviceCount).toBeGreaterThanOrEqual(0);
     } else {
       expect(deviceCount).toBe(5);
@@ -47,7 +47,7 @@ test.describe('Vulcan Brownout - Panel Loading', () => {
   });
 
   test('should render table with correct columns', async ({ page }) => {
-    if (!isStaging) {
+    if (isMock) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
       wsMock.mockQueryEntities(generateDeviceList(0, 3));
@@ -83,7 +83,7 @@ test.describe('Vulcan Brownout - Panel Loading', () => {
   });
 
   test('should show connection status badge', async ({ page }) => {
-    if (!isStaging) {
+    if (isMock) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
       wsMock.mockQueryEntities(generateDeviceList(0, 3));
@@ -98,7 +98,7 @@ test.describe('Vulcan Brownout - Panel Loading', () => {
   });
 
   test('should load within acceptable time', async ({ page }) => {
-    if (!isStaging) {
+    if (isMock) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
       wsMock.mockQueryEntities(generateDeviceList(0, 10));
@@ -109,12 +109,12 @@ test.describe('Vulcan Brownout - Panel Loading', () => {
     await panel.goto();
     const loadTime = Date.now() - startTime;
 
-    expect(loadTime).toBeLessThan(isStaging ? 15000 : 5000);
+    expect(loadTime).toBeLessThan(isMock ? 5000 : 15000);
     await expect(panel.panel).toBeVisible();
   });
 
   test('should verify panel is accessible', async ({ page }) => {
-    if (!isStaging) {
+    if (isMock) {
       const wsMock = new WebSocketMock(page);
       await wsMock.setup();
       wsMock.mockQueryEntities(generateDeviceList(0, 5));
