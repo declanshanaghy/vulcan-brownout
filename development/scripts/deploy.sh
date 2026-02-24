@@ -120,7 +120,7 @@ for ((i=1; i<=MAX_RETRIES; i++)); do
 
     HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
         -H "Authorization: Bearer $HA_TOKEN" \
-        "$HA_URL/api/")
+        "$HA_URL/api/" || echo "000")
 
     if [ "$HTTP_STATUS" = "200" ]; then
         ready=1
