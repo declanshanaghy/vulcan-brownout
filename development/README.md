@@ -186,3 +186,23 @@ Once Docker environment is working:
 - Run tests: `./quality/scripts/run-all-tests.sh --docker`
 - Develop against live HA instance
 - Staging environment setup (coming later)
+
+---
+
+## Documentation Index
+
+This directory contains setup guides and technical documentation for Vulcan Brownout development:
+
+### Setup & Environment
+- [Local Docker Environment](environments/docker/README.md) — How to run a local Home Assistant instance in Docker for testing the integration.
+
+### Development Standards
+- [Logging Best Practices](logging-best-practices.md) — Python logging standards, message formats, and debug-enabling procedures for the integration.
+
+### Home Assistant Reference
+- [Logging Reference](home-assistant/logging-reference.md) — Technical reference for HA's logger system, log levels, and integration configuration.
+- [Registry & Navigation Research](home-assistant/registry-and-navigation-research.md) — Device/entity/area registry lookups and entity management page navigation patterns.
+
+### Sprint Documentation
+- [QA Handoff (Sprint 6)](qa-handoff.md) — Quality assurance test scenarios and acceptance criteria for Sprint 6 tabbed UI feature. ⚠️ *Work in progress, not yet merged into v6.0.0.*
+- [Implementation Plan (Sprint 6)](implementation-plan.md) — Backend and frontend implementation details for Sprint 6 tabbed UI feature. ⚠️ *Work in progress, not yet merged into v6.0.0.*

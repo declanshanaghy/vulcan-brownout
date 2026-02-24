@@ -12,10 +12,3 @@ homeassistant:
   country: US
   internal_url: http://localhost:8123
 
-# Switch between mock entities (default) and entities extracted from a real HA instance:
-#   Mock (default):   template: !include template.yaml
-#   Extracted:        template: !include ha-entities.yaml
-#
-# To extract from a real HA: python development/scripts/extract-ha-entities.py
-# then: cp tmp/ha-entities.yaml development/environments/docker/config/ha-entities.yaml
-template: !include template.yaml

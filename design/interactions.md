@@ -1,12 +1,43 @@
-# Interaction Specs — Sprint 4
-
-**By**: Luna (UX) | **Status**: IN PROGRESS
-
-All interactions for Vulcan Brownout panel. These specs define how users interact with the UI, what feedback they receive, and how the system responds.
+> **Note**: The interaction specs below document features from Sprints 4 and 5 that were **not implemented** in v6.0.0. Interactions 1, 9, 11-13 are archived for historical context.
+>
+> **v6.0.0 Current Interactions**: Interactions 2-8 and 10 describe the actual v6.0.0 UI behavior.
 
 ---
 
-## Interaction 1: Theme Detection & Live Theme Switching (NEW for Sprint 4)
+# Interaction Specs — v6.0.0 (Current)
+
+**By**: Luna (UX) | **Status**: Current | **Date**: 2026-02-23
+
+All interactions for Vulcan Brownout panel v6.0.0. These specs define how users interact with the minimal, simplified UI.
+
+---
+
+## ⚠️ IMPORTANT: v6.0.0 vs. Archived Interactions
+
+**v6.0.0 Current Interactions** (5 interactions implemented):
+- **Interaction 2**: Infinite Scroll with Skeleton Loaders
+- **Interaction 3**: Back-to-Top Button
+- **Interaction 6**: Empty State (No Battery Devices Found)
+- **Interaction 7**: Error State (Connection Lost / API Failure)
+- **Interaction 8**: Scroll Position Persistence
+- **Interaction 10**: Mobile Responsiveness
+
+**Archived Interactions** (NOT implemented in v6.0.0):
+- **Interaction 1**: Theme Detection (Sprint 4 removed)
+- **Interaction 4**: Notification Preferences Modal (Sprint 4 removed)
+- **Interaction 5**: Settings Panel / Threshold Configuration (Sprint 4 removed)
+- **Interaction 9**: Sort & Filter Controls (Sprint 5 removed)
+- **Interactions 11-13**: Filter Selection, Chips, Dynamic Population (Sprint 5 removed)
+
+Archived interactions are preserved below for historical context and to understand past design decisions, but **do NOT** represent the current product. See CLAUDE.md for v6.0.0 architecture.
+
+---
+
+# Current v6.0.0 Interactions
+
+Below are the six interactions that are **implemented in v6.0.0**. Archived interactions are at the end of this document.
+
+---
 
 ### Trigger
 1. **On load**: Panel `connectedCallback()` fires
@@ -539,25 +570,9 @@ _setup_infinite_scroll() {
 
 ---
 
-## Interaction 9: Sort & Filter Controls
+# ARCHIVED: Interaction 9: Sort & Filter Controls (Sprint 5 — NOT IMPLEMENTED)
 
-### Trigger
-User clicks sort/filter dropdowns in control bar.
-
-### Behavior
-1. **Sort**: Dropdown options: Priority (default), Alphabetical, Battery Level (ascending)
-2. **Filter**: Dropdown options: All, Critical only, Warning+, Healthy only
-3. **Apply**: Selection updates device list immediately (client-side sort, no API call)
-4. **Persist**: Sort/filter state saved to localStorage for next session
-5. **Display counts**: Filter shows device count (e.g., "All Batteries (127)")
-
-### States
-- **Default**: Priority sort, All filter
-- **Custom**: User-selected sort/filter persists across sessions
-
-### Edge Cases
-1. **Sort + Filter combined**: Sort applied within each status group
-2. **Empty result**: If filter matches no devices, show empty state (same as zero devices)
+This interaction describes sorting and filtering controls that were planned for Sprint 5 but are **not** part of v6.0.0. The current v6.0.0 implementation shows all critical devices in a single, unsorted list with no filtering or sorting options.
 
 ---
 
@@ -656,15 +671,16 @@ Window width changes via resize event or orientation change.
 
 ---
 
-# Interaction Specs — Sprint 5
+# ARCHIVED: Sprint 5 Filter Interactions (Interactions 11-13 — NOT IMPLEMENTED)
 
-**By**: Luna (UX) | **Status**: IN PROGRESS | **Date**: 2026-02-22
+The following three interactions document filter controls planned for Sprint 5 but **not** implemented in v6.0.0:
+- Interaction 11: Filter Selection & Application
+- Interaction 12: Filter Chip Management
+- Interaction 13: Dynamic Filter Population
 
-Sprint 5 adds three new interaction specs covering the Simple Filtering feature: filter selection and application, filter chip management, and dynamic filter population from the backend.
+These are preserved for historical context. In v6.0.0, filtering is not available.
 
 ---
-
-## Interaction 11: Filter Selection & Application
 
 ### Trigger
 1. **Desktop**: User clicks any filter trigger button (Manufacturer, Device Class, Status, Room) in the filter bar
@@ -1287,3 +1303,15 @@ The following accessibility specs extend the global Accessibility Specs section 
 - [ ] All filter UI touch targets meet 44px minimum
 - [ ] Dropdown positioning corrects for right-edge and bottom-edge viewport overflow
 - [ ] Chip row scrolls horizontally on narrow viewports without wrapping
+
+---
+
+---
+
+# ARCHIVED INTERACTIONS (Sprint 4-5 — NOT IMPLEMENTED in v6.0.0)
+
+The following interactions document features that were planned but **not implemented** in v6.0.0 as part of the architecture simplification. They are preserved for historical context and understanding past design decisions.
+
+---
+
+## ARCHIVED: Interaction 1: Theme Detection & Live Theme Switching (Sprint 4 — NOT IMPLEMENTED)

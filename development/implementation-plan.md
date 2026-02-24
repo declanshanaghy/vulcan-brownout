@@ -1,6 +1,9 @@
 # Sprint 6: Tabbed UI — Implementation Plan
 
-**Status**: Completed
+> **⚠️ NOTE: This document describes Sprint 6 work that has been implemented but is NOT YET MERGED into the v6.0.0 codebase described in CLAUDE.md.**
+> The features described here (tabbed UI, `query_unavailable` command) are in-flight and pending final validation. Current v6.0.0 remains: fixed 15% threshold, two WebSocket commands (`query_entities`, `subscribe`), no tabs.
+
+**Status**: Completed (pending merge)
 **Date**: 2026-02-23
 **Developer**: FiremanDecko (Principal Engineer)
 

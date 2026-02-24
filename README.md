@@ -22,7 +22,8 @@ PO → Design Brief → Principal Engineer → Architecture + Implementation →
 - [System Design](architecture/system-design.md) — How it works (Sprint 3 + Sprint 4)
 - [API Contracts](architecture/api-contracts.md) — WebSocket protocol (Sprint 3, no changes Sprint 4)
 - [Sprint Plan](architecture/sprint-plan.md) — Current sprint stories
-- [Design Brief](design/product-design-brief.md) — UX specs
+- [Design Brief](design/README.md) — UX specs, wireframes, and interaction specifications
+- [Development](development/README.md) — Setup guides, logging standards, and development documentation
 - [Implementation Status](development/implementation-plan.md) — What's built
 - [QA](quality/README.md) — Test framework, environment setup, architecture decisions
 - [ADR Summary](architecture/adrs/SUMMARY.md) — All architecture decisions

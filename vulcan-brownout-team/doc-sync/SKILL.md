@@ -12,7 +12,12 @@ Your job: make the documentation in the owned directory accurate, complete, and 
 
 ## Step 1 — Resolve ROLE to DEST
 
-The ROLE parameter determines which directory you own:
+If ROLE is not provided, stop and ask the caller to supply it.
+
+Load the team member SKILL from ${ROLE}/SKILL.md to ensure the correct persona
+is editing content.
+
+The ROLE parameter determines which directory we will write docs in (DEST):
 
 | ROLE | DEST |
 |---|---|
@@ -20,11 +25,6 @@ The ROLE parameter determines which directory you own:
 | `ux-designer` | `design/` |
 | `principal-engineer` | `development/` |
 | `qa-tester` | `quality/` |
-
-If ROLE is not provided, stop and ask the caller to supply it.
-
-Load the team member SKILL from ${ROLE}/SKILL.md to ensure the correct persona
-is editing content.
 
 ---
 
@@ -134,18 +134,6 @@ Open `README.md` at the repo root. Verify:
 3. If the link is missing, add it in the appropriate section. Follow the existing style: short link text, no paragraph of explanation.
 4. If there are links in the top-level README that point to files you deleted in Step 6, remove those links.
 5. Do **not** restructure or rewrite sections you don't own. Make surgical edits only.
-
----
-
-## Step 9 — Git commit
-
-After all changes are complete, commit using the team's convention:
-
-```
-vulcan-brownout-team/git-commit/SKILL.md
-```
-
-Read that file now if you haven't already. Use the correct commit format. Push to GitHub immediately after committing.
 
 ---
 
