@@ -67,10 +67,20 @@ while [[ $# -gt 0 ]]; do
         --docker)     RUN_DOCKER=true; RUN_ALL=false; shift ;;
         --verbose|-v) VERBOSE=true; shift ;;
         --help|-h)
-            echo "Usage: $0 [--lint] [--e2e] [--docker] [--verbose]"
-            echo "  No flags = run all stages (lint + mock E2E)"
-            echo "  --e2e    = Playwright mock tests  (TARGET_ENV=mock,   --project=mock)"
-            echo "  --docker = Playwright docker tests (TARGET_ENV=docker, --project=docker)"
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  (none)     Run all stages: lint + mock E2E tests"
+            echo "  --lint     Lint only (flake8 + mypy)"
+            echo "  --e2e      Playwright mock E2E tests  (TARGET_ENV=mock,   --project=mock)"
+            echo "  --docker   Playwright docker E2E tests (TARGET_ENV=docker, --project=docker)"
+            echo "  --verbose  Enable debug output"
+            echo "  --help     Show this help message"
+            echo ""
+            echo "Staging tests (manual — deploy first):"
+            echo "  cd quality/e2e && npm run test:staging"
+            echo ""
+            echo "Exit codes: 0 = all passed, 1 = test failure, 2 = environment error"
             exit 0
             ;;
         *) log_error "Unknown option: $1"; exit 2 ;;
