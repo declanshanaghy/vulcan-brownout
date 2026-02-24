@@ -22,8 +22,8 @@ ssh:
   host: homeassistant.lan
   port: 2222
   user: root
-  key_path: .secrets/vulcan_deploy
+  key_file: vulcan_deploy.key
   ha_config_path: /root/homeassistant
 
 # Load secrets from separate file (keep out of version control)
-secrets_file: vulcan-config.secrets.yaml
+: vulcan-config.secrets.yaml

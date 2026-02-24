@@ -54,7 +54,7 @@ Follow its color palette, node shapes, edge styles, and naming conventions.
 - **Test Plan**: `quality/test-plan.md`
 - **Test Cases**: `quality/test-cases.md`
 - **Quality Report**: `quality/quality-report.md`
-- **Deploy Script**: `quality/scripts/deploy.sh`
+- **Deploy Playbook**: `quality/ansible/deploy.yml`
 - **Test Env Setup**: `quality/scripts/setup-test-env.sh`
 
 Git tracks history — overwrite files each sprint. No sprint subdirectories.
@@ -194,8 +194,9 @@ done
 Create scripts that can be run repeatedly without side effects. Every script must be safe to re-run — no "already exists" errors, no duplicate data, no stale state. All scripts load secrets from `.env` at runtime.
 
 ```
+ansible/
+├── deploy.yml             # Ansible playbook: SSH into HA, deploy integration to custom_components/
 scripts/
-├── deploy.sh              # SSH into HA, deploy integration to custom_components/
 ├── setup-test-env.sh      # Provision mock entities, configure HA for testing
 ├── teardown-test-env.sh   # Clean up test environment (entities, config)
 ├── run-api-tests.sh       # Execute backend API test suite against HA server

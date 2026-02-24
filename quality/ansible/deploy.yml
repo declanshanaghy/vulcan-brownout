@@ -1,0 +1,327 @@
+---
+# quality/ansible/deploy.yml
+#
+# Deploys the Vulcan Brownout integration to the staging Home Assistant server.
+# Loads all configuration from quality/environments/staging/ YAML files.
+#
+# Usage:
+#   ansible-playbook quality/ansible/deploy.yml
+#   ansible-playbook quality/ansible/deploy.yml --check   # dry-run
+#   ansible-playbook quality/ansible/deploy.yml -v        # verbose
+#
+# Prerequisites:
+#   - ansible installed (brew install ansible)
+#   - rsync installed locally
+#   - quality/environments/staging/vulcan-brownout-secrets.yaml populated
+#   - SSH key authorised on the staging HA server
+
+- name: Deploy Vulcan Brownout to Staging
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    repo_root: "{{ playbook_dir | dirname | dirname }}"
+    source_dir: "{{ repo_root }}/development/src/custom_components/vulcan_brownout"
+    env_dir: "{{ repo_root }}/quality/environments/staging"
+    required_files:
+      - __init__.py
+      - const.py
+      - battery_monitor.py
+      - websocket_api.py
+      - subscription_manager.py
+      - config_flow.py
+      - manifest.json
+      - strings.json
+      - frontend/vulcan-brownout-panel.js
+
+  tasks:
+
+    # ─────────────────────────────────────────────────────────────────
+    # 1. Load configuration from YAML files
+    # ─────────────────────────────────────────────────────────────────
+
+    - name: Check secrets file exists
+      stat:
+        path: "{{ env_dir }}/vulcan-brownout-secrets.yaml"
+      register: secrets_stat
+
+    - name: Fail if secrets file is missing
+      fail:
+        msg: |
+          Secrets file not found: {{ env_dir }}/vulcan-brownout-secrets.yaml
+          Run: cp {{ env_dir }}/vulcan-brownout-secrets.yaml.example {{ env_dir }}/vulcan-brownout-secrets.yaml
+          Then fill in your HA token and password.
+      when: not secrets_stat.stat.exists
+
+    - name: Load staging config
+      include_vars:
+        file: "{{ env_dir }}/vulcan-brownout-config.yaml"
+        name: vb_config
+
+    - name: Load staging secrets
+      include_vars:
+        file: "{{ env_dir }}/vulcan-brownout-secrets.yaml"
+        name: vb_secrets
+
+    - name: Merge config and secrets
+      set_fact:
+        vb: "{{ vb_config | combine(vb_secrets, recursive=True) }}"
+
+    # ─────────────────────────────────────────────────────────────────
+    # 2. Validate configuration
+    # ─────────────────────────────────────────────────────────────────
+
+    - name: Validate required config values are set
+      assert:
+        that:
+          - vb.ssh.host | default('') | length > 0
+          - vb.ssh.port | default('') | string | length > 0
+          - vb.ssh.user | default('') | length > 0
+          - vb.ssh.key_file | default('') | length > 0
+          - vb.ssh.ha_config_path | default('') | length > 0
+          - vb.ha.token | default('') | length > 0
+        fail_msg: |
+          One or more required config values are missing.
+          Check {{ env_dir }}/vulcan-brownout-config.yaml
+          and {{ env_dir }}/vulcan-brownout-secrets.yaml
+
+    - name: Resolve derived variables
+      set_fact:
+        ssh_key_path: "{{ env_dir }}/{{ vb.ssh.key_file }}"
+        ha_url: "{{ vb.ha.url }}:{{ vb.ha.port }}"
+        deploy_path: "{{ vb.ssh.ha_config_path }}/custom_components/vulcan_brownout"
+
+    - name: Verify SSH key file exists
+      stat:
+        path: "{{ ssh_key_path }}"
+      register: ssh_key_stat
+      failed_when: not ssh_key_stat.stat.exists
+
+    # ─────────────────────────────────────────────────────────────────
+    # 3. Validate source files
+    # ─────────────────────────────────────────────────────────────────
+
+    - name: Verify source directory exists
+      stat:
+        path: "{{ source_dir }}"
+      register: source_stat
+      failed_when: not source_stat.stat.exists
+
+    - name: Verify required integration files are present
+      stat:
+        path: "{{ source_dir }}/{{ item }}"
+      register: file_check
+      failed_when: not file_check.stat.exists
+      loop: "{{ required_files }}"
+
+    - name: Verify Python syntax for integration .py files
+      command: python3 -m py_compile {{ source_dir }}/{{ item }}
+      changed_when: false
+      loop:
+        - __init__.py
+        - const.py
+        - battery_monitor.py
+        - websocket_api.py
+        - subscription_manager.py
+        - config_flow.py
+
+    - name: Verify manifest.json is valid JSON
+      command: python3 -m json.tool {{ source_dir }}/manifest.json
+      changed_when: false
+
+    # ─────────────────────────────────────────────────────────────────
+    # 4. Test SSH connectivity
+    # ─────────────────────────────────────────────────────────────────
+
+    - name: Test SSH connectivity to staging server
+      command: >
+        ssh -i {{ ssh_key_path }}
+            -o ConnectTimeout=10
+            -o StrictHostKeyChecking=accept-new
+            -p {{ vb.ssh.port }}
+            {{ vb.ssh.user }}@{{ vb.ssh.host }}
+            echo 'SSH connection successful'
+      changed_when: false
+
+    - name: Verify HA config path exists on staging server
+      command: >
+        ssh -i {{ ssh_key_path }}
+            -o ConnectTimeout=10
+            -o StrictHostKeyChecking=accept-new
+            -p {{ vb.ssh.port }}
+            {{ vb.ssh.user }}@{{ vb.ssh.host }}
+            test -d {{ vb.ssh.ha_config_path }}
+      changed_when: false
+
+    # ─────────────────────────────────────────────────────────────────
+    # 5. Test HA API connectivity
+    # ─────────────────────────────────────────────────────────────────
+
+    - name: Test HA API connectivity
+      uri:
+        url: "{{ ha_url }}/api/"
+        headers:
+          Authorization: "Bearer {{ vb.ha.token }}"
+        method: GET
+        timeout: 5
+        status_code: [200, 201]
+      ignore_errors: yes
+      register: ha_api_check
+
+    - name: Warn if HA API unreachable
+      debug:
+        msg: "WARNING: Could not reach HA API at {{ ha_url }} (may only be reachable on server)"
+      when: ha_api_check is failed
+
+    # ─────────────────────────────────────────────────────────────────
+    # 6. Deploy integration files via rsync
+    # ─────────────────────────────────────────────────────────────────
+
+    - name: Create destination directory on staging server
+      command: >
+        ssh -i {{ ssh_key_path }}
+            -o ConnectTimeout=10
+            -o StrictHostKeyChecking=accept-new
+            -p {{ vb.ssh.port }}
+            {{ vb.ssh.user }}@{{ vb.ssh.host }}
+            mkdir -p {{ deploy_path }}
+      when: not ansible_check_mode
+
+    - name: Sync integration files to staging server
+      command: >
+        rsync -avz
+          -e "ssh -i {{ ssh_key_path }} -o StrictHostKeyChecking=accept-new -p {{ vb.ssh.port }}"
+          {{ source_dir }}/
+          {{ vb.ssh.user }}@{{ vb.ssh.host }}:{{ deploy_path }}/
+      when: not ansible_check_mode
+
+    - name: "[DRY RUN] Show rsync command that would run"
+      debug:
+        msg: >
+          rsync -avz
+            -e "ssh -i {{ ssh_key_path }} -o StrictHostKeyChecking=accept-new -p {{ vb.ssh.port }}"
+            {{ source_dir }}/
+            {{ vb.ssh.user }}@{{ vb.ssh.host }}:{{ deploy_path }}/
+      when: ansible_check_mode
+
+    # ─────────────────────────────────────────────────────────────────
+    # 7. Verify deployment
+    # ─────────────────────────────────────────────────────────────────
+
+    - name: Verify manifest.json deployed to server
+      command: >
+        ssh -i {{ ssh_key_path }}
+            -o ConnectTimeout=10
+            -o StrictHostKeyChecking=accept-new
+            -p {{ vb.ssh.port }}
+            {{ vb.ssh.user }}@{{ vb.ssh.host }}
+            test -f {{ deploy_path }}/manifest.json
+      changed_when: false
+      when: not ansible_check_mode
+
+    # ─────────────────────────────────────────────────────────────────
+    # 8. Restart Home Assistant
+    # ─────────────────────────────────────────────────────────────────
+
+    - name: Restart Home Assistant via HA API
+      uri:
+        url: "{{ ha_url }}/api/services/homeassistant/restart"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ vb.ha.token }}"
+          Content-Type: application/json
+        body: "{}"
+        body_format: json
+        timeout: 30
+        status_code: [200, 201]
+      ignore_errors: yes
+      register: restart_result
+      when: not ansible_check_mode
+
+    - name: Warn if HA restart command failed
+      debug:
+        msg: "WARNING: Could not send restart command — may need manual restart"
+      when: not ansible_check_mode and restart_result is failed
+
+    - name: Wait for Home Assistant to come back online
+      uri:
+        url: "{{ ha_url }}/api/"
+        headers:
+          Authorization: "Bearer {{ vb.ha.token }}"
+        method: GET
+        timeout: 5
+        status_code: [200, 201]
+      retries: 12
+      delay: 5
+      until: ha_online is not failed
+      ignore_errors: yes
+      register: ha_online
+      when: not ansible_check_mode and restart_result is not failed
+
+    # ─────────────────────────────────────────────────────────────────
+    # 9. Post-restart: enable debug logging
+    # ─────────────────────────────────────────────────────────────────
+
+    - name: Wait for integration to initialise
+      pause:
+        seconds: 5
+      when: not ansible_check_mode
+
+    - name: Enable debug logging for vulcan_brownout
+      uri:
+        url: "{{ ha_url }}/api/services/logger/set_level"
+        headers:
+          Authorization: "Bearer {{ vb.ha.token }}"
+          Content-Type: application/json
+        method: POST
+        body_format: json
+        body:
+          custom_components.vulcan_brownout: debug
+        timeout: 10
+        status_code: [200, 201]
+      ignore_errors: yes
+      register: log_level_result
+      when: not ansible_check_mode
+
+    - name: Warn if debug logging could not be enabled
+      debug:
+        msg: "WARNING: Could not set debug log level (integration may not be loaded yet)"
+      when: not ansible_check_mode and log_level_result is failed
+
+    # ─────────────────────────────────────────────────────────────────
+    # 10. Read deployed version for summary
+    # ─────────────────────────────────────────────────────────────────
+
+    - name: Read deployed version from server
+      command: >
+        ssh -i {{ ssh_key_path }}
+            -o ConnectTimeout=10
+            -o StrictHostKeyChecking=accept-new
+            -p {{ vb.ssh.port }}
+            {{ vb.ssh.user }}@{{ vb.ssh.host }}
+            python3 -c "import json; d=json.load(open('{{ deploy_path }}/manifest.json')); print(d['version'])"
+      changed_when: false
+      ignore_errors: yes
+      register: deployed_version
+      when: not ansible_check_mode
+
+    # ─────────────────────────────────────────────────────────────────
+    # 11. Deployment summary
+    # ─────────────────────────────────────────────────────────────────
+
+    - name: Deployment summary
+      debug:
+        msg: |
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          Vulcan Brownout Deployment Complete
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          Integration : vulcan_brownout
+          Version     : {{ deployed_version.stdout | default('unknown') }}
+          Deployed to : {{ deploy_path }}
+          Server      : {{ vb.ssh.user }}@{{ vb.ssh.host }}:{{ vb.ssh.port }}
+          Config      : quality/environments/staging/
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+          Next steps:
+            Tail logs : ssh -p {{ vb.ssh.port }} {{ vb.ssh.user }}@{{ vb.ssh.host }} 'tail -f {{ vb.ssh.ha_config_path }}/home-assistant.log | grep -i vulcan'
+            Run tests : ./quality/scripts/run-all-tests.sh --docker

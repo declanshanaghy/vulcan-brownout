@@ -1,85 +1,75 @@
 #!/bin/bash
 #
-# Vulcan Brownout Sprint 4 Deployment Script
-# Idempotent deployment with health checks and rollback support
+# Vulcan Brownout Deployment Script
 #
-# Usage: ./deploy.sh
+# Integration source is bind-mounted into the Docker container.
+# Deployment = restart HA so it picks up the latest source.
+#
+# Usage: ./development/scripts/deploy.sh
 #
 
 set -e
 
-# Source .env for secrets (HA_URL, HA_PORT, HA_TOKEN, SSH_USER, SSH_HOST, SSH_IDENTITY)
-ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.env"
-if [ -f "$ENV_FILE" ]; then
-    set -a
-    source "$ENV_FILE"
-    set +a
-else
-    echo "Warning: .env file not found at $ENV_FILE. Using defaults or environment variables."
-fi
-
-# Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-RELEASES_DIR="${PROJECT_ROOT}/releases"
-CURRENT_LINK="${RELEASES_DIR}/current"
-INTEGRATION_DIR="${PROJECT_ROOT}/src/custom_components/vulcan_brownout"
-VERSION="4.0.0"
-DEPLOYMENT_TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-RELEASE_DIR="${RELEASES_DIR}/${VERSION}_${DEPLOYMENT_TIMESTAMP}"
-
-# HA deployment settings
-HA_URL="${HA_URL:-http://localhost}"
-HA_PORT="${HA_PORT:-8123}"
-HA_TOKEN="${HA_TOKEN:-}"
-HA_REMOTE_DIR="${HA_REMOTE_DIR:-/home/homeassistant/.homeassistant/custom_components}"
-SSH_USER="${SSH_USER:-homeassistant}"
-SSH_HOST="${SSH_HOST:-localhost}"
-SSH_IDENTITY="${SSH_IDENTITY:-$HOME/.ssh/id_rsa}"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+INTEGRATION_DIR="$SCRIPT_DIR/../src/custom_components/vulcan_brownout"
+ENV_DIR="$PROJECT_ROOT/development/environments/docker"
+CONFIG_FILE="$ENV_DIR/vulcan-brownout-config.yaml"
+SECRETS_FILE="$ENV_DIR/vulcan-brownout-secrets.yaml"
 
 # Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Logging functions
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
+log_info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
+# ---------------------------------------------------------------------------
+# 1. Load config from YAML using yq
+# ---------------------------------------------------------------------------
+log_info "Loading configuration from YAML..."
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Cleanup function
-cleanup() {
-    if [ -d "$RELEASE_DIR" ] && [ ! -L "$CURRENT_LINK" ] || [ "$(readlink "$CURRENT_LINK")" != "$RELEASE_DIR" ]; then
-        log_info "Cleaning up failed deployment: $RELEASE_DIR"
-        rm -rf "$RELEASE_DIR" || true
-    fi
-}
-
-trap cleanup EXIT
-
-# 1. Validate environment
-log_info "Validating environment..."
-
-if [ ! -d "$INTEGRATION_DIR" ]; then
-    log_error "Integration source directory not found: $INTEGRATION_DIR"
+if ! command -v yq &>/dev/null; then
+    log_error "yq is not installed. Run: brew install yq"
     exit 1
 fi
 
-if [ ! -f "$INTEGRATION_DIR/manifest.json" ]; then
-    log_error "manifest.json not found in integration directory"
+if [ ! -f "$CONFIG_FILE" ]; then
+    log_error "Config file not found: $CONFIG_FILE"
     exit 1
 fi
 
-# Check for required files (Sprint 4)
+if [ ! -f "$SECRETS_FILE" ]; then
+    log_error "Secrets file not found: $SECRETS_FILE"
+    log_error "Copy from template: cp ${SECRETS_FILE}.example $SECRETS_FILE"
+    exit 1
+fi
+
+HA_HOST=$(yq '.ha.url' "$CONFIG_FILE")
+HA_PORT=$(yq '.ha.port' "$CONFIG_FILE")
+HA_URL="${HA_HOST}:${HA_PORT}"
+HA_TOKEN=$(yq '.ha.token' "$SECRETS_FILE")
+
+if [ -z "$HA_URL" ]; then
+    log_error "HA_URL is not set in configuration"
+    exit 1
+fi
+
+if [ -z "$HA_TOKEN" ] || [ "$HA_TOKEN" = "not-set" ]; then
+    log_error "HA_TOKEN is not set. Edit development/environments/docker/vulcan-brownout-secrets.yaml"
+    exit 1
+fi
+
+log_info "HA URL: $HA_URL"
+
+# ---------------------------------------------------------------------------
+# 2. Validate integration source files
+# ---------------------------------------------------------------------------
+log_info "Validating integration source..."
+
 REQUIRED_FILES=(
     "__init__.py"
     "const.py"
@@ -90,183 +80,67 @@ REQUIRED_FILES=(
 
 for file in "${REQUIRED_FILES[@]}"; do
     if [ ! -f "$INTEGRATION_DIR/$file" ]; then
-        log_error "Required file not found: $file"
+        log_error "Required file missing: $INTEGRATION_DIR/$file"
         exit 1
     fi
 done
 
-log_info "✓ All required files present"
+log_info "All required files present"
 
-# 2. Prepare release directory
-log_info "Preparing release directory..."
+# ---------------------------------------------------------------------------
+# 3. Restart HA via REST API
+# ---------------------------------------------------------------------------
+log_info "Restarting Home Assistant..."
 
-mkdir -p "$RELEASES_DIR"
-mkdir -p "$RELEASE_DIR"
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X POST \
+    -H "Authorization: Bearer $HA_TOKEN" \
+    -H "Content-Type: application/json" \
+    "$HA_URL/api/services/homeassistant/restart")
 
-# Copy integration files
-cp -r "$INTEGRATION_DIR" "$RELEASE_DIR/vulcan_brownout"
-log_info "✓ Integration files copied to $RELEASE_DIR"
-
-# 3. Verify deployment (basic syntax checks)
-log_info "Verifying Python syntax..."
-
-for py_file in "$RELEASE_DIR"/vulcan_brownout/*.py; do
-    if ! python3 -m py_compile "$py_file" 2>/dev/null; then
-        log_error "Python syntax error in: $(basename "$py_file")"
-        exit 1
-    fi
-done
-
-log_info "✓ Python syntax verified"
-
-# 4. Verify manifest
-log_info "Verifying manifest.json..."
-
-if ! python3 -m json.tool "$RELEASE_DIR/vulcan_brownout/manifest.json" > /dev/null 2>&1; then
-    log_error "Invalid JSON in manifest.json"
+if [ "$HTTP_STATUS" != "200" ]; then
+    log_error "Restart request failed (HTTP $HTTP_STATUS). Is HA running at $HA_URL?"
     exit 1
 fi
 
-log_info "✓ manifest.json is valid"
+log_info "Restart request accepted (HTTP $HTTP_STATUS)"
 
-# 5. Update symlink (atomic deployment)
-log_info "Updating current deployment symlink..."
+# ---------------------------------------------------------------------------
+# 4. Wait for HA to come back up
+# ---------------------------------------------------------------------------
+log_info "Waiting for Home Assistant to come back online..."
 
-if [ -L "$CURRENT_LINK" ]; then
-    PREVIOUS_RELEASE=$(readlink "$CURRENT_LINK")
-    log_info "Previous deployment: $PREVIOUS_RELEASE"
-fi
-
-# Create new symlink
-rm -f "${CURRENT_LINK}.tmp"
-ln -s "$RELEASE_DIR/vulcan_brownout" "${CURRENT_LINK}.tmp"
-mv -T "${CURRENT_LINK}.tmp" "$CURRENT_LINK"
-
-log_info "✓ Symlink updated to: $RELEASE_DIR/vulcan_brownout"
-
-# 6. SSH Deployment to HA Server (if SSH_HOST is configured)
-if [ -n "$SSH_HOST" ] && [ "$SSH_HOST" != "localhost" ]; then
-    log_info "Deploying to remote HA server via SSH..."
-
-    # Verify SSH identity exists
-    if [ ! -f "$SSH_IDENTITY" ]; then
-        log_error "SSH identity file not found: $SSH_IDENTITY"
-        exit 1
-    fi
-
-    # Use rsync to deploy integration (idempotent with --delete)
-    log_info "Syncing files to $SSH_HOST:$HA_REMOTE_DIR/vulcan_brownout..."
-
-    rsync -av --delete -e "ssh -i $SSH_IDENTITY" \
-        "$INTEGRATION_DIR/" \
-        "$SSH_USER@$SSH_HOST:$HA_REMOTE_DIR/vulcan_brownout/" || {
-        log_error "Failed to sync files via SSH"
-        exit 1
-    }
-
-    log_info "✓ Files synced successfully"
-
-    # Restart HA service via SSH
-    log_info "Restarting Home Assistant service..."
-    ssh -i "$SSH_IDENTITY" "$SSH_USER@$SSH_HOST" \
-        "systemctl restart homeassistant" || {
-        log_warn "Failed to restart HA service via SSH (may require different approach)"
-    }
-
-    sleep 5
-fi
-
-# 7. Health check (if HA instance is running)
-log_info "Performing health check..."
-
-HEALTH_CHECK_URL="$HA_URL:$HA_PORT/api/vulcan_brownout/health"
-MAX_RETRIES=3
+MAX_RETRIES=24   # 24 × 5s = 2 minutes
 RETRY_INTERVAL=5
-
-health_check_passed=0
+ready=0
 
 for ((i=1; i<=MAX_RETRIES; i++)); do
-    log_info "Health check attempt $i/$MAX_RETRIES..."
+    sleep "$RETRY_INTERVAL"
+    log_info "Checking HA health (attempt $i/$MAX_RETRIES)..."
 
-    if [ -n "$HA_TOKEN" ]; then
-        response=$(curl -s -k -m 30 \
-            -H "Authorization: Bearer $HA_TOKEN" \
-            "$HEALTH_CHECK_URL" 2>/dev/null)
-    else
-        response=$(curl -s -k -m 30 "$HEALTH_CHECK_URL" 2>/dev/null)
-    fi
+    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Authorization: Bearer $HA_TOKEN" \
+        "$HA_URL/api/")
 
-    if [ -n "$response" ]; then
-        if echo "$response" | python3 -m json.tool > /dev/null 2>&1; then
-            if echo "$response" | grep -q '"status".*"healthy"'; then
-                log_info "✓ Health check passed"
-                health_check_passed=1
-                break
-            fi
-        fi
-    fi
-
-    if [ $i -lt $MAX_RETRIES ]; then
-        log_warn "Health check failed, retrying in ${RETRY_INTERVAL}s..."
-        sleep $RETRY_INTERVAL
+    if [ "$HTTP_STATUS" = "200" ]; then
+        ready=1
+        break
     fi
 done
 
-if [ $health_check_passed -eq 0 ]; then
-    log_warn "Health check failed (HA may not be running or endpoint unavailable). Continuing deployment."
-else
-    log_info "✓ Health check passed"
+if [ "$ready" -eq 0 ]; then
+    log_error "Home Assistant did not come back online within $(( MAX_RETRIES * RETRY_INTERVAL ))s"
+    exit 1
 fi
 
-# 7. Cleanup old releases (keep last 2 versions)
-log_info "Cleaning up old releases..."
-
-OLD_RELEASES=$(ls -t "$RELEASES_DIR" | grep -v "^current$" | tail -n +3)
-
-if [ -n "$OLD_RELEASES" ]; then
-    echo "$OLD_RELEASES" | while read -r old_release; do
-        log_info "Removing old release: $old_release"
-        rm -rf "${RELEASES_DIR:?}/$old_release"
-    done
-    log_info "✓ Old releases cleaned up"
-else
-    log_info "✓ No old releases to clean"
-fi
-
-# 8. Cleanup old releases (keep last 2 versions)
-log_info "Cleaning up old releases..."
-
-OLD_RELEASES=$(ls -t "$RELEASES_DIR" | grep -v "^current$" | tail -n +3)
-
-if [ -n "$OLD_RELEASES" ]; then
-    echo "$OLD_RELEASES" | while read -r old_release; do
-        log_info "Removing old release: $old_release"
-        rm -rf "${RELEASES_DIR:?}/$old_release"
-    done
-    log_info "✓ Old releases cleaned up"
-else
-    log_info "✓ No old releases to clean"
-fi
-
-# 9. Deployment summary
+# ---------------------------------------------------------------------------
+# 5. Done
+# ---------------------------------------------------------------------------
 log_info ""
-log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log_info "Vulcan Brownout Sprint 4 Deployment Complete"
-log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log_info "Version: $VERSION"
-log_info "Release: $RELEASE_DIR"
-log_info "Current: $CURRENT_LINK -> $(readlink "$CURRENT_LINK")"
+log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+log_info "Deployment complete"
+log_info "HA is online at $HA_URL"
 log_info "Deployed: $(date)"
-if [ -n "$SSH_HOST" ] && [ "$SSH_HOST" != "localhost" ]; then
-    log_info "Remote HA Server: $SSH_USER@$SSH_HOST:$HA_REMOTE_DIR/vulcan_brownout"
-fi
-log_info ""
-log_info "Next steps:"
-log_info "1. Verify integration in Home Assistant UI"
-log_info "2. Check theme switching works (light ↔ dark)"
-log_info "3. Load panel and verify battery devices display"
-log_info "4. Test notification settings modal"
-log_info "5. Check for any error logs in HA"
-log_info ""
+log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 exit 0

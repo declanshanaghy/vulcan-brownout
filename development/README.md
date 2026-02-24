@@ -17,7 +17,7 @@ The Ansible playbook handles all system-level configuration automatically.
 ### Step 1: Run the Setup Playbook
 
 ```bash
-ansible-playbook development/ansible/docker.yml
+ansible-playbook development/ansible/host-setup.yml
 ```
 
 This:
@@ -148,7 +148,7 @@ ha_url = config['ha']['url']
 
 **"ERROR: Development environment not initialized"**
 - The venv at `development/venv/` doesn't exist
-- Run: `ansible-playbook development/ansible/docker.yml`
+- Run: `ansible-playbook development/ansible/host-setup.yml`
 
 **Docker fails to start**
 - Docker Desktop may not be running

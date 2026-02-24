@@ -4,6 +4,9 @@
 .env.*
 !.env.example
 .secrets/
+*.key
+*.pub
+*.pem
 
 # Vulcan Brownout YAML Configuration Secrets
 development/environments/**/vulcan-brownout-secrets.yaml
@@ -17,7 +20,6 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-.venv/
 development/venv/
 quality/venv/
 

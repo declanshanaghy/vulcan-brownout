@@ -116,7 +116,8 @@ class ConfigLoader:
         env_vars['SSH_HOST'] = config.get('ssh', {}).get('host', '')
         env_vars['SSH_PORT'] = str(config.get('ssh', {}).get('port', ''))
         env_vars['SSH_USER'] = config.get('ssh', {}).get('user', '')
-        env_vars['SSH_KEY_PATH'] = config.get('ssh', {}).get('key_path', '')
+        key_file = config.get('ssh', {}).get('key_file', '')
+        env_vars['SSH_KEY_PATH'] = str(self.env_dir / key_file) if key_file else ''
         env_vars['HA_CONFIG_PATH'] = config.get('ssh', {}).get(
             'ha_config_path', ''
         )

@@ -21,10 +21,10 @@ VENV_PATH="${REPO_ROOT}/development/venv"
 TIMEOUT=90
 
 # Load YAML configuration from development/environments/docker/
-# Note: Environment must be set up first with: ansible-playbook development/ansible/docker.yml
+# Note: Environment must be set up first with: ansible-playbook development/ansible/host-setup.yml
 if [[ ! -d "$VENV_PATH" ]]; then
     echo "ERROR: Development environment not initialized."
-    echo "Run: ansible-playbook development/ansible/docker.yml"
+    echo "Run: ansible-playbook development/ansible/host-setup.yml"
     exit 1
 fi
 

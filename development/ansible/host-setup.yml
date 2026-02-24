@@ -1,5 +1,5 @@
 ---
-# Ansible Playbook: Setup Docker Development Environment for Vulcan Brownout
+# Ansible Playbook: Setup Host Development Environment for Vulcan Brownout
 #
 # macOS only - uses Homebrew for package management
 #
@@ -10,7 +10,7 @@
 #   - Ansible installed: brew install ansible
 #
 # Usage:
-#   ansible-playbook development/ansible/docker.yml
+#   ansible-playbook development/ansible/host-setup.yml
 #
 # This playbook:
 #   1. Installs system dependencies via Homebrew (Python 3.12)
@@ -71,6 +71,14 @@
     - name: Install Python 3 via Homebrew
       homebrew:
         name: python@3.12
+        state: present
+
+    - name: Install jq, yq, and rsync via Homebrew
+      homebrew:
+        name:
+          - jq
+          - yq
+          - rsync
         state: present
 
     - name: Ensure Docker Desktop is running

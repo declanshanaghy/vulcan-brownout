@@ -12,6 +12,30 @@ Vulcan Brownout is a Home Assistant custom integration that provides real-time b
 
 ## Commands
 
+### Team members
+
+| {{NAME}} | {{ROLE}} |
+|---|---|
+| Freya | `product-owner` |
+| Luna | `ux-designer` |
+| FiremanDecko | `principal-engineer` |
+| Loki | `qa-tester` |
+
+When the user says load up a {{ROLE}}. 
+Read in the vulcan-brownout-team/{{ROLE}}/SKILL.md for the member's SKILL file.
+
+When the user says load up a team member using their name. 
+Use the {{NAME}} to determine the {{ROLE}}.
+Read in the vulcan-brownout-team/{{ROLE}}/SKILL.md for the member's SKILL file.
+
+### Common commands and their corresponding script files
+#### deploy to docker
+Load vulcan-brownout-team/principal-engineer/SKILL.md and execute `development/scripts/deploy.sh`
+
+#### deploy to staging
+Load vulcan-brownout-team/qa-tester/SKILL.md and run `ansible-playbook quality/ansible/deploy.yml`
+
+
 ### Run All Tests (PREFERRED — use this instead of custom bash commands)
 ```bash
 # Run all stages: lint + component tests + E2E mock tests
@@ -23,15 +47,6 @@ Vulcan Brownout is a Home Assistant custom integration that provides real-time b
 ./quality/scripts/run-all-tests.sh --e2e        # Playwright E2E mock tests only
 ./quality/scripts/run-all-tests.sh --docker    # Deploy + staging E2E tests
 ./quality/scripts/run-all-tests.sh --verbose    # Verbose output
-```
-
-### Component Tests (Python/pytest via Docker)
-```bash
-# Run all component tests (requires Docker)
-docker compose -f .github/docker-compose.yml up --build --abort-on-container-exit component_tests
-
-# Run a single test
-cd quality/scripts && pytest test_component_integration.py::TestClassName::test_name -v
 ```
 
 ### E2E Tests (Playwright)
@@ -66,7 +81,8 @@ GitHub Actions runs lint then Docker component tests on every push/PR. See `.git
 - `development/src/custom_components/vulcan_brownout/` — Main integration code (Python backend + JS frontend)
 - `architecture/` — System design, API contracts, sprint plans, ADRs
 - `design/` — UX specs, wireframes, interaction flows
-- `quality/scripts/` — Bash scripts only: `run-all-tests.sh`, `deploy.sh`
+- `quality/scripts/` — Bash scripts only: `run-all-tests.sh`
+- `quality/ansible/` — Ansible playbooks: `setup.yml` (one-time env setup), `deploy.yml` (staging deployment)
 - `quality/integration-tests/` — Python test suites (component, API, live, environment) and mock fixtures
 - `quality/environments/staging/` — Staging environment YAML config (mirrors `development/environments/docker/`)
 - `quality/ansible/` — Ansible playbook for one-time quality environment setup (`setup.yml`)
@@ -119,7 +135,7 @@ Two commands under `vulcan-brownout/*` namespace. See `architecture/api-contract
 
 **Docker dev environment** (run once):
 ```bash
-ansible-playbook development/ansible/docker.yml
+ansible-playbook development/ansible/host-setup.yml
 ```
 Creates `development/venv/`, installs pyyaml, initialises Docker environment config.
 
@@ -155,7 +171,7 @@ Each directory contains:
 **Staging:**
 1. Run `ansible-playbook quality/ansible/setup.yml` — creates secrets file from template automatically
 2. Edit `quality/environments/staging/vulcan-brownout-secrets.yaml` with your staging HA token, password, and SSH details
-3. `deploy.sh` and all test tooling load config automatically from this file
+3. `ansible-playbook quality/ansible/deploy.yml` and all test tooling load config automatically from this file
 
 #### Using Configuration in Code
 Set PYTHONPATH before running Python:

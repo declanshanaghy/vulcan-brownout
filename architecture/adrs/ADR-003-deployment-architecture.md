@@ -1,58 +1,64 @@
 # ADR-003: Deployment Architecture
 
-## Status: Proposed
+## Status: Accepted (updated — see amendment below)
 
 ## Decision
 
-**Option A: Bash Script with rsync, SSH as Homeassistant User, Docker Restart, Health Check via API**
+**Option A: rsync over SSH, HA API restart, API health check**
 
-Deployment via rsync over SSH with idempotent health checks. No CI infrastructure in Sprint 1; QA runs script manually before each test run.
+Deployment via rsync over SSH with idempotent health checks. No CI infrastructure in Sprint 1; QA runs the deploy playbook manually before each test run.
 
 ## Rationale
 
 - **Efficiency**: rsync only transfers changed files; resumable on interrupt
-- **Simplicity**: Bash script easy for QA to understand and debug ad-hoc
-- **Idempotency**: Safe to run multiple times (rsync is idempotent, docker restart is idempotent)
+- **Idempotency**: Safe to run multiple times (rsync is idempotent, HA restart is idempotent)
 - **Reliability**: API health check proves HA is actually ready, not just process alive
 - **Key management**: Single SSH user simplifies key rotation
 
 ## Implementation Details
 
-**File: `deploy.sh`**:
-- Load secrets from `.env` (SSH_HOST, SSH_USER, SSH_PORT, SSH_KEY_PATH, HA_API_TOKEN)
-- Validate .env variables exist before proceeding
-- Transfer files via rsync (only changed files, using SSH options)
-- Restart HA via Docker: `docker-compose restart homeassistant`
-- Health check: Poll `/api/` endpoint with auth token (up to 30 seconds, retry every 1 second)
+**File: `quality/ansible/deploy.yml`**:
+- Load config from `quality/environments/staging/vulcan-brownout-config.yaml` and `vulcan-brownout-secrets.yaml` via Ansible `include_vars`
+- Validate all required config values are present before proceeding
+- Transfer files via rsync over SSH (only changed files)
+- Restart HA via HA REST API (called over SSH)
+- Health check: Poll `/api/` endpoint with auth token (up to 60 seconds, retry every 5 seconds)
 - Verify integration loaded via API check
+- Enable debug logging for `custom_components.vulcan_brownout`
 
-**File: `.env.example`**:
-- Template for SSH_HOST, SSH_USER, SSH_PORT, SSH_KEY_PATH, HA_API_TOKEN
-- Document how to generate long-lived token in HA UI
+**Config files** (YAML, not `.env`):
+- `quality/environments/staging/vulcan-brownout-config.yaml` — SSH host, port, user, key path, HA config path, HA URL (committed)
+- `quality/environments/staging/vulcan-brownout-secrets.yaml` — HA token, HA password (gitignored)
 
 **Idempotency guarantees**:
 - rsync: Only transfers changed files (safe to repeat)
-- Docker restart: Restarting already-running container is a no-op
+- HA restart: Restarting already-running HA is a no-op
 - Health check: Polling API is idempotent
 - No cleanup: Integration files preserved across deployments
 
 ## Consequences
 
 **Positive**:
-- Simple Bash script, easy for QA to understand and debug
+- Ansible playbook is declarative, readable, and self-documenting
 - Idempotent (safe to run multiple times)
 - rsync efficient (only changed files)
 - API health check proves HA is actually ready
-- No CI/CD setup required in Sprint 1
+- YAML config files integrate cleanly with ConfigLoader used by test tooling
+- `--check` flag gives dry-run preview with no side effects
 
 **Negative**:
-- Docker-specific (won't work on bare metal HA without modification)
-- Requires homeassistant user to have SSH login enabled (security trade-off)
-- Bash scripts can be fragile without careful quoting
-- No automatic retries (failures require manual intervention)
+- Requires Ansible installed locally (`brew install ansible`)
+- Requires rsync installed locally (managed via `development/ansible/host-setup.yml`)
+- Requires SSH access to the staging HA server
 
 ## Next Steps
 
-- QA creates SSH key pair and adds public key to test HA server
-- QA creates `.env` file with test server details
-- QA runs `./deploy.sh` to verify deployment works
+- QA creates SSH key pair and adds public key to staging HA server
+- QA populates `quality/environments/staging/vulcan-brownout-secrets.yaml`
+- QA runs `ansible-playbook quality/ansible/deploy.yml` to verify deployment works
+
+---
+
+## Amendment: Migration from Bash to Ansible (2026-02-23)
+
+The original implementation used a Bash script (`quality/scripts/deploy.sh`) with secrets loaded from a `.env` file. This was replaced with an Ansible playbook (`quality/ansible/deploy.yml`) that loads config directly from the YAML environment files shared with the test tooling (`ConfigLoader`). The core deployment mechanism (rsync over SSH, HA API restart) is unchanged.

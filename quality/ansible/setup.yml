@@ -131,7 +131,7 @@
              ./quality/scripts/run-all-tests.sh
 
           4. Deploy to staging:
-             ./quality/scripts/deploy.sh
+             ansible-playbook quality/ansible/deploy.yml
 
           Python venv:  {{ venv_path }}
           E2E dir:      {{ e2e_dir }}
