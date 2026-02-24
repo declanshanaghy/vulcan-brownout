@@ -24,14 +24,14 @@ jobs:
 
       - name: Lint with flake8
         run: |
-          flake8 quality/scripts/test_component_integration.py quality/scripts/mock_fixtures.py .github/docker/mock_ha/server.py .github/docker/mock_ha/fixtures.py \
+          flake8 quality/integration-tests/test_component_integration.py quality/integration-tests/mock_fixtures.py .github/docker/mock_ha/server.py .github/docker/mock_ha/fixtures.py \
             --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 quality/scripts/test_component_integration.py quality/scripts/mock_fixtures.py .github/docker/mock_ha/server.py .github/docker/mock_ha/fixtures.py \
+          flake8 quality/integration-tests/test_component_integration.py quality/integration-tests/mock_fixtures.py .github/docker/mock_ha/server.py .github/docker/mock_ha/fixtures.py \
             --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Type check with mypy
         run: |
-          mypy quality/scripts/test_component_integration.py quality/scripts/mock_fixtures.py .github/docker/mock_ha/server.py .github/docker/mock_ha/fixtures.py \
+          mypy quality/integration-tests/test_component_integration.py quality/integration-tests/mock_fixtures.py .github/docker/mock_ha/server.py .github/docker/mock_ha/fixtures.py \
             --ignore-missing-imports --no-error-summary || true
 
   component-tests:
