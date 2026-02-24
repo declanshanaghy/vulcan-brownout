@@ -289,24 +289,7 @@
       when: not ansible_check_mode and log_level_result is failed
 
     # ─────────────────────────────────────────────────────────────────
-    # 10. Read deployed version for summary
-    # ─────────────────────────────────────────────────────────────────
-
-    - name: Read deployed version from server
-      command: >
-        ssh -i {{ ssh_key_path }}
-            -o ConnectTimeout=10
-            -o StrictHostKeyChecking=accept-new
-            -p {{ vb.ssh.port }}
-            {{ vb.ssh.user }}@{{ vb.ssh.host }}
-            python3 -c "import json; d=json.load(open('{{ deploy_path }}/manifest.json')); print(d['version'])"
-      changed_when: false
-      ignore_errors: yes
-      register: deployed_version
-      when: not ansible_check_mode
-
-    # ─────────────────────────────────────────────────────────────────
-    # 11. Deployment summary
+    # 10. Deployment summary
     # ─────────────────────────────────────────────────────────────────
 
     - name: Deployment summary
